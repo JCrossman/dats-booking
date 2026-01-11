@@ -8,6 +8,28 @@ MCP-based accessible booking assistant for Edmonton's Disabled Adult Transit Ser
 
 **Architecture Decision:** Originally planned for Playwright browser automation, but discovered DATS uses a SOAP/XML API (Trapeze PASS). The implementation uses direct API calls for speed and reliability (~2 seconds vs ~30 seconds for browser automation).
 
+## Multi-Agent Development
+
+This project uses a multi-agent consensus approach for development. Invoke agents via slash commands:
+
+| Command | Agent | Use For |
+|---------|-------|---------|
+| `/project:pm-review` | Product Manager | Requirements, user stories |
+| `/project:architect-review` | Architect | System design, MCP patterns |
+| `/project:implement` | Developer | Feature implementation |
+| `/project:security-review` | Security & Privacy | POPA compliance, credentials |
+| `/project:accessibility-review` | Accessibility | WCAG 2.2 AA, AAC |
+| `/project:code-quality-review` | Code Quality | Clean code, DRY |
+| `/project:qa-review` | QA/Tester | Test coverage, edge cases |
+| `/project:devops-review` | DevOps | CI/CD, Azure deployment |
+| `/project:ux-writing-review` | UX Writer | Plain language (Grade 6) |
+| `/project:legal-review` | Legal | POPA, consent |
+| `/project:multi-agent-review` | Workflow | Full review process |
+
+**Workflow:** `PM → Architect → Developer → [Security + Accessibility + Code Quality] → QA → Human`
+
+See `AGENTS.md` for full agent definitions.
+
 ## Build Commands
 
 ```bash

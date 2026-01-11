@@ -1,7 +1,28 @@
 # Multi-Agent Development Framework: Agent Definitions
 
-**Version:** 1.0  
+**Version:** 1.0
 **Project:** DATS Accessible Booking Assistant
+**Status:** IMPLEMENTED
+
+---
+
+## Quick Reference
+
+All agents are implemented as slash commands in `.claude/commands/`. Restart Claude Code after checkout to enable.
+
+| Command | Agent |
+|---------|-------|
+| `/project:pm-review` | Product Manager |
+| `/project:architect-review` | Architect |
+| `/project:implement` | Developer |
+| `/project:security-review` | Security & Privacy |
+| `/project:accessibility-review` | Accessibility Specialist |
+| `/project:code-quality-review` | Code Quality Reviewer |
+| `/project:qa-review` | QA/Tester |
+| `/project:devops-review` | DevOps/Infrastructure |
+| `/project:ux-writing-review` | UX Writer |
+| `/project:legal-review` | Legal/Compliance |
+| `/project:multi-agent-review` | Full Workflow |
 
 ---
 
