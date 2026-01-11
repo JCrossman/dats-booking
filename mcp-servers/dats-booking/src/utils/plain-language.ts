@@ -258,6 +258,42 @@ function groupTripsByDate(trips: Trip[]): Record<string, Trip[]> {
  * Plain language guidelines for AI clients
  * Include this in tool descriptions to guide response formatting
  */
+/**
+ * Format availability information for the user
+ */
+export function formatAvailabilityForUser(
+  availableDates: string[],
+  timeWindow?: { earliest: string; latest: string },
+  requestedDate?: string
+): string {
+  const lines: string[] = [];
+
+  if (availableDates.length === 0) {
+    return 'There are no dates available for booking right now. Please try again later.';
+  }
+
+  if (requestedDate && timeWindow) {
+    // User asked about a specific date
+    const formattedDate = formatDatePlain(requestedDate);
+    lines.push(`On ${formattedDate}, you can book a pickup between ${timeWindow.earliest} and ${timeWindow.latest}.`);
+    lines.push('');
+    lines.push('Other available dates:');
+  } else {
+    lines.push('You can book trips on these dates:');
+  }
+
+  // Format each available date
+  for (const date of availableDates) {
+    const formatted = formatDatePlain(date);
+    lines.push(`  - ${formatted}`);
+  }
+
+  lines.push('');
+  lines.push('To check times for a specific date, ask about that date.');
+
+  return lines.join('\n');
+}
+
 export const PLAIN_LANGUAGE_GUIDELINES = `
 RESPONSE FORMATTING (Grade 6 reading level):
 - Use short sentences (under 20 words)

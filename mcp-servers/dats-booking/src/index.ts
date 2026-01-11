@@ -20,6 +20,7 @@ import {
   formatBookingConfirmation,
   formatCancellationConfirmation,
   formatTripsForUser,
+  formatAvailabilityForUser,
   PLAIN_LANGUAGE_GUIDELINES,
 } from './utils/plain-language.js';
 
@@ -303,6 +304,92 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
           {
             type: 'text',
             text: JSON.stringify({ success: true, trips, userMessage }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      const datsError = wrapError(error);
+      return createErrorResponse(datsError.toToolError());
+    }
+  }
+);
+
+// ============= TOOL: check_availability =============
+
+server.tool(
+  'check_availability',
+  `Check available dates and times for DATS bookings.
+
+Use this tool to help users find when they can book a trip. You can:
+- Get all available booking dates (up to 3 days ahead)
+- Get the time window for a specific date
+
+The response includes a "userMessage" field with pre-formatted plain language text.
+You should display this userMessage to the user as-is.
+
+${PLAIN_LANGUAGE_GUIDELINES}`,
+  {
+    date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional()
+      .describe('Optional: specific date to check times for (YYYY-MM-DD format). If not provided, returns all available dates.'),
+  },
+  async ({ date }) => {
+    try {
+      if (!credentialManager.hasCredentials()) {
+        return createErrorResponse({
+          category: ErrorCategory.CREDENTIALS_NOT_FOUND,
+          message: 'No credentials found. Please call setup_credentials first.',
+          recoverable: true,
+        });
+      }
+
+      const credentials = await credentialManager.retrieve();
+
+      logger.info('Checking booking availability');
+      const loginResult = await AuthClient.login({
+        username: credentials.clientId,
+        password: credentials.passcode,
+      });
+
+      if (!loginResult.success || !loginResult.sessionCookie || !loginResult.clientId) {
+        return createErrorResponse({
+          category: ErrorCategory.AUTH_FAILURE,
+          message: loginResult.error || 'Failed to authenticate with DATS',
+          recoverable: true,
+        });
+      }
+
+      const api = new DATSApi({ sessionCookie: loginResult.sessionCookie });
+
+      // Always get available dates
+      const availableDates = await api.getBookingDaysWindow(loginResult.clientId);
+
+      let timeWindow: { earliest: string; latest: string } | undefined;
+
+      // If a specific date was requested, get the time window for that date
+      if (date) {
+        // Convert YYYY-MM-DD to YYYYMMDD for API
+        const apiDate = date.replace(/-/g, '');
+        timeWindow = await api.getBookingTimesWindow(loginResult.clientId, apiDate);
+      }
+
+      // Generate plain language summary
+      const userMessage = formatAvailabilityForUser(availableDates, timeWindow, date);
+
+      const result = {
+        success: true,
+        availableDates,
+        ...(date && timeWindow ? { requestedDate: date, timeWindow } : {}),
+        userMessage,
+      };
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
           },
         ],
       };

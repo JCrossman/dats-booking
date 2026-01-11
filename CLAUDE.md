@@ -80,6 +80,7 @@ npm run format           # Prettier
 | `setup_credentials` | Store encrypted DATS client ID and passcode |
 | `book_trip` | Create a new DATS booking with full options |
 | `get_trips` | Retrieve upcoming trips (cancelled hidden by default) |
+| `check_availability` | Check available dates and time windows for booking |
 | `cancel_trip` | Cancel booking (requires user confirmation first) |
 | `get_announcements` | Get DATS system announcements |
 | `get_profile` | Get user profile, contacts, saved locations |

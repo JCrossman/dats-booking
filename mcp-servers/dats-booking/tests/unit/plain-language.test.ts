@@ -12,6 +12,7 @@ import {
   simplifyAddress,
   formatPassengerType,
   formatDatePlain,
+  formatAvailabilityForUser,
 } from '../../src/utils/plain-language.js';
 import type { Trip, BookTripOutput } from '../../src/types.js';
 
@@ -217,5 +218,38 @@ describe('formatDatePlain', () => {
     const formatted = formatDatePlain('Jan 12, 2026');
     expect(formatted).toContain('January');
     expect(formatted).toContain('12');
+  });
+});
+
+describe('formatAvailabilityForUser', () => {
+  it('should handle no available dates', () => {
+    const message = formatAvailabilityForUser([]);
+    expect(message).toContain('no dates available');
+  });
+
+  it('should format list of available dates', () => {
+    const dates = ['Jan 12, 2026', 'Jan 13, 2026', 'Jan 14, 2026'];
+    const message = formatAvailabilityForUser(dates);
+
+    expect(message).toContain('book trips on these dates');
+    expect(message).toContain('January');
+  });
+
+  it('should format specific date with time window', () => {
+    const dates = ['Jan 12, 2026', 'Jan 13, 2026'];
+    const timeWindow = { earliest: '6:00 AM', latest: '11:00 PM' };
+    const message = formatAvailabilityForUser(dates, timeWindow, '2026-01-12');
+
+    expect(message).toContain('6:00 AM');
+    expect(message).toContain('11:00 PM');
+    expect(message).toContain('Monday, January 12');
+    expect(message).toContain('Other available dates');
+  });
+
+  it('should include help text', () => {
+    const dates = ['Jan 12, 2026'];
+    const message = formatAvailabilityForUser(dates);
+
+    expect(message).toContain('check times');
   });
 });
