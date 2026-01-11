@@ -15,6 +15,13 @@ import { DATSApi } from './api/dats-api.js';
 import { ErrorCategory, type MobilityDevice } from './types.js';
 import { wrapError, createErrorResponse } from './utils/errors.js';
 import { logger } from './utils/logger.js';
+import { validateBookingWindow, validateCancellation } from './utils/booking-validation.js';
+import {
+  formatBookingConfirmation,
+  formatCancellationConfirmation,
+  formatTripsForUser,
+  PLAIN_LANGUAGE_GUIDELINES,
+} from './utils/plain-language.js';
 
 const server = new McpServer({
   name: 'dats-booking',
@@ -66,7 +73,14 @@ server.tool(
 
 server.tool(
   'book_trip',
-  'Create a new DATS booking. Requires credentials to be set up first. IMPORTANT: Before calling this tool, always confirm with the user by summarizing the booking details (date, time, pickup address, destination, and any special options like mobility device or companions) and explicitly asking "Do you want me to book this trip?" Only proceed after user confirms.',
+  `Create a new DATS booking. Requires credentials to be set up first.
+
+IMPORTANT: Before calling this tool, always confirm with the user by summarizing the booking details (date, time, pickup address, destination, and any special options like mobility device or companions) and explicitly asking "Do you want me to book this trip?" Only proceed after user confirms.
+
+The response includes a "userMessage" field with pre-formatted plain language confirmation.
+You should display this userMessage to the user as-is.
+
+${PLAIN_LANGUAGE_GUIDELINES}`,
   {
     pickup_date: z
       .string()
@@ -131,6 +145,17 @@ server.tool(
         });
       }
 
+      // Validate booking window against DATS business rules
+      const validation = validateBookingWindow(params.pickup_date, params.pickup_time);
+
+      if (!validation.valid) {
+        return createErrorResponse({
+          category: ErrorCategory.BUSINESS_RULE_VIOLATION,
+          message: validation.error || 'Booking does not meet DATS requirements.',
+          recoverable: true,
+        });
+      }
+
       const credentials = await credentialManager.retrieve();
 
       // Use fast direct API instead of browser automation
@@ -174,11 +199,19 @@ server.tool(
       logger.info('Starting 3-step booking flow');
       const result = await api.bookTrip(loginResult.clientId, bookingDetails);
 
+      // Generate plain language confirmation for the user
+      const userMessage = formatBookingConfirmation(result);
+
+      // Include validation warning in response if present (e.g., same-day booking notice)
+      const responseData = validation.warning
+        ? { ...result, warning: validation.warning, userMessage }
+        : { ...result, userMessage };
+
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(result, null, 2),
+            text: JSON.stringify(responseData, null, 2),
           },
         ],
       };
@@ -202,14 +235,10 @@ TRIP DATA INCLUDES:
 - Pickup/dropoff phone numbers and comments
 - Fare amount
 
-ACCESSIBILITY FORMATTING: When displaying trips to the user, format for screen reader compatibility:
-- Group trips by date with day of week (e.g., "Sunday, January 12")
-- Lead each trip with the pickup time window
-- Use "to" instead of arrows between locations
-- Include mobility device and passengers if present (e.g., "with wheelchair", "with 1 escort")
-- Include any comments or special instructions
-- Put confirmation number at the end in brackets
-- Example: "7:50-8:20 AM: Home to McNally High School, with scooter, 1 escort [#18789348]"`,
+The response includes a "userMessage" field with pre-formatted plain language text.
+You should display this userMessage to the user as-is.
+
+${PLAIN_LANGUAGE_GUIDELINES}`,
   {
     date_from: z
       .string()
@@ -266,11 +295,14 @@ ACCESSIBILITY FORMATTING: When displaying trips to the user, format for screen r
         trips = trips.filter(trip => trip.status !== 'cancelled');
       }
 
+      // Generate plain language summary for the user
+      const userMessage = formatTripsForUser(trips);
+
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({ success: true, trips }, null, 2),
+            text: JSON.stringify({ success: true, trips, userMessage }, null, 2),
           },
         ],
       };
@@ -321,37 +353,55 @@ server.tool(
 
       const api = new DATSApi({ sessionCookie: loginResult.sessionCookie });
 
-      // Determine if we have a numeric bookingId or alphanumeric confirmation number
-      let bookingId = confirmation_number;
-      const isNumeric = /^\d+$/.test(confirmation_number);
+      // Always look up the trip to get date/time for validation
+      logger.info(`Looking up trip for: ${confirmation_number}`);
+      const trips = await api.getClientTrips(loginResult.clientId);
+      const matchingTrip = trips.find(
+        (t) =>
+          t.confirmationNumber === confirmation_number ||
+          t.bookingId === confirmation_number
+      );
 
-      if (!isNumeric) {
-        // Alphanumeric confirmation - need to look up the numeric bookingId
-        logger.info(`Looking up bookingId for confirmation number: ${confirmation_number}`);
-        const trips = await api.getClientTrips(loginResult.clientId);
-        const matchingTrip = trips.find(
-          (t) => t.confirmationNumber === confirmation_number || t.bookingId === confirmation_number
-        );
+      if (!matchingTrip) {
+        return createErrorResponse({
+          category: ErrorCategory.VALIDATION_ERROR,
+          message: `No trip found with confirmation number ${confirmation_number}. Please check the number and try again.`,
+          recoverable: true,
+        });
+      }
 
-        if (!matchingTrip) {
-          return createErrorResponse({
-            category: ErrorCategory.VALIDATION_ERROR,
-            message: `No trip found with confirmation number ${confirmation_number}. Please check the number and try again.`,
-            recoverable: true,
-          });
-        }
+      const bookingId = matchingTrip.bookingId;
+      logger.info(`Found trip: ${bookingId} on ${matchingTrip.date}`);
 
-        bookingId = matchingTrip.bookingId;
-        logger.info(`Found bookingId: ${bookingId} for confirmation: ${confirmation_number}`);
+      // Validate 2-hour cancellation notice requirement
+      const cancellationValidation = validateCancellation(
+        matchingTrip.date,
+        matchingTrip.pickupWindow.start
+      );
+
+      if (!cancellationValidation.valid) {
+        return createErrorResponse({
+          category: ErrorCategory.BUSINESS_RULE_VIOLATION,
+          message: cancellationValidation.error || 'Cannot cancel this trip due to DATS policies.',
+          recoverable: false,
+        });
       }
 
       const result = await api.cancelTrip(loginResult.clientId, bookingId);
+
+      // Generate plain language confirmation for the user
+      const userMessage = formatCancellationConfirmation(result.success, result.message);
+
+      // Include warning in response if present (e.g., cutting it close to 2-hour window)
+      const responseData = cancellationValidation.warning
+        ? { ...result, warning: cancellationValidation.warning, userMessage }
+        : { ...result, userMessage };
 
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(result, null, 2),
+            text: JSON.stringify(responseData, null, 2),
           },
         ],
       };
