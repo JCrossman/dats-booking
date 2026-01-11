@@ -143,6 +143,7 @@ export class SoapClient {
         : '';
 
       return {
+        bookingId: bookingId,
         confirmationNumber: bookingId,
         date,
         pickupWindow: {

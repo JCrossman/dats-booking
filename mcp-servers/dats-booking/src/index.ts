@@ -10,10 +10,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 
 import { CredentialManager } from './auth/credential-manager.js';
-import { browserManager } from './automation/browser-manager.js';
-import { LoginPage } from './automation/pages/login-page.js';
-import { BookingPage } from './automation/pages/booking-page.js';
-import { TripsPage } from './automation/pages/trips-page.js';
+import { AuthClient } from './api/auth-client.js';
+import { DATSApi } from './api/dats-api.js';
 import { ErrorCategory, type MobilityDevice } from './types.js';
 import { wrapError, createErrorResponse } from './utils/errors.js';
 import { logger } from './utils/logger.js';
@@ -68,7 +66,7 @@ server.tool(
 
 server.tool(
   'book_trip',
-  'Create a new DATS booking. Requires credentials to be set up first.',
+  'Create a new DATS booking. Requires credentials to be set up first. IMPORTANT: Before calling this tool, always confirm with the user by summarizing the booking details (date, time, pickup address, destination, and any special options like mobility device or companions) and explicitly asking "Do you want me to book this trip?" Only proceed after user confirms.',
   {
     pickup_date: z
       .string()
@@ -95,6 +93,33 @@ server.tool(
       .boolean()
       .optional()
       .describe('Whether to book a return trip'),
+    pickup_phone: z
+      .string()
+      .optional()
+      .describe('Callback phone number for pickup location'),
+    dropoff_phone: z
+      .string()
+      .optional()
+      .describe('Callback phone number for dropoff location'),
+    pickup_comments: z
+      .string()
+      .optional()
+      .describe('Special instructions or comments for pickup (e.g., "use side entrance")'),
+    dropoff_comments: z
+      .string()
+      .optional()
+      .describe('Special instructions or comments for dropoff'),
+    additional_passenger_type: z
+      .enum(['escort', 'pca', 'guest'])
+      .optional()
+      .describe('Type of additional passenger: escort (companion), pca (personal care attendant), or guest. NOTE: Adding passengers may fail with new addresses due to a DATS system limitation. If booking fails, try without a passenger and contact DATS to add one.'),
+    additional_passenger_count: z
+      .number()
+      .int()
+      .min(1)
+      .max(3)
+      .optional()
+      .describe('Number of additional passengers (1-3)'),
   },
   async (params) => {
     try {
@@ -108,32 +133,55 @@ server.tool(
 
       const credentials = await credentialManager.retrieve();
 
-      return await browserManager.withSession(async (session) => {
-        const { page, rateLimiter } = session;
-
-        const loginPage = new LoginPage(page, rateLimiter);
-        await loginPage.login(credentials);
-
-        const bookingPage = new BookingPage(page, rateLimiter);
-        const result = await bookingPage.createBooking({
-          pickupDate: params.pickup_date,
-          pickupTime: params.pickup_time,
-          pickupAddress: params.pickup_address,
-          destinationAddress: params.destination_address,
-          mobilityDevice: params.mobility_device as MobilityDevice,
-          companion: params.companion,
-          returnTrip: params.return_trip,
-        });
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
+      // Use fast direct API instead of browser automation
+      logger.info('Using direct API for trip booking');
+      const loginResult = await AuthClient.login({
+        username: credentials.clientId,
+        password: credentials.passcode,
       });
+
+      if (!loginResult.success || !loginResult.sessionCookie || !loginResult.clientId) {
+        return createErrorResponse({
+          category: ErrorCategory.AUTH_FAILURE,
+          message: loginResult.error || 'Failed to authenticate with DATS',
+          recoverable: true,
+        });
+      }
+
+      const api = new DATSApi({ sessionCookie: loginResult.sessionCookie });
+
+      const bookingDetails = {
+        pickupDate: params.pickup_date,
+        pickupTime: params.pickup_time,
+        pickupAddress: params.pickup_address,
+        destinationAddress: params.destination_address,
+        mobilityDevice: params.mobility_device as MobilityDevice,
+        companion: params.companion,
+        returnTrip: params.return_trip,
+        pickupPhone: params.pickup_phone,
+        dropoffPhone: params.dropoff_phone,
+        pickupComments: params.pickup_comments,
+        dropoffComments: params.dropoff_comments,
+        additionalPassenger: params.additional_passenger_type
+          ? {
+              type: params.additional_passenger_type as 'escort' | 'pca' | 'guest',
+              count: params.additional_passenger_count,
+            }
+          : undefined,
+      };
+
+      // Use the correct 3-step booking flow
+      logger.info('Starting 3-step booking flow');
+      const result = await api.bookTrip(loginResult.clientId, bookingDetails);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
     } catch (error) {
       const datsError = wrapError(error);
       return createErrorResponse(datsError.toToolError());
@@ -145,7 +193,23 @@ server.tool(
 
 server.tool(
   'get_trips',
-  'Retrieve upcoming booked DATS trips.',
+  `Retrieve upcoming booked DATS trips. Cancelled trips are hidden by default.
+
+TRIP DATA INCLUDES:
+- Date, pickup window, pickup/destination addresses
+- Mobility device type (wheelchair, scooter, ambulatory)
+- Additional passengers (escort, PCA, guest) with count
+- Pickup/dropoff phone numbers and comments
+- Fare amount
+
+ACCESSIBILITY FORMATTING: When displaying trips to the user, format for screen reader compatibility:
+- Group trips by date with day of week (e.g., "Sunday, January 12")
+- Lead each trip with the pickup time window
+- Use "to" instead of arrows between locations
+- Include mobility device and passengers if present (e.g., "with wheelchair", "with 1 escort")
+- Include any comments or special instructions
+- Put confirmation number at the end in brackets
+- Example: "7:50-8:20 AM: Home to McNally High School, with scooter, 1 escort [#18789348]"`,
   {
     date_from: z
       .string()
@@ -157,8 +221,12 @@ server.tool(
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional()
       .describe('End date filter (YYYY-MM-DD). Defaults to 7 days from now.'),
+    include_cancelled: z
+      .boolean()
+      .optional()
+      .describe('Set to true to include cancelled trips. Defaults to false.'),
   },
-  async ({ date_from, date_to }) => {
+  async ({ date_from, date_to, include_cancelled = false }) => {
     try {
       if (!credentialManager.hasCredentials()) {
         return createErrorResponse({
@@ -170,24 +238,42 @@ server.tool(
 
       const credentials = await credentialManager.retrieve();
 
-      return await browserManager.withSession(async (session) => {
-        const { page, rateLimiter } = session;
-
-        const loginPage = new LoginPage(page, rateLimiter);
-        await loginPage.login(credentials);
-
-        const tripsPage = new TripsPage(page, rateLimiter);
-        const result = await tripsPage.getTrips(date_from, date_to);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
+      // Use fast direct API instead of browser automation
+      logger.info('Using direct API for trip retrieval');
+      const loginResult = await AuthClient.login({
+        username: credentials.clientId,
+        password: credentials.passcode,
       });
+
+      if (!loginResult.success || !loginResult.sessionCookie || !loginResult.clientId) {
+        return createErrorResponse({
+          category: ErrorCategory.AUTH_FAILURE,
+          message: loginResult.error || 'Failed to authenticate with DATS',
+          recoverable: true,
+        });
+      }
+
+      const api = new DATSApi({ sessionCookie: loginResult.sessionCookie });
+
+      // Convert date format if provided (YYYY-MM-DD to YYYYMMDD)
+      const fromDate = date_from ? date_from.replace(/-/g, '') : undefined;
+      const toDate = date_to ? date_to.replace(/-/g, '') : undefined;
+
+      let trips = await api.getClientTrips(loginResult.clientId, fromDate, toDate);
+
+      // Filter out cancelled trips by default
+      if (!include_cancelled) {
+        trips = trips.filter(trip => trip.status !== 'cancelled');
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ success: true, trips }, null, 2),
+          },
+        ],
+      };
     } catch (error) {
       const datsError = wrapError(error);
       return createErrorResponse(datsError.toToolError());
@@ -199,12 +285,12 @@ server.tool(
 
 server.tool(
   'cancel_trip',
-  'Cancel an existing DATS booking. Requires 2-hour minimum notice.',
+  'Cancel an existing DATS booking. Requires 2-hour minimum notice. IMPORTANT: Before calling this tool, always confirm with the user by summarizing the trip details (date, time, pickup, destination) and explicitly asking "Are you sure you want to cancel this trip?" Only proceed after user confirms. You can use either the numeric booking ID or the alphanumeric confirmation number.',
   {
     confirmation_number: z
       .string()
       .min(1)
-      .describe('The DATS confirmation number to cancel'),
+      .describe('The DATS booking ID (numeric like 18789348) or confirmation number (alphanumeric like T011EBCA7)'),
   },
   async ({ confirmation_number }) => {
     try {
@@ -218,24 +304,246 @@ server.tool(
 
       const credentials = await credentialManager.retrieve();
 
-      return await browserManager.withSession(async (session) => {
-        const { page, rateLimiter } = session;
-
-        const loginPage = new LoginPage(page, rateLimiter);
-        await loginPage.login(credentials);
-
-        const tripsPage = new TripsPage(page, rateLimiter);
-        const result = await tripsPage.cancelTrip(confirmation_number);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
+      // Use fast direct API instead of browser automation
+      logger.info('Using direct API for trip cancellation');
+      const loginResult = await AuthClient.login({
+        username: credentials.clientId,
+        password: credentials.passcode,
       });
+
+      if (!loginResult.success || !loginResult.sessionCookie || !loginResult.clientId) {
+        return createErrorResponse({
+          category: ErrorCategory.AUTH_FAILURE,
+          message: loginResult.error || 'Failed to authenticate with DATS',
+          recoverable: true,
+        });
+      }
+
+      const api = new DATSApi({ sessionCookie: loginResult.sessionCookie });
+
+      // Determine if we have a numeric bookingId or alphanumeric confirmation number
+      let bookingId = confirmation_number;
+      const isNumeric = /^\d+$/.test(confirmation_number);
+
+      if (!isNumeric) {
+        // Alphanumeric confirmation - need to look up the numeric bookingId
+        logger.info(`Looking up bookingId for confirmation number: ${confirmation_number}`);
+        const trips = await api.getClientTrips(loginResult.clientId);
+        const matchingTrip = trips.find(
+          (t) => t.confirmationNumber === confirmation_number || t.bookingId === confirmation_number
+        );
+
+        if (!matchingTrip) {
+          return createErrorResponse({
+            category: ErrorCategory.VALIDATION_ERROR,
+            message: `No trip found with confirmation number ${confirmation_number}. Please check the number and try again.`,
+            recoverable: true,
+          });
+        }
+
+        bookingId = matchingTrip.bookingId;
+        logger.info(`Found bookingId: ${bookingId} for confirmation: ${confirmation_number}`);
+      }
+
+      const result = await api.cancelTrip(loginResult.clientId, bookingId);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      const datsError = wrapError(error);
+      return createErrorResponse(datsError.toToolError());
+    }
+  }
+);
+
+// ============= TOOL: get_announcements =============
+
+server.tool(
+  'get_announcements',
+  'Get DATS system announcements and important notices for clients.',
+  {},
+  async () => {
+    try {
+      if (!credentialManager.hasCredentials()) {
+        return createErrorResponse({
+          category: ErrorCategory.CREDENTIALS_NOT_FOUND,
+          message: 'No credentials found. Please call setup_credentials first.',
+          recoverable: true,
+        });
+      }
+
+      const credentials = await credentialManager.retrieve();
+
+      logger.info('Fetching DATS announcements');
+      const loginResult = await AuthClient.login({
+        username: credentials.clientId,
+        password: credentials.passcode,
+      });
+
+      if (!loginResult.success || !loginResult.sessionCookie) {
+        return createErrorResponse({
+          category: ErrorCategory.AUTH_FAILURE,
+          message: loginResult.error || 'Failed to authenticate with DATS',
+          recoverable: true,
+        });
+      }
+
+      const api = new DATSApi({ sessionCookie: loginResult.sessionCookie });
+      const announcements = await api.getAnnouncements();
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ success: true, announcements }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      const datsError = wrapError(error);
+      return createErrorResponse(datsError.toToolError());
+    }
+  }
+);
+
+// ============= TOOL: get_profile =============
+
+server.tool(
+  'get_profile',
+  'Get your DATS client profile including personal info, contact details, and mobility aids.',
+  {},
+  async () => {
+    try {
+      if (!credentialManager.hasCredentials()) {
+        return createErrorResponse({
+          category: ErrorCategory.CREDENTIALS_NOT_FOUND,
+          message: 'No credentials found. Please call setup_credentials first.',
+          recoverable: true,
+        });
+      }
+
+      const credentials = await credentialManager.retrieve();
+
+      logger.info('Fetching DATS client profile');
+      const loginResult = await AuthClient.login({
+        username: credentials.clientId,
+        password: credentials.passcode,
+      });
+
+      if (!loginResult.success || !loginResult.sessionCookie || !loginResult.clientId) {
+        return createErrorResponse({
+          category: ErrorCategory.AUTH_FAILURE,
+          message: loginResult.error || 'Failed to authenticate with DATS',
+          recoverable: true,
+        });
+      }
+
+      const api = new DATSApi({ sessionCookie: loginResult.sessionCookie });
+
+      // Get both client info and contact info
+      const [clientInfo, contactInfo, savedLocations] = await Promise.all([
+        api.getClientInfo(loginResult.clientId),
+        api.getContactInfo(loginResult.clientId),
+        api.getSavedLocations(loginResult.clientId),
+      ]);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                success: true,
+                profile: {
+                  ...clientInfo,
+                  contact: contactInfo,
+                  savedLocations,
+                },
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const datsError = wrapError(error);
+      return createErrorResponse(datsError.toToolError());
+    }
+  }
+);
+
+// ============= TOOL: get_info =============
+
+server.tool(
+  'get_info',
+  'Get DATS general information including service description, fares, and privacy policy.',
+  {
+    topic: z
+      .enum(['general', 'fares', 'privacy', 'service', 'all'])
+      .optional()
+      .describe('Specific topic to retrieve (defaults to all)'),
+  },
+  async ({ topic = 'all' }) => {
+    try {
+      const baseUrl = 'https://datsonlinebooking.edmonton.ca/Public/Paratransit/HTML/general-information';
+
+      const topics: Record<string, { url: string; title: string }> = {
+        general: { url: `${baseUrl}/general-info-view-en.html`, title: 'General Information' },
+        fares: { url: `${baseUrl}/fares-view-en.html`, title: 'Fares' },
+        privacy: { url: `${baseUrl}/privacy-view-en.html`, title: 'Privacy Policy' },
+        service: { url: `${baseUrl}/service-description-view-en.html`, title: 'Service Description' },
+      };
+
+      const fetchTopic = async (key: string): Promise<{ title: string; content: string }> => {
+        const { url, title } = topics[key];
+        try {
+          const response = await fetch(url);
+          if (!response.ok) {
+            return { title, content: `Failed to load ${title}` };
+          }
+          const html = await response.text();
+          // Strip HTML tags for cleaner output
+          const textContent = html
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+          return { title, content: textContent };
+        } catch {
+          return { title, content: `Error loading ${title}` };
+        }
+      };
+
+      let result: Record<string, { title: string; content: string }>;
+
+      if (topic === 'all') {
+        const results = await Promise.all(
+          Object.keys(topics).map(async (key) => ({
+            key,
+            data: await fetchTopic(key),
+          }))
+        );
+        result = Object.fromEntries(results.map(({ key, data }) => [key, data]));
+      } else {
+        result = { [topic]: await fetchTopic(topic) };
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ success: true, info: result }, null, 2),
+          },
+        ],
+      };
     } catch (error) {
       const datsError = wrapError(error);
       return createErrorResponse(datsError.toToolError());

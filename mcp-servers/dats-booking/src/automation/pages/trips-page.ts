@@ -350,6 +350,7 @@ export class TripsPage {
     const confirmationNumber = `DATS-${pickupWindow.start.replace(/[:\s]/g, '')}`;
 
     return {
+      bookingId: confirmationNumber,
       confirmationNumber,
       date,
       pickupWindow,
@@ -384,8 +385,10 @@ export class TripsPage {
       const parentText = await el.locator('..').textContent().catch(() => text) || text;
       const locationMatch = parentText.match(/([A-Z]{2,}[A-Za-z\s.]*)/);
 
+      const genConfNum = `DATS-${timeMatch[1].replace(/[:\s]/g, '')}`;
       trips.push({
-        confirmationNumber: `DATS-${timeMatch[1].replace(/[:\s]/g, '')}`,
+        bookingId: genConfNum,
+        confirmationNumber: genConfNum,
         date: new Date().toLocaleDateString(),
         pickupWindow: {
           start: timeMatch[1],
@@ -454,6 +457,7 @@ export class TripsPage {
     const confirmationNumber = `TRIP-${pickupWindow.start.replace(/[:\s]/g, '')}`;
 
     return {
+      bookingId: confirmationNumber,
       confirmationNumber,
       date: dateMatch ? dateMatch[0] : new Date().toLocaleDateString(),
       pickupWindow,

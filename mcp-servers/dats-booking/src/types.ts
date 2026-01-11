@@ -41,6 +41,13 @@ export interface EncryptedCredentials {
 
 export type MobilityDevice = 'wheelchair' | 'scooter' | 'walker' | 'none';
 
+export type PassengerType = 'escort' | 'pca' | 'guest';
+
+export interface AdditionalPassenger {
+  type: PassengerType;
+  count?: number;
+}
+
 export interface BookTripInput {
   pickupDate: string;
   pickupTime: string;
@@ -49,6 +56,12 @@ export interface BookTripInput {
   mobilityDevice?: MobilityDevice;
   companion?: boolean;
   returnTrip?: boolean;
+  // Additional options
+  pickupPhone?: string;
+  dropoffPhone?: string;
+  pickupComments?: string;
+  dropoffComments?: string;
+  additionalPassenger?: AdditionalPassenger;
 }
 
 export interface PickupWindow {
@@ -59,6 +72,7 @@ export interface PickupWindow {
 export interface BookTripOutput {
   success: boolean;
   confirmationNumber?: string;
+  bookingId?: string;
   pickupWindow?: PickupWindow;
   error?: ToolError;
 }
@@ -67,8 +81,14 @@ export interface BookTripOutput {
 
 export type TripStatus = 'confirmed' | 'pending' | 'cancelled';
 
+export interface TripPassenger {
+  type: 'escort' | 'pca' | 'guest';
+  count: number;
+}
+
 export interface Trip {
   confirmationNumber: string;
+  bookingId: string;
   date: string;
   pickupWindow: PickupWindow;
   pickupAddress: string;
@@ -76,6 +96,15 @@ export interface Trip {
   status: TripStatus;
   estimatedPickupTime?: string;
   estimatedDropoffTime?: string;
+  // Additional trip details
+  spaceType?: string;
+  mobilityDevice?: string;
+  additionalPassengers?: TripPassenger[];
+  pickupPhone?: string;
+  dropoffPhone?: string;
+  pickupComments?: string;
+  dropoffComments?: string;
+  fare?: string;
 }
 
 export interface GetTripsOutput {
