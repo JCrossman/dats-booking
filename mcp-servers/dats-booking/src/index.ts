@@ -581,16 +581,23 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
 
 server.tool(
   'get_trips',
-  `Retrieve upcoming booked DATS trips. Cancelled trips are hidden by default.
+  `Retrieve DATS trips. By default shows only active trips (Scheduled, Unscheduled, Arrived, Pending).
 
 TRIP DATA INCLUDES:
 - Date, pickup window, pickup/destination addresses
-- Mobility device type (wheelchair, scooter, ambulatory)
-- Additional passengers (escort, PCA, guest) with count
-- Pickup/dropoff phone numbers and comments
-- Fare amount
+- Status (Scheduled, Performed, Cancelled, etc.)
+- Mobility device, passengers, phone numbers, fare
 
-The response includes a "userMessage" field with pre-formatted plain language text.
+FILTERING OPTIONS:
+- By default: Only active trips (Scheduled, Unscheduled, Arrived, Pending)
+- include_all: true - Show ALL trips including Performed, Cancelled, No Show, etc.
+- status_filter: Filter to specific status(es) like ["Pf"] for Performed only
+
+STATUS CODES:
+- S = Scheduled, U = Unscheduled, A = Arrived, Pn = Pending
+- Pf = Performed, CA = Cancelled, NS = No Show, NM = Missed, R = Refused
+
+The response includes a "userMessage" field with trips formatted as a markdown table.
 You should display this userMessage to the user as-is.
 
 REMOTE MODE: Include session_id from connect_account/complete_connection.
@@ -611,13 +618,17 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional()
-      .describe('End date filter (YYYY-MM-DD). Defaults to 7 days from now.'),
-    include_cancelled: z
+      .describe('End date filter (YYYY-MM-DD). Defaults to 2 months from now.'),
+    include_all: z
       .boolean()
       .optional()
-      .describe('Set to true to include cancelled trips. Defaults to false.'),
+      .describe('Set to true to include ALL trips (Performed, Cancelled, etc.). Defaults to false.'),
+    status_filter: z
+      .array(z.enum(['S', 'U', 'A', 'Pn', 'Pf', 'CA', 'NS', 'NM', 'R']))
+      .optional()
+      .describe('Filter to specific status(es). Example: ["Pf"] for Performed only, ["Pf", "CA"] for Performed and Cancelled.'),
   },
-  async ({ session_id, date_from, date_to, include_cancelled = false }) => {
+  async ({ session_id, date_from, date_to, include_all = false, status_filter }) => {
     try {
       // Check for valid session
       const session = await getValidSession(session_id);
@@ -639,13 +650,18 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
 
       let trips = await api.getClientTrips(session.clientId, fromDate, toDate);
 
-      // Filter out inactive trips (cancelled, performed, no-show, etc.) by default
-      if (!include_cancelled) {
+      // Apply status filtering
+      if (status_filter && status_filter.length > 0) {
+        // Filter to specific statuses requested
+        trips = trips.filter(trip => status_filter.includes(trip.status as TripStatusCode));
+      } else if (!include_all) {
+        // Default: only show active trips (Scheduled, Unscheduled, Arrived, Pending)
         trips = trips.filter(trip => {
           const statusInfo = TRIP_STATUSES[trip.status as TripStatusCode];
           return statusInfo?.isActive ?? true;
         });
       }
+      // If include_all is true and no status_filter, show everything
 
       // Generate plain language summary for the user
       const userMessage = formatTripsForUser(trips);
