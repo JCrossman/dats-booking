@@ -36,11 +36,14 @@ async function getContainerClient(): Promise<ContainerClient> {
   }
 
   // Get connection string from environment
-  // Azure Static Web Apps managed functions provide this automatically
-  const connectionString = process.env.AzureWebJobsStorage;
+  // Try multiple variable names for compatibility
+  const connectionString =
+    process.env.AZURE_STORAGE_CONNECTION_STRING || process.env.AzureWebJobsStorage;
 
   if (!connectionString) {
-    throw new Error('AzureWebJobsStorage connection string not configured');
+    throw new Error(
+      'Storage connection string not configured. Set AZURE_STORAGE_CONNECTION_STRING in app settings.'
+    );
   }
 
   const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);

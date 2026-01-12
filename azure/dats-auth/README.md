@@ -73,15 +73,15 @@ In Azure Portal:
 1. Go to your Static Web App
 2. Settings → Configuration
 3. Add application setting:
-   - Name: `AzureWebJobsStorage`
+   - Name: `AZURE_STORAGE_CONNECTION_STRING`
    - Value: (your storage account connection string)
 
 Or via CLI:
 ```bash
 az staticwebapp appsettings set \
   --name <your-static-web-app-name> \
-  --resource-group rg-dats-booking \
-  --setting-names "AzureWebJobsStorage=<your-connection-string>"
+  --resource-group rg-dats-booking-prod \
+  --setting-names "AZURE_STORAGE_CONNECTION_STRING=<your-connection-string>"
 ```
 
 ### Step 4: Update MCP Server
