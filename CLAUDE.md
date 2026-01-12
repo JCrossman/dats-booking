@@ -171,7 +171,7 @@ Always confirm with user before cancelling:
 ```
 mcp-servers/dats-booking/
 ├── src/
-│   ├── index.ts              # MCP server entry point (8 tools)
+│   ├── index.ts              # MCP server entry point (9 tools)
 │   ├── types.ts              # TypeScript interfaces
 │   ├── api/
 │   │   ├── auth-client.ts    # Direct login API (used by Azure Function)
@@ -204,7 +204,7 @@ azure/dats-auth/               # Azure Static Web App (Canada Central)
 
 | Path | Purpose |
 |------|---------|
-| `mcp-servers/dats-booking/src/index.ts` | MCP server with all 8 tools |
+| `mcp-servers/dats-booking/src/index.ts` | MCP server with all 9 tools |
 | `mcp-servers/dats-booking/src/api/dats-api.ts` | SOAP API client |
 | `mcp-servers/dats-booking/src/auth/session-manager.ts` | Encrypted session storage |
 | `mcp-servers/dats-booking/src/auth/web-auth.ts` | Browser launch + Azure polling |
