@@ -21,29 +21,39 @@ User → Browser (accessible auth page) → Azure Functions → DATS API
 
 ### Step 1: Configure Azure Storage
 
-Azure Static Web Apps managed functions need an Azure Storage account to persist sessions across serverless instances.
+Azure Static Web Apps managed functions need an Azure Storage account to persist sessions across serverless instances. The session store uses SAS tokens for authentication.
 
-**Option A: Create a new storage account**
+**Create a storage account:**
 ```bash
 # Create resource group (if not exists)
 az group create --name rg-dats-booking --location canadacentral
 
-# Create storage account
+# Create storage account (shared key access must be enabled for SAS tokens)
 az storage account create \
-  --name datsbookingstorage \
+  --name datsauthstorage \
   --resource-group rg-dats-booking \
   --location canadacentral \
-  --sku Standard_LRS
+  --sku Standard_LRS \
+  --allow-shared-key-access true
 
-# Get connection string
-az storage account show-connection-string \
-  --name datsbookingstorage \
-  --resource-group rg-dats-booking \
-  --query connectionString -o tsv
+# Create the auth-sessions container
+az storage container create \
+  --name auth-sessions \
+  --account-name datsauthstorage
+
+# Generate a SAS URL for the container (valid for 1 year)
+az storage container generate-sas \
+  --name auth-sessions \
+  --account-name datsauthstorage \
+  --permissions rwdl \
+  --expiry $(date -u -v+1y +"%Y-%m-%dT%H:%MZ") \
+  --https-only \
+  --output tsv
 ```
 
-**Option B: Use existing storage account**
-Get the connection string from Azure Portal or CLI.
+The SAS URL will be: `https://datsauthstorage.blob.core.windows.net/auth-sessions?<SAS-token>`
+
+**Important:** Azure Static Web Apps managed functions do NOT support managed identity. You must use SAS tokens, which require shared key access to be enabled on the storage account.
 
 ### Step 2: Deploy Static Web App
 
@@ -73,15 +83,15 @@ In Azure Portal:
 1. Go to your Static Web App
 2. Settings → Configuration
 3. Add application setting:
-   - Name: `AZURE_STORAGE_CONNECTION_STRING`
-   - Value: (your storage account connection string)
+   - Name: `STORAGE_CONTAINER_URL`
+   - Value: (your SAS URL from Step 1)
 
 Or via CLI:
 ```bash
 az staticwebapp appsettings set \
   --name <your-static-web-app-name> \
   --resource-group rg-dats-booking-prod \
-  --setting-names "AZURE_STORAGE_CONNECTION_STRING=<your-connection-string>"
+  --setting-names "STORAGE_CONTAINER_URL=https://datsauthstorage.blob.core.windows.net/auth-sessions?<SAS-token>"
 ```
 
 ### Step 4: Update MCP Server
@@ -126,6 +136,42 @@ You can use [Azurite](https://github.com/Azure/Azurite) for local storage emulat
 - Session data is stored in Azure Blob Storage with 5-minute expiration
 - Sessions are one-time use (deleted after retrieval)
 - All communications over HTTPS
+
+## Azure Policy Considerations
+
+If your Azure subscription has security policies that disable shared key access on storage accounts (e.g., Azure Security Baseline, MCAPSGov), you'll need to create a policy exemption.
+
+**Why this is needed:** Azure Static Web Apps managed functions do not support managed identity. The only way to authenticate to blob storage is via SAS tokens, which require shared key access.
+
+**Symptoms of this issue:**
+- Login returns "Something went wrong. Please try again."
+- API returns 500 errors
+- Error in logs: `KeyBasedAuthenticationNotPermitted`
+
+**Create a policy exemption:**
+```bash
+# Find the policy assignment blocking shared key access
+az policy assignment list \
+  --scope "/providers/Microsoft.Management/managementGroups/<your-management-group>" \
+  --query "[?contains(displayName, 'Deploy') || contains(displayName, 'Modify')].{name:name, displayName:displayName}" \
+  --output table
+
+# Create exemption for your storage account
+az policy exemption create \
+  --name "dats-auth-swa-storage" \
+  --policy-assignment "/providers/Microsoft.Management/managementGroups/<your-mg>/providers/Microsoft.Authorization/policyAssignments/<policy-name>" \
+  --scope "/subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.Storage/storageAccounts/<storage-account>" \
+  --exemption-category "Waiver" \
+  --description "Azure Static Web Apps managed functions do not support managed identity. Shared key access required for SAS token authentication."
+
+# Then enable shared key access
+az storage account update \
+  --name <storage-account> \
+  --resource-group <rg> \
+  --allow-shared-key-access true
+```
+
+**Note:** Policy exemptions are a legitimate Azure feature for cases where blanket policies don't fit specific use cases. The exemption is scoped to just this one storage account.
 
 ## Files
 
