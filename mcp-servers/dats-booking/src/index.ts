@@ -3,14 +3,19 @@
  * DATS Booking MCP Server
  *
  * Provides tools for booking Edmonton DATS trips via natural language.
+ *
+ * SECURITY: Uses web-based authentication flow.
+ * - Users enter credentials in a secure browser page
+ * - Credentials NEVER touch Claude or Anthropic systems
+ * - Only session cookies are stored locally (encrypted)
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
-import { CredentialManager } from './auth/credential-manager.js';
-import { AuthClient } from './api/auth-client.js';
+import { SessionManager } from './auth/session-manager.js';
+import { initiateWebAuth, isWebAuthAvailable } from './auth/web-auth.js';
 import { DATSApi } from './api/dats-api.js';
 import { ErrorCategory, type MobilityDevice } from './types.js';
 import { wrapError, createErrorResponse } from './utils/errors.js';
@@ -29,29 +34,89 @@ const server = new McpServer({
   version: '1.0.0',
 });
 
-const credentialManager = new CredentialManager();
+const sessionManager = new SessionManager();
 
-// ============= TOOL: setup_credentials =============
+/**
+ * Check if session is valid by attempting to use it
+ * Returns the session if valid, null if expired/invalid
+ */
+async function getValidSession(): Promise<{ sessionCookie: string; clientId: string } | null> {
+  if (!sessionManager.hasSession()) {
+    return null;
+  }
+
+  try {
+    const session = await sessionManager.retrieve();
+
+    // Try to use the session by making a simple API call
+    const api = new DATSApi({ sessionCookie: session.sessionCookie });
+
+    // Attempt to get client info as a session validity check
+    await api.getClientInfo(session.clientId);
+
+    return {
+      sessionCookie: session.sessionCookie,
+      clientId: session.clientId,
+    };
+  } catch (error) {
+    // Session is invalid or expired
+    logger.info('Session expired or invalid');
+    await sessionManager.clear();
+    return null;
+  }
+}
+
+// ============= TOOL: connect_account =============
 
 server.tool(
-  'setup_credentials',
-  `Store encrypted DATS credentials for booking automation. Call this first before using other tools.
+  'connect_account',
+  `Connect your DATS account securely. Call this first before using other tools.
 
-PRIVACY NOTICE: When you provide your credentials in this chat:
-- They will be encrypted and stored locally on your computer (~/.dats-booking/)
-- They will be visible in this conversation history
-- They are transmitted through Claude's servers to reach this tool
+HOW IT WORKS:
+1. A secure webpage opens in your browser
+2. You enter your DATS client ID and passcode there (not in this chat)
+3. Once connected, close the browser and come back here
 
-RECOMMENDATION: After setting up your credentials, consider starting a new conversation to keep your credentials out of your chat history.`,
-  {
-    client_id: z.string().min(1).describe('Your DATS client ID number'),
-    passcode: z.string().min(1).describe('Your DATS passcode/password'),
-  },
-  async ({ client_id, passcode }) => {
+PRIVACY: Your credentials are NEVER stored or sent to Claude. They go directly from your browser to DATS. Only a temporary session token is saved on your computer.
+
+Use this tool when:
+- Setting up DATS booking for the first time
+- Your session has expired (typically daily)
+- You want to reconnect your account`,
+  {},
+  async () => {
     try {
-      await credentialManager.store({
-        clientId: client_id,
-        passcode: passcode,
+      // Check if Azure auth endpoint is available
+      const authAvailable = await isWebAuthAvailable();
+      if (!authAvailable) {
+        return createErrorResponse({
+          category: ErrorCategory.NETWORK_ERROR,
+          message:
+            'The secure login page is not available. Please check your internet connection and try again.',
+          recoverable: true,
+        });
+      }
+
+      // Migrate from old credentials.enc if exists
+      await sessionManager.migrateFromCredentials();
+
+      // Initiate web-based authentication
+      logger.info('Starting web authentication flow');
+      const result = await initiateWebAuth();
+
+      if (!result.success || !result.sessionCookie || !result.clientId) {
+        return createErrorResponse({
+          category: ErrorCategory.AUTH_FAILURE,
+          message: result.error || 'Could not connect to your DATS account. Please try again.',
+          recoverable: true,
+        });
+      }
+
+      // Store the session (encrypted)
+      await sessionManager.store({
+        sessionCookie: result.sessionCookie,
+        clientId: result.clientId,
+        createdAt: new Date().toISOString(),
       });
 
       return {
@@ -62,7 +127,7 @@ RECOMMENDATION: After setting up your credentials, consider starting a new conve
               {
                 success: true,
                 message:
-                  'Credentials stored securely and encrypted on your computer. You can now use book_trip, get_trips, check_availability, and cancel_trip. For privacy, consider starting a new conversation so your credentials are not in your chat history.',
+                  'Your DATS account is connected! Your credentials were NOT stored - only a temporary session token. You can now book trips, view upcoming trips, and more. Your session will expire when DATS invalidates it (typically daily).',
               },
               null,
               2
@@ -145,10 +210,13 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
   },
   async (params) => {
     try {
-      if (!credentialManager.hasCredentials()) {
+      // Check for valid session
+      const session = await getValidSession();
+      if (!session) {
         return createErrorResponse({
           category: ErrorCategory.CREDENTIALS_NOT_FOUND,
-          message: 'No credentials found. Please call setup_credentials first.',
+          message:
+            'Your session has expired or you have not connected your DATS account yet. Would you like me to open the secure login page? (Use the connect_account tool)',
           recoverable: true,
         });
       }
@@ -164,24 +232,8 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
         });
       }
 
-      const credentials = await credentialManager.retrieve();
-
-      // Use fast direct API instead of browser automation
-      logger.info('Using direct API for trip booking');
-      const loginResult = await AuthClient.login({
-        username: credentials.clientId,
-        password: credentials.passcode,
-      });
-
-      if (!loginResult.success || !loginResult.sessionCookie || !loginResult.clientId) {
-        return createErrorResponse({
-          category: ErrorCategory.AUTH_FAILURE,
-          message: loginResult.error || 'Failed to authenticate with DATS',
-          recoverable: true,
-        });
-      }
-
-      const api = new DATSApi({ sessionCookie: loginResult.sessionCookie });
+      logger.info('Using session for trip booking');
+      const api = new DATSApi({ sessionCookie: session.sessionCookie });
 
       const bookingDetails = {
         pickupDate: params.pickup_date,
@@ -205,7 +257,7 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
 
       // Use the correct 3-step booking flow
       logger.info('Starting 3-step booking flow');
-      const result = await api.bookTrip(loginResult.clientId, bookingDetails);
+      const result = await api.bookTrip(session.clientId, bookingDetails);
 
       // Generate plain language confirmation for the user
       const userMessage = formatBookingConfirmation(result);
@@ -265,38 +317,25 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
   },
   async ({ date_from, date_to, include_cancelled = false }) => {
     try {
-      if (!credentialManager.hasCredentials()) {
+      // Check for valid session
+      const session = await getValidSession();
+      if (!session) {
         return createErrorResponse({
           category: ErrorCategory.CREDENTIALS_NOT_FOUND,
-          message: 'No credentials found. Please call setup_credentials first.',
+          message:
+            'Your session has expired or you have not connected your DATS account yet. Would you like me to open the secure login page? (Use the connect_account tool)',
           recoverable: true,
         });
       }
 
-      const credentials = await credentialManager.retrieve();
-
-      // Use fast direct API instead of browser automation
-      logger.info('Using direct API for trip retrieval');
-      const loginResult = await AuthClient.login({
-        username: credentials.clientId,
-        password: credentials.passcode,
-      });
-
-      if (!loginResult.success || !loginResult.sessionCookie || !loginResult.clientId) {
-        return createErrorResponse({
-          category: ErrorCategory.AUTH_FAILURE,
-          message: loginResult.error || 'Failed to authenticate with DATS',
-          recoverable: true,
-        });
-      }
-
-      const api = new DATSApi({ sessionCookie: loginResult.sessionCookie });
+      logger.info('Using session for trip retrieval');
+      const api = new DATSApi({ sessionCookie: session.sessionCookie });
 
       // Convert date format if provided (YYYY-MM-DD to YYYYMMDD)
       const fromDate = date_from ? date_from.replace(/-/g, '') : undefined;
       const toDate = date_to ? date_to.replace(/-/g, '') : undefined;
 
-      let trips = await api.getClientTrips(loginResult.clientId, fromDate, toDate);
+      let trips = await api.getClientTrips(session.clientId, fromDate, toDate);
 
       // Filter out cancelled trips by default
       if (!include_cancelled) {
@@ -344,34 +383,22 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
   },
   async ({ date }) => {
     try {
-      if (!credentialManager.hasCredentials()) {
+      // Check for valid session
+      const session = await getValidSession();
+      if (!session) {
         return createErrorResponse({
           category: ErrorCategory.CREDENTIALS_NOT_FOUND,
-          message: 'No credentials found. Please call setup_credentials first.',
+          message:
+            'Your session has expired or you have not connected your DATS account yet. Would you like me to open the secure login page? (Use the connect_account tool)',
           recoverable: true,
         });
       }
-
-      const credentials = await credentialManager.retrieve();
 
       logger.info('Checking booking availability');
-      const loginResult = await AuthClient.login({
-        username: credentials.clientId,
-        password: credentials.passcode,
-      });
-
-      if (!loginResult.success || !loginResult.sessionCookie || !loginResult.clientId) {
-        return createErrorResponse({
-          category: ErrorCategory.AUTH_FAILURE,
-          message: loginResult.error || 'Failed to authenticate with DATS',
-          recoverable: true,
-        });
-      }
-
-      const api = new DATSApi({ sessionCookie: loginResult.sessionCookie });
+      const api = new DATSApi({ sessionCookie: session.sessionCookie });
 
       // Always get available dates
-      const availableDates = await api.getBookingDaysWindow(loginResult.clientId);
+      const availableDates = await api.getBookingDaysWindow(session.clientId);
 
       let timeWindow: { earliest: string; latest: string } | undefined;
 
@@ -379,7 +406,7 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
       if (date) {
         // Convert YYYY-MM-DD to YYYYMMDD for API
         const apiDate = date.replace(/-/g, '');
-        timeWindow = await api.getBookingTimesWindow(loginResult.clientId, apiDate);
+        timeWindow = await api.getBookingTimesWindow(session.clientId, apiDate);
       }
 
       // Generate plain language summary
@@ -420,36 +447,23 @@ server.tool(
   },
   async ({ confirmation_number }) => {
     try {
-      if (!credentialManager.hasCredentials()) {
+      // Check for valid session
+      const session = await getValidSession();
+      if (!session) {
         return createErrorResponse({
           category: ErrorCategory.CREDENTIALS_NOT_FOUND,
-          message: 'No credentials found. Please call setup_credentials first.',
+          message:
+            'Your session has expired or you have not connected your DATS account yet. Would you like me to open the secure login page? (Use the connect_account tool)',
           recoverable: true,
         });
       }
 
-      const credentials = await credentialManager.retrieve();
-
-      // Use fast direct API instead of browser automation
-      logger.info('Using direct API for trip cancellation');
-      const loginResult = await AuthClient.login({
-        username: credentials.clientId,
-        password: credentials.passcode,
-      });
-
-      if (!loginResult.success || !loginResult.sessionCookie || !loginResult.clientId) {
-        return createErrorResponse({
-          category: ErrorCategory.AUTH_FAILURE,
-          message: loginResult.error || 'Failed to authenticate with DATS',
-          recoverable: true,
-        });
-      }
-
-      const api = new DATSApi({ sessionCookie: loginResult.sessionCookie });
+      logger.info('Using session for trip cancellation');
+      const api = new DATSApi({ sessionCookie: session.sessionCookie });
 
       // Always look up the trip to get date/time for validation
       logger.info(`Looking up trip for: ${confirmation_number}`);
-      const trips = await api.getClientTrips(loginResult.clientId);
+      const trips = await api.getClientTrips(session.clientId);
       const matchingTrip = trips.find(
         (t) =>
           t.confirmationNumber === confirmation_number ||
@@ -481,7 +495,7 @@ server.tool(
         });
       }
 
-      const result = await api.cancelTrip(loginResult.clientId, bookingId);
+      const result = await api.cancelTrip(session.clientId, bookingId);
 
       // Generate plain language confirmation for the user
       const userMessage = formatCancellationConfirmation(result.success, result.message);
@@ -514,31 +528,19 @@ server.tool(
   {},
   async () => {
     try {
-      if (!credentialManager.hasCredentials()) {
+      // Check for valid session
+      const session = await getValidSession();
+      if (!session) {
         return createErrorResponse({
           category: ErrorCategory.CREDENTIALS_NOT_FOUND,
-          message: 'No credentials found. Please call setup_credentials first.',
+          message:
+            'Your session has expired or you have not connected your DATS account yet. Would you like me to open the secure login page? (Use the connect_account tool)',
           recoverable: true,
         });
       }
-
-      const credentials = await credentialManager.retrieve();
 
       logger.info('Fetching DATS announcements');
-      const loginResult = await AuthClient.login({
-        username: credentials.clientId,
-        password: credentials.passcode,
-      });
-
-      if (!loginResult.success || !loginResult.sessionCookie) {
-        return createErrorResponse({
-          category: ErrorCategory.AUTH_FAILURE,
-          message: loginResult.error || 'Failed to authenticate with DATS',
-          recoverable: true,
-        });
-      }
-
-      const api = new DATSApi({ sessionCookie: loginResult.sessionCookie });
+      const api = new DATSApi({ sessionCookie: session.sessionCookie });
       const announcements = await api.getAnnouncements();
 
       return {
@@ -564,37 +566,25 @@ server.tool(
   {},
   async () => {
     try {
-      if (!credentialManager.hasCredentials()) {
+      // Check for valid session
+      const session = await getValidSession();
+      if (!session) {
         return createErrorResponse({
           category: ErrorCategory.CREDENTIALS_NOT_FOUND,
-          message: 'No credentials found. Please call setup_credentials first.',
+          message:
+            'Your session has expired or you have not connected your DATS account yet. Would you like me to open the secure login page? (Use the connect_account tool)',
           recoverable: true,
         });
       }
-
-      const credentials = await credentialManager.retrieve();
 
       logger.info('Fetching DATS client profile');
-      const loginResult = await AuthClient.login({
-        username: credentials.clientId,
-        password: credentials.passcode,
-      });
-
-      if (!loginResult.success || !loginResult.sessionCookie || !loginResult.clientId) {
-        return createErrorResponse({
-          category: ErrorCategory.AUTH_FAILURE,
-          message: loginResult.error || 'Failed to authenticate with DATS',
-          recoverable: true,
-        });
-      }
-
-      const api = new DATSApi({ sessionCookie: loginResult.sessionCookie });
+      const api = new DATSApi({ sessionCookie: session.sessionCookie });
 
       // Get both client info and contact info
       const [clientInfo, contactInfo, savedLocations] = await Promise.all([
-        api.getClientInfo(loginResult.clientId),
-        api.getContactInfo(loginResult.clientId),
-        api.getSavedLocations(loginResult.clientId),
+        api.getClientInfo(session.clientId),
+        api.getContactInfo(session.clientId),
+        api.getSavedLocations(session.clientId),
       ]);
 
       return {
@@ -702,7 +692,7 @@ async function main(): Promise<void> {
   await server.connect(transport);
 
   logger.info('DATS Booking MCP Server running on stdio');
-  logger.info(`Credentials configured: ${credentialManager.hasCredentials()}`);
+  logger.info(`Session available: ${sessionManager.hasSession()}`);
 }
 
 main().catch((error) => {

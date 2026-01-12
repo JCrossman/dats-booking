@@ -54,9 +54,10 @@ npm run format           # Prettier
               ┌─────────────────────────┐
               │   DATS Booking MCP      │
               │                         │
-              │  setup_credentials      │
+              │  connect_account        │  ← Opens browser for secure login
               │  book_trip              │
               │  get_trips              │
+              │  check_availability     │
               │  cancel_trip            │
               │  get_announcements      │
               │  get_profile            │
@@ -66,10 +67,9 @@ npm run format           # Prettier
          ┌────────────────┼────────────────┐
          ▼                ▼                ▼
 ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-│ DATS SOAP   │  │ Remarks     │  │ Static HTML │
-│ API         │  │ API         │  │ Pages       │
-│ /PassInfo   │  │ /Remarks    │  │ /Public/... │
-│ Server      │  │             │  │             │
+│ Azure Auth  │  │ DATS SOAP   │  │ Static HTML │
+│ Web App     │  │ API         │  │ Pages       │
+│ (Canada)    │  │ /PassInfo   │  │ /Public/... │
 └─────────────┘  └─────────────┘  └─────────────┘
 ```
 
@@ -77,7 +77,7 @@ npm run format           # Prettier
 
 | Tool | Description |
 |------|-------------|
-| `setup_credentials` | Store encrypted DATS client ID and passcode |
+| `connect_account` | Opens secure browser page for DATS login (credentials never touch Claude) |
 | `book_trip` | Create a new DATS booking with full options |
 | `get_trips` | Retrieve upcoming trips (cancelled hidden by default) |
 | `check_availability` | Check available dates and time windows for booking |
@@ -85,6 +85,22 @@ npm run format           # Prettier
 | `get_announcements` | Get DATS system announcements |
 | `get_profile` | Get user profile, contacts, saved locations |
 | `get_info` | Get general info, fares, privacy policy, service description |
+
+### Authentication Flow
+
+The `connect_account` tool uses a secure web-based authentication flow:
+
+1. **Browser Opens**: A secure Azure-hosted webpage opens in your browser
+2. **Enter Credentials**: You enter your DATS client ID and passcode on the webpage
+3. **Session Created**: DATS validates credentials and creates a session
+4. **Session Stored**: Only the session cookie is stored locally (encrypted)
+5. **Credentials Protected**: Your credentials are NEVER stored or sent to Claude
+
+**Security Benefits:**
+- Credentials never appear in Claude conversation history
+- Credentials never touch Anthropic's servers
+- Only temporary session tokens are stored locally
+- Sessions expire when DATS invalidates them (typically daily)
 
 ### Booking Options
 
@@ -142,54 +158,72 @@ Always confirm with user before cancelling:
 
 ## Security (POPA Compliance)
 
-- **NEVER** store credentials in code, logs, or comments
+- **Credentials are NEVER stored** - only temporary session cookies
 - **NEVER** log PII (names, addresses, client numbers)
-- Credentials encrypted with AES-256-GCM at `~/.dats-booking/credentials.enc`
+- Session cookies encrypted with AES-256-GCM at `~/.dats-booking/session.enc`
 - Key derived from `DATS_ENCRYPTION_KEY` environment variable
+- Azure auth endpoint hosted in Canada Central (POPA data residency)
+- Credentials flow: Browser → Azure Function → DATS (never to Claude/Anthropic)
 
 ## Directory Structure
 
 ```
 mcp-servers/dats-booking/
 ├── src/
-│   ├── index.ts              # MCP server entry point (7 tools)
+│   ├── index.ts              # MCP server entry point (8 tools)
 │   ├── types.ts              # TypeScript interfaces
 │   ├── api/
-│   │   ├── auth-client.ts    # Direct login API
+│   │   ├── auth-client.ts    # Direct login API (used by Azure Function)
 │   │   └── dats-api.ts       # SOAP API client (booking, trips, profile)
 │   ├── auth/
-│   │   └── credential-manager.ts  # AES-256-GCM encryption
+│   │   ├── session-manager.ts    # Encrypted session storage
+│   │   └── web-auth.ts           # Browser launch + Azure polling
 │   └── utils/
 │       ├── errors.ts         # Error handling
 │       └── logger.ts         # Stderr logging (no PII)
 ├── build/                    # Compiled JavaScript
 ├── package.json
 └── tsconfig.json
+
+azure/dats-auth/               # Azure Static Web App (Canada Central)
+├── api/                       # Azure Functions
+│   ├── auth-login/            # POST /api/auth/login
+│   ├── auth-status/           # GET /api/auth/status/{sessionId}
+│   └── shared/                # Shared modules
+├── src/                       # Static web files
+│   ├── index.html             # Accessible login form
+│   ├── success.html           # Connection success page
+│   ├── error.html             # Error page
+│   ├── styles.css             # WCAG 2.2 AA styles
+│   └── app.js                 # Form handler
+└── staticwebapp.config.json   # Routing config
 ```
 
 ## Key Files
 
 | Path | Purpose |
 |------|---------|
-| `mcp-servers/dats-booking/src/index.ts` | MCP server with all 7 tools |
+| `mcp-servers/dats-booking/src/index.ts` | MCP server with all 8 tools |
 | `mcp-servers/dats-booking/src/api/dats-api.ts` | SOAP API client |
-| `mcp-servers/dats-booking/src/api/auth-client.ts` | Direct login (no browser) |
-| `mcp-servers/dats-booking/src/auth/credential-manager.ts` | Credential encryption |
-| `mcp-servers/dats-booking/src/types.ts` | All TypeScript interfaces |
+| `mcp-servers/dats-booking/src/auth/session-manager.ts` | Encrypted session storage |
+| `mcp-servers/dats-booking/src/auth/web-auth.ts` | Browser launch + Azure polling |
+| `azure/dats-auth/api/auth-login/index.ts` | Azure Function: authenticate with DATS |
+| `azure/dats-auth/src/index.html` | Accessible login form (WCAG 2.2 AA) |
 
 ## Environment Variables
 
 ```bash
 # Required
-DATS_ENCRYPTION_KEY=         # AES-256 key for credential storage
+DATS_ENCRYPTION_KEY=         # AES-256 key for session encryption
 
-# Optional (for future calendar integration)
+# Optional
+DATS_AUTH_URL=               # Azure auth endpoint (default: https://green-sky-0e461ed10.1.azurestaticapps.net)
+LOG_LEVEL=info               # debug | info | warn | error
+
+# Future (calendar integration)
 AZURE_CLIENT_ID=             # Microsoft Entra app registration
 AZURE_CLIENT_SECRET=         # Microsoft Entra client secret
 AZURE_TENANT_ID=             # Microsoft Entra tenant
-
-# Optional
-LOG_LEVEL=info               # debug | info | warn | error
 ```
 
 ## Claude Desktop Configuration

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Error connecting to DATS">
+  <title>Connection Error - DATS</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="main-content" role="main">
+    <div class="container error-page">
+      <div class="error-icon" aria-hidden="true">
+        <!-- X SVG -->
+        <svg viewBox="0 0 24 24" width="80" height="80" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10" stroke="#dc3545"/>
+          <path d="M15 9l-6 6M9 9l6 6" stroke="#dc3545" stroke-linecap="round"/>
+        </svg>
+      </div>
+
+      <h1>Something went wrong</h1>
+
+      <p class="error-message" id="error-detail">
+        We could not connect to your DATS account.
+      </p>
+
+      <div class="action-buttons">
+        <a href="/" class="btn-primary">Try Again</a>
+      </div>
+
+      <section class="help-section">
+        <h2>Need help?</h2>
+        <ul>
+          <li>Make sure your client ID and passcode are correct</li>
+          <li>Check that you can log in at <a href="https://datsonlinebooking.edmonton.ca" target="_blank" rel="noopener">datsonlinebooking.edmonton.ca</a></li>
+          <li>Call DATS at <a href="tel:780-496-4567">780-496-4567</a> if you need to reset your password</li>
+        </ul>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    // Display specific error message if provided in URL
+    const params = new URLSearchParams(window.location.search);
+    const errorMsg = params.get('message');
+    if (errorMsg) {
+      document.getElementById('error-detail').textContent = decodeURIComponent(errorMsg);
+    }
+  </script>
+</body>
+</html>
