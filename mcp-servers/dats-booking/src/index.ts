@@ -17,7 +17,7 @@ import { z } from 'zod';
 import { SessionManager } from './auth/session-manager.js';
 import { initiateWebAuth, isWebAuthAvailable } from './auth/web-auth.js';
 import { DATSApi } from './api/dats-api.js';
-import { ErrorCategory, type MobilityDevice } from './types.js';
+import { ErrorCategory, TRIP_STATUSES, type MobilityDevice, type TripStatusCode } from './types.js';
 import { wrapError, createErrorResponse } from './utils/errors.js';
 import { logger } from './utils/logger.js';
 import { validateBookingWindow, validateCancellation } from './utils/booking-validation.js';
@@ -398,9 +398,12 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
 
       let trips = await api.getClientTrips(session.clientId, fromDate, toDate);
 
-      // Filter out cancelled trips by default
+      // Filter out inactive trips (cancelled, performed, no-show, etc.) by default
       if (!include_cancelled) {
-        trips = trips.filter(trip => trip.status !== 'cancelled');
+        trips = trips.filter(trip => {
+          const statusInfo = TRIP_STATUSES[trip.status as TripStatusCode];
+          return statusInfo?.isActive ?? true;
+        });
       }
 
       // Generate plain language summary for the user

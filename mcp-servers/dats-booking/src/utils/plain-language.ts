@@ -12,7 +12,8 @@
  * - Avoid jargon and technical terms
  */
 
-import type { Trip, BookTripOutput, PickupWindow } from '../types.js';
+import type { Trip, BookTripOutput, PickupWindow, TripStatusCode } from '../types.js';
+import { TRIP_STATUSES } from '../types.js';
 
 /**
  * Format a booking confirmation for the user
@@ -86,6 +87,18 @@ export function formatTripsForUser(trips: Trip[]): string {
 }
 
 /**
+ * Format trip status for display (only show non-normal statuses)
+ * Returns null for Scheduled trips since that's the expected state
+ */
+function formatTripStatus(status: TripStatusCode): string | null {
+  // Don't show status for normal scheduled trips
+  if (status === 'S') return null;
+
+  const statusInfo = TRIP_STATUSES[status];
+  return statusInfo ? statusInfo.label : null;
+}
+
+/**
  * Format a trip in a compact, scannable format
  * One trip = one short block that's easy to scan
  * Uses explicit "From:" and "To:" labels for screen reader compatibility
@@ -97,15 +110,20 @@ function formatTripCompact(trip: Trip): string {
   const to = toTitleCase(simplifyAddress(trip.destinationAddress));
   const confNum = trip.confirmationNumber || trip.bookingId;
 
-  // 4-line format with explicit labels (screen reader friendly):
+  // Add status indicator for non-scheduled trips
+  const statusText = formatTripStatus(trip.status as TripStatusCode);
+  const statusLine = statusText ? `\nStatus: ${statusText}` : '';
+
+  // Format with explicit labels (screen reader friendly):
   // Morning trip: 7:50 AM to 8:20 AM
   // From: 9713 160 Street NW
   // To: McNally High School
   // Confirmation: 18789348
+  // Status: Arrived (only shown for non-scheduled trips)
   return `${timeLabel}: ${timeWindow}
 From: ${from}
 To: ${to}
-Confirmation: ${confNum}`;
+Confirmation: ${confNum}${statusLine}`;
 }
 
 /**

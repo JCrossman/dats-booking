@@ -4,7 +4,7 @@
  */
 
 import { logger } from '../utils/logger.js';
-import { ErrorCategory, type Trip, type TripPassenger, type BookTripInput, type BookTripOutput, type PickupWindow } from '../types.js';
+import { ErrorCategory, TRIP_STATUSES, type Trip, type TripPassenger, type BookTripInput, type BookTripOutput, type PickupWindow, type TripStatusCode } from '../types.js';
 
 const PASS_INFO_SERVER_URL = 'https://datsonlinebooking.edmonton.ca/PassInfoServer';
 const PASS_INFO_SERVER_ASYNC_URL = 'https://datsonlinebooking.edmonton.ca/PassInfoServerAsync';
@@ -863,6 +863,9 @@ export class DATSApi {
       // Additional passengers
       const additionalPassengers = this.parsePassengers(xml);
 
+      const statusCode = this.mapApiStatusToCode(status);
+      const statusInfo = TRIP_STATUSES[statusCode];
+
       return {
         bookingId: bookingId,
         confirmationNumber: creationConfNum || bookingId,
@@ -873,7 +876,9 @@ export class DATSApi {
         },
         pickupAddress: pickupAddr,
         destinationAddress: dropoffAddr,
-        status: status.includes('cancel') ? 'cancelled' : 'confirmed',
+        status: statusCode,
+        statusLabel: statusInfo.label,
+        statusDescription: statusInfo.description,
         estimatedPickupTime: estPickup > 0 ? this.secondsToTime(estPickup) : undefined,
         estimatedDropoffTime: estDropoff > 0 ? this.secondsToTime(estDropoff) : undefined,
         spaceType: spaceType || undefined,
@@ -913,6 +918,29 @@ export class DATSApi {
       'WA': 'Walker',
     };
     return mapping[spaceType] || undefined;
+  }
+
+  /**
+   * Map DATS API status string to TripStatusCode
+   * SchedStatusF values: "Scheduled", "Unscheduled", "No Show", "Arrived",
+   *                      "Cancelled", "Pending", "Performed", "Missed Trip", "Refused"
+   */
+  private mapApiStatusToCode(apiStatus: string): TripStatusCode {
+    const status = apiStatus.toLowerCase().trim();
+
+    // Map by keywords (order matters - check more specific patterns first)
+    if (status.includes('unscheduled')) return 'U';
+    if (status.includes('scheduled')) return 'S';
+    if (status.includes('no show')) return 'NS';
+    if (status.includes('arrived')) return 'A';
+    if (status.includes('cancel')) return 'CA';
+    if (status.includes('pending')) return 'Pn';
+    if (status.includes('performed')) return 'Pf';
+    if (status.includes('missed')) return 'NM';
+    if (status.includes('refused')) return 'R';
+
+    // Default to Unscheduled for unknown statuses
+    return 'U';
   }
 
   /**
