@@ -1,15 +1,20 @@
 /**
  * Session Store for Authentication Results
  *
- * Uses Azure Blob Storage with Managed Identity for persistence across
+ * Uses Azure Blob Storage with SAS token for persistence across
  * serverless function instances. Each session is stored as a small JSON blob.
  *
  * SECURITY: This store NEVER holds credentials - only session results.
  * Credentials are passed through to DATS API and immediately discarded.
  */
 
-import { BlobServiceClient, ContainerClient, RestError } from '@azure/storage-blob';
-import { DefaultAzureCredential } from '@azure/identity';
+// Polyfill for globalThis.crypto in Azure Functions runtime
+import * as nodeCrypto from 'crypto';
+if (typeof globalThis.crypto === 'undefined') {
+  (globalThis as any).crypto = nodeCrypto.webcrypto;
+}
+
+import { ContainerClient, RestError } from '@azure/storage-blob';
 
 export interface AuthResult {
   status: 'pending' | 'success' | 'failed';
@@ -18,12 +23,6 @@ export interface AuthResult {
   error?: string;
   createdAt: number;
 }
-
-// Storage account name - set via environment variable
-const STORAGE_ACCOUNT_NAME = process.env.STORAGE_ACCOUNT_NAME || 'datsauthstorage';
-
-// Container name for auth sessions
-const CONTAINER_NAME = 'auth-sessions';
 
 // Session expiry time: 5 minutes
 const SESSION_EXPIRY_MS = 5 * 60 * 1000;
@@ -34,29 +33,21 @@ let containerClient: ContainerClient | null = null;
 /**
  * Get the blob container client, initializing if needed
  */
-async function getContainerClient(): Promise<ContainerClient> {
+function getContainerClient(): ContainerClient {
   if (containerClient) {
     return containerClient;
   }
 
-  // Use Managed Identity (DefaultAzureCredential) to authenticate
-  // This works in Azure with System-Assigned Managed Identity
-  const credential = new DefaultAzureCredential();
-  const blobServiceClient = new BlobServiceClient(
-    `https://${STORAGE_ACCOUNT_NAME}.blob.core.windows.net`,
-    credential
-  );
+  // Get container URL with SAS token from environment
+  const containerUrl = process.env.STORAGE_CONTAINER_URL;
 
-  containerClient = blobServiceClient.getContainerClient(CONTAINER_NAME);
-
-  // Create container if it doesn't exist
-  try {
-    await containerClient.createIfNotExists();
-  } catch (error) {
-    // Log but don't fail - container might already exist
-    console.log('Container creation note:', error);
+  if (!containerUrl) {
+    throw new Error(
+      'STORAGE_CONTAINER_URL not configured. Set it in app settings.'
+    );
   }
 
+  containerClient = new ContainerClient(containerUrl);
   return containerClient;
 }
 
@@ -77,7 +68,7 @@ export async function createPendingSession(sessionId: string): Promise<void> {
     createdAt: Date.now(),
   };
 
-  const container = await getContainerClient();
+  const container = getContainerClient();
   const blobClient = container.getBlockBlobClient(getBlobName(sessionId));
 
   const data = JSON.stringify(result);
@@ -93,7 +84,7 @@ export async function updateSession(
   sessionId: string,
   result: Omit<AuthResult, 'createdAt'>
 ): Promise<void> {
-  const container = await getContainerClient();
+  const container = getContainerClient();
   const blobName = getBlobName(sessionId);
   const blobClient = container.getBlockBlobClient(blobName);
 
@@ -121,7 +112,7 @@ export async function updateSession(
  * For completed sessions, deletes the blob after retrieval (one-time use)
  */
 export async function consumeSession(sessionId: string): Promise<AuthResult | null> {
-  const container = await getContainerClient();
+  const container = getContainerClient();
   const blobName = getBlobName(sessionId);
   const blobClient = container.getBlockBlobClient(blobName);
 
@@ -160,7 +151,7 @@ export async function consumeSession(sessionId: string): Promise<AuthResult | nu
  * Check if a session exists (without consuming)
  */
 export async function sessionExists(sessionId: string): Promise<boolean> {
-  const container = await getContainerClient();
+  const container = getContainerClient();
   const blobClient = container.getBlockBlobClient(getBlobName(sessionId));
   return await blobClient.exists();
 }

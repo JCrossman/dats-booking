@@ -21,8 +21,8 @@ const AUTH_BASE_URL =
   process.env.DATS_AUTH_URL || 'https://green-sky-0e461ed10.1.azurestaticapps.net';
 
 // Polling configuration
-const POLL_INTERVAL_MS = 3000; // 3 seconds between polls
-const POLL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minute timeout
+const POLL_INTERVAL_MS = 2000; // 2 seconds between polls
+const POLL_TIMEOUT_MS = 3 * 60 * 1000; // 3 minute timeout (reduced for MCP tool timeouts)
 
 export interface WebAuthResult {
   success: boolean;
@@ -83,8 +83,9 @@ async function pollAuthStatus(sessionId: string): Promise<AuthStatusResponse> {
 
   if (!response.ok) {
     if (response.status === 404) {
-      // Session not found or expired
-      return { status: 'failed', error: 'Session expired or not found' };
+      // Session not found yet - user hasn't submitted form
+      // Return pending to continue polling (NOT failed!)
+      return { status: 'pending' };
     }
     throw new Error(`Failed to check auth status: ${response.status}`);
   }
@@ -124,15 +125,20 @@ export async function initiateWebAuth(): Promise<WebAuthResult> {
 
     // Poll for authentication result
     const startTime = Date.now();
+    let pollCount = 0;
+
+    logger.info(`Polling for auth result (session: ${sessionId.substring(0, 8)}...)`);
 
     while (Date.now() - startTime < POLL_TIMEOUT_MS) {
       await sleep(POLL_INTERVAL_MS);
+      pollCount++;
 
       try {
         const status = await pollAuthStatus(sessionId);
+        logger.info(`Poll #${pollCount}: status=${status.status}`);
 
         if (status.status === 'success') {
-          logger.info('Authentication successful');
+          logger.info('Authentication successful - session cookie received');
           return {
             success: true,
             sessionCookie: status.sessionCookie,
@@ -149,10 +155,10 @@ export async function initiateWebAuth(): Promise<WebAuthResult> {
         }
 
         // status === 'pending' - continue polling
-        logger.debug('Authentication pending, continuing to poll...');
       } catch (pollError) {
-        // Network error during poll - continue trying
-        logger.debug(`Poll error (retrying): ${pollError}`);
+        // Network error or 404 during poll - continue trying
+        const elapsed = Math.round((Date.now() - startTime) / 1000);
+        logger.debug(`Poll #${pollCount} error after ${elapsed}s (retrying): ${pollError}`);
       }
     }
 
