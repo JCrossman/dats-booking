@@ -142,6 +142,67 @@ Use this tool when:
   }
 );
 
+// ============= TOOL: disconnect_account =============
+
+server.tool(
+  'disconnect_account',
+  `Log out of your DATS account and clear your session.
+
+Use this tool when:
+- You want to log out for security reasons
+- You want to switch to a different DATS account
+- You are done using DATS booking
+
+After disconnecting, you will need to use connect_account to log in again.`,
+  {},
+  async () => {
+    try {
+      const hadSession = sessionManager.hasSession();
+
+      // Clear the stored session
+      await sessionManager.clear();
+
+      if (hadSession) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  success: true,
+                  message:
+                    'You have been logged out. Your session has been cleared from this computer. To use DATS booking again, you will need to connect your account.',
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      } else {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  success: true,
+                  message: 'You were not logged in. No session to clear.',
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+    } catch (error) {
+      const datsError = wrapError(error);
+      return createErrorResponse(datsError.toToolError());
+    }
+  }
+);
+
 // ============= TOOL: book_trip =============
 
 server.tool(

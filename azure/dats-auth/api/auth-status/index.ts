@@ -61,7 +61,7 @@ const httpTrigger: AzureFunction = async function (
   }
 
   // Get and consume session (one-time use for success/failed states)
-  const result = consumeSession(sessionId);
+  const result = await consumeSession(sessionId);
 
   if (!result) {
     // Session not found or expired

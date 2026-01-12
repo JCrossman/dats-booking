@@ -1,12 +1,14 @@
 /**
- * In-Memory Session Store for Authentication Results
+ * Session Store for Authentication Results
  *
- * Stores authentication results keyed by session ID.
- * Results expire after 5 minutes and are one-time use.
+ * Uses Azure Blob Storage for persistence across serverless function instances.
+ * Each session is stored as a small JSON blob with automatic expiration.
  *
  * SECURITY: This store NEVER holds credentials - only session results.
  * Credentials are passed through to DATS API and immediately discarded.
  */
+
+import { BlobServiceClient, ContainerClient, RestError } from '@azure/storage-blob';
 
 export interface AuthResult {
   status: 'pending' | 'success' | 'failed';
@@ -16,79 +18,167 @@ export interface AuthResult {
   createdAt: number;
 }
 
-// In-memory store (for Azure Functions consumption plan)
-// For production with multiple instances, consider Azure Redis Cache
-const store = new Map<string, AuthResult>();
+// Container name for auth sessions
+const CONTAINER_NAME = 'auth-sessions';
 
 // Session expiry time: 5 minutes
 const SESSION_EXPIRY_MS = 5 * 60 * 1000;
 
+// Lazy-initialized blob container client
+let containerClient: ContainerClient | null = null;
+
+/**
+ * Get the blob container client, initializing if needed
+ */
+async function getContainerClient(): Promise<ContainerClient> {
+  if (containerClient) {
+    return containerClient;
+  }
+
+  // Get connection string from environment
+  // Azure Static Web Apps managed functions provide this automatically
+  const connectionString = process.env.AzureWebJobsStorage;
+
+  if (!connectionString) {
+    throw new Error('AzureWebJobsStorage connection string not configured');
+  }
+
+  const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
+  containerClient = blobServiceClient.getContainerClient(CONTAINER_NAME);
+
+  // Create container if it doesn't exist
+  try {
+    await containerClient.createIfNotExists();
+  } catch (error) {
+    // Ignore errors if container already exists
+    console.log('Container creation note:', error);
+  }
+
+  return containerClient;
+}
+
+/**
+ * Get blob name from session ID (sanitized)
+ */
+function getBlobName(sessionId: string): string {
+  // Session IDs are UUIDs, so they're already safe
+  return `session-${sessionId}.json`;
+}
+
 /**
  * Initialize a pending session
  */
-export function createPendingSession(sessionId: string): void {
-  store.set(sessionId, {
+export async function createPendingSession(sessionId: string): Promise<void> {
+  const result: AuthResult = {
     status: 'pending',
     createdAt: Date.now(),
-  });
+  };
 
-  // Auto-cleanup after expiry
-  setTimeout(() => {
-    store.delete(sessionId);
-  }, SESSION_EXPIRY_MS);
+  const container = await getContainerClient();
+  const blobClient = container.getBlockBlobClient(getBlobName(sessionId));
+
+  await blobClient.upload(JSON.stringify(result), JSON.stringify(result).length, {
+    blobHTTPHeaders: { blobContentType: 'application/json' },
+  });
 }
 
 /**
  * Update session with authentication result
  */
-export function updateSession(
+export async function updateSession(
   sessionId: string,
   result: Omit<AuthResult, 'createdAt'>
-): void {
-  const existing = store.get(sessionId);
-  if (existing) {
-    store.set(sessionId, {
-      ...result,
-      createdAt: existing.createdAt,
-    });
+): Promise<void> {
+  const container = await getContainerClient();
+  const blobName = getBlobName(sessionId);
+  const blobClient = container.getBlockBlobClient(blobName);
+
+  // Try to get existing session to preserve createdAt
+  let createdAt = Date.now();
+  try {
+    const downloadResponse = await blobClient.download(0);
+    const existingData = await streamToString(downloadResponse.readableStreamBody);
+    const existing = JSON.parse(existingData) as AuthResult;
+    createdAt = existing.createdAt;
+  } catch {
+    // If blob doesn't exist, use current time
   }
+
+  const fullResult: AuthResult = { ...result, createdAt };
+  const data = JSON.stringify(fullResult);
+
+  await blobClient.upload(data, data.length, {
+    blobHTTPHeaders: { blobContentType: 'application/json' },
+  });
 }
 
 /**
- * Get and consume session result (one-time use)
- * Returns the result and deletes it from the store
+ * Get and consume session result
+ * For completed sessions, deletes the blob after retrieval (one-time use)
  */
-export function consumeSession(sessionId: string): AuthResult | null {
-  const result = store.get(sessionId);
+export async function consumeSession(sessionId: string): Promise<AuthResult | null> {
+  const container = await getContainerClient();
+  const blobName = getBlobName(sessionId);
+  const blobClient = container.getBlockBlobClient(blobName);
 
-  if (!result) {
-    return null;
+  try {
+    // Download blob data
+    const downloadResponse = await blobClient.download(0);
+    const data = await streamToString(downloadResponse.readableStreamBody);
+    const result = JSON.parse(data) as AuthResult;
+
+    // Check expiry
+    if (Date.now() - result.createdAt > SESSION_EXPIRY_MS) {
+      // Expired - delete and return null
+      await blobClient.deleteIfExists();
+      return null;
+    }
+
+    // For pending sessions, don't delete (keep for polling)
+    if (result.status === 'pending') {
+      return result;
+    }
+
+    // For completed sessions (success/failed), delete after retrieval (one-time use)
+    await blobClient.deleteIfExists();
+    return result;
+  } catch (error) {
+    // Handle blob not found
+    if (error instanceof RestError && error.statusCode === 404) {
+      return null;
+    }
+    // Re-throw other errors
+    throw error;
   }
-
-  // Check if expired
-  if (Date.now() - result.createdAt > SESSION_EXPIRY_MS) {
-    store.delete(sessionId);
-    return null;
-  }
-
-  // Only consume (delete) if the auth is complete
-  if (result.status !== 'pending') {
-    store.delete(sessionId);
-  }
-
-  return result;
 }
 
 /**
  * Check if a session exists (without consuming)
  */
-export function sessionExists(sessionId: string): boolean {
-  return store.has(sessionId);
+export async function sessionExists(sessionId: string): Promise<boolean> {
+  const container = await getContainerClient();
+  const blobClient = container.getBlockBlobClient(getBlobName(sessionId));
+  return await blobClient.exists();
 }
 
 /**
- * Get session count (for monitoring)
+ * Helper to convert stream to string
  */
-export function getSessionCount(): number {
-  return store.size;
+async function streamToString(
+  readableStream: NodeJS.ReadableStream | undefined
+): Promise<string> {
+  if (!readableStream) {
+    return '';
+  }
+
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    readableStream.on('data', (data) => {
+      chunks.push(Buffer.isBuffer(data) ? data : Buffer.from(data));
+    });
+    readableStream.on('end', () => {
+      resolve(Buffer.concat(chunks).toString('utf8'));
+    });
+    readableStream.on('error', reject);
+  });
 }

@@ -100,8 +100,8 @@ const httpTrigger: AzureFunction = async function (
       return;
     }
 
-    // Create pending session
-    createPendingSession(sessionId);
+    // Create pending session (async)
+    await createPendingSession(sessionId);
 
     // Log attempt (NO credentials logged)
     context.log(`Auth attempt for session: ${sessionId}`);
@@ -110,16 +110,16 @@ const httpTrigger: AzureFunction = async function (
     // IMPORTANT: Credentials are passed directly to DATS and NOT stored
     const result = await loginToDATS(clientId, passcode);
 
-    // Update session with result
+    // Update session with result (async)
     if (result.success) {
-      updateSession(sessionId, {
+      await updateSession(sessionId, {
         status: 'success',
         sessionCookie: result.sessionCookie,
         clientId: result.clientId,
       });
       context.log(`Auth success for session: ${sessionId}`);
     } else {
-      updateSession(sessionId, {
+      await updateSession(sessionId, {
         status: 'failed',
         error: result.error,
       });

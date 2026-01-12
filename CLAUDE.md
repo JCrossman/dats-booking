@@ -78,6 +78,7 @@ npm run format           # Prettier
 | Tool | Description |
 |------|-------------|
 | `connect_account` | Opens secure browser page for DATS login (credentials never touch Claude) |
+| `disconnect_account` | Log out and clear session from this computer |
 | `book_trip` | Create a new DATS booking with full options |
 | `get_trips` | Retrieve upcoming trips (cancelled hidden by default) |
 | `check_availability` | Check available dates and time windows for booking |
