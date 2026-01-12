@@ -1,14 +1,15 @@
 /**
  * Session Store for Authentication Results
  *
- * Uses Azure Blob Storage for persistence across serverless function instances.
- * Each session is stored as a small JSON blob with automatic expiration.
+ * Uses Azure Blob Storage with Managed Identity for persistence across
+ * serverless function instances. Each session is stored as a small JSON blob.
  *
  * SECURITY: This store NEVER holds credentials - only session results.
  * Credentials are passed through to DATS API and immediately discarded.
  */
 
 import { BlobServiceClient, ContainerClient, RestError } from '@azure/storage-blob';
+import { DefaultAzureCredential } from '@azure/identity';
 
 export interface AuthResult {
   status: 'pending' | 'success' | 'failed';
@@ -17,6 +18,9 @@ export interface AuthResult {
   error?: string;
   createdAt: number;
 }
+
+// Storage account name - set via environment variable
+const STORAGE_ACCOUNT_NAME = process.env.STORAGE_ACCOUNT_NAME || 'datsauthstorage';
 
 // Container name for auth sessions
 const CONTAINER_NAME = 'auth-sessions';
@@ -35,25 +39,21 @@ async function getContainerClient(): Promise<ContainerClient> {
     return containerClient;
   }
 
-  // Get connection string from environment
-  // Try multiple variable names for compatibility
-  const connectionString =
-    process.env.AZURE_STORAGE_CONNECTION_STRING || process.env.AzureWebJobsStorage;
+  // Use Managed Identity (DefaultAzureCredential) to authenticate
+  // This works in Azure with System-Assigned Managed Identity
+  const credential = new DefaultAzureCredential();
+  const blobServiceClient = new BlobServiceClient(
+    `https://${STORAGE_ACCOUNT_NAME}.blob.core.windows.net`,
+    credential
+  );
 
-  if (!connectionString) {
-    throw new Error(
-      'Storage connection string not configured. Set AZURE_STORAGE_CONNECTION_STRING in app settings.'
-    );
-  }
-
-  const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
   containerClient = blobServiceClient.getContainerClient(CONTAINER_NAME);
 
   // Create container if it doesn't exist
   try {
     await containerClient.createIfNotExists();
   } catch (error) {
-    // Ignore errors if container already exists
+    // Log but don't fail - container might already exist
     console.log('Container creation note:', error);
   }
 
@@ -80,7 +80,8 @@ export async function createPendingSession(sessionId: string): Promise<void> {
   const container = await getContainerClient();
   const blobClient = container.getBlockBlobClient(getBlobName(sessionId));
 
-  await blobClient.upload(JSON.stringify(result), JSON.stringify(result).length, {
+  const data = JSON.stringify(result);
+  await blobClient.upload(data, data.length, {
     blobHTTPHeaders: { blobContentType: 'application/json' },
   });
 }
