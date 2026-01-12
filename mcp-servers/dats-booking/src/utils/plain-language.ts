@@ -51,6 +51,12 @@ export function formatCancellationConfirmation(success: boolean, message?: strin
 /**
  * Format a list of trips for the user
  * Groups by date, uses plain language, screen-reader friendly
+ *
+ * Accessibility requirements:
+ * - One trip per visual block with blank lines between
+ * - Labeled fields (From, To, Time)
+ * - Title case for addresses
+ * - Predictable, consistent order
  */
 export function formatTripsForUser(trips: Trip[]): string {
   if (trips.length === 0) {
@@ -59,26 +65,35 @@ export function formatTripsForUser(trips: Trip[]): string {
 
   const lines: string[] = [];
   lines.push(`You have ${trips.length} upcoming ${trips.length === 1 ? 'trip' : 'trips'}:`);
-  lines.push('');
 
   // Group trips by date
   const tripsByDate = groupTripsByDate(trips);
 
   for (const [date, dateTrips] of Object.entries(tripsByDate)) {
-    lines.push(date);
-
-    for (const trip of dateTrips) {
-      lines.push(formatSingleTrip(trip));
-    }
-
     lines.push('');
+    lines.push(date.toUpperCase());
+    lines.push('');
+
+    dateTrips.forEach((trip, index) => {
+      // Add time-of-day label for clarity
+      const timeLabel = getTimeOfDayLabel(trip.pickupWindow.start);
+      lines.push(`${timeLabel}:`);
+
+      // Each field on its own line with label
+      lines.push(...formatSingleTripAccessible(trip));
+
+      // Blank line between trips
+      if (index < dateTrips.length - 1) {
+        lines.push('');
+      }
+    });
   }
 
   return lines.join('\n').trim();
 }
 
 /**
- * Format a single trip in plain language
+ * Format a single trip in plain language (legacy format, kept for compatibility)
  */
 export function formatSingleTrip(trip: Trip): string {
   const parts: string[] = [];
@@ -111,6 +126,103 @@ export function formatSingleTrip(trip: Trip): string {
   parts.push(`[#${confNum}]`);
 
   return `  ${parts.join(', ')}`;
+}
+
+/**
+ * Format a single trip with accessible structure
+ * Each piece of information on its own labeled line
+ */
+export function formatSingleTripAccessible(trip: Trip): string[] {
+  const lines: string[] = [];
+
+  // Pickup time - most important, what user needs to act on
+  if (trip.pickupWindow.start && trip.pickupWindow.end) {
+    lines.push(`  Pickup time: ${trip.pickupWindow.start} to ${trip.pickupWindow.end}`);
+  }
+
+  // From address - title case, simplified
+  const pickup = toTitleCase(simplifyAddress(trip.pickupAddress));
+  lines.push(`  From: ${pickup}`);
+
+  // To address - title case, simplified
+  const dest = toTitleCase(simplifyAddress(trip.destinationAddress));
+  lines.push(`  To: ${dest}`);
+
+  // Mobility device (only if not ambulatory)
+  if (trip.mobilityDevice && trip.mobilityDevice !== 'Ambulatory') {
+    const device = formatMobilityDevice(trip.mobilityDevice);
+    if (device) {
+      lines.push(`  With: ${device}`);
+    }
+  }
+
+  // Additional passengers
+  if (trip.additionalPassengers && trip.additionalPassengers.length > 0) {
+    const passengerText = trip.additionalPassengers
+      .map((p) => `${p.count} ${formatPassengerType(p.type)}`)
+      .join(', ');
+    lines.push(`  Passengers: ${passengerText}`);
+  }
+
+  // Confirmation number - reference info, last
+  const confNum = trip.confirmationNumber || trip.bookingId;
+  lines.push(`  Confirmation: ${confNum}`);
+
+  return lines;
+}
+
+/**
+ * Get a time-of-day label based on the pickup time
+ */
+function getTimeOfDayLabel(time: string | undefined): string {
+  if (!time) return 'Trip';
+
+  // Parse hour from time string like "7:50 AM" or "2:30 PM"
+  const match = time.match(/(\d{1,2}):?\d*\s*(AM|PM)/i);
+  if (!match) return 'Trip';
+
+  let hour = parseInt(match[1], 10);
+  const period = match[2].toUpperCase();
+
+  // Convert to 24-hour for easier comparison
+  if (period === 'PM' && hour !== 12) hour += 12;
+  if (period === 'AM' && hour === 12) hour = 0;
+
+  if (hour < 12) return 'Morning trip';
+  if (hour < 17) return 'Afternoon trip';
+  return 'Evening trip';
+}
+
+/**
+ * Convert string to title case
+ */
+function toTitleCase(str: string): string {
+  if (!str) return str;
+
+  // Handle ALL CAPS input
+  const lower = str.toLowerCase();
+
+  // Capitalize first letter of each word, but keep certain words lowercase
+  const smallWords = ['to', 'the', 'and', 'of', 'in', 'at', 'for', 'on', 'nw', 'ne', 'sw', 'se'];
+
+  return lower
+    .split(' ')
+    .map((word, index) => {
+      // Always capitalize first word
+      if (index === 0) {
+        return word.charAt(0).toUpperCase() + word.slice(1);
+      }
+      // Keep direction abbreviations uppercase
+      if (['nw', 'ne', 'sw', 'se'].includes(word)) {
+        return word.toUpperCase();
+      }
+      // Keep small words lowercase unless they start the string
+      if (smallWords.includes(word)) {
+        return word;
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
 }
 
 /**
@@ -301,19 +413,36 @@ RESPONSE FORMATTING (Grade 6 reading level):
 - Say "ride" not "transportation", "helper" not "attendant"
 - Use active voice: "Your ride will come" not "A vehicle will be dispatched"
 - Be specific: "between 2:00 and 2:30 PM" not "within the pickup window"
-- For dates, include the day of week: "Sunday, January 12"
-- Use "to" between locations, not arrows
-- Put confirmation numbers at the end in brackets: [#12345678]
+- For dates, include the day of week: "SUNDAY, JANUARY 12"
 
-EXAMPLE GOOD RESPONSE:
-"Your trip is booked!
-Your ride will come between 2:00 and 2:30 PM on Sunday, January 12.
-You're going from Home to City Hall, with your wheelchair.
-Your confirmation number is 12345678. Save this in case you need to cancel."
+TRIP DISPLAY FORMAT:
+- Display each trip as its own block with blank lines between
+- Use time-of-day labels: "Morning trip:", "Afternoon trip:", "Evening trip:"
+- Use labeled fields on separate lines:
+  - Pickup time: 7:50 AM to 8:20 AM
+  - From: [pickup address]
+  - To: [destination]
+  - Confirmation: [number]
+- Use title case for addresses (not ALL CAPS)
+- Never put multiple trips on the same line
 
-EXAMPLE BAD RESPONSE:
-"Booking confirmed. Confirmation #12345678. Pickup window: 14:00-14:30.
-Origin: 123 Main Street NW, Edmonton, AB T5K 0A1
-Destination: 1 Sir Winston Churchill Square, Edmonton, AB T5J 2R7
-Space type: WC. Status: Scheduled."
+EXAMPLE GOOD TRIP DISPLAY:
+"You have 2 upcoming trips:
+
+MONDAY, JANUARY 12
+
+Morning trip:
+  Pickup time: 7:50 AM to 8:20 AM
+  From: 9713 160 Street NW
+  To: McNally High School
+  Confirmation: 18789348
+
+Afternoon trip:
+  Pickup time: 2:30 PM to 3:00 PM
+  From: McNally High School
+  To: 9713 160 Street NW
+  Confirmation: 18789349"
+
+EXAMPLE BAD TRIP DISPLAY:
+"Monday, January 12 7:50 AM to 8:20 AM, 9713 160 STREET NW to MCNALLY SENIOR HIGH SCHOOL [#18789348] 2:30 PM to 3:00 PM, MCNALLY SENIOR HIGH SCHOOL to 9713 160 STREET NW [#18789349]"
 `.trim();
