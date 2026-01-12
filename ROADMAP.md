@@ -4,16 +4,32 @@ This document tracks planned features and improvements. Items are derived from [
 
 ---
 
-## Completed (v1.0)
+## Completed (v1.0.0)
 
 - [x] Direct SOAP API integration (Trapeze PASS)
-- [x] MCP server with 7 tools (setup_credentials, book_trip, get_trips, cancel_trip, get_announcements, get_profile, get_info)
-- [x] AES-256-GCM credential encryption (NFR-2.1)
+- [x] MCP server with 9 tools:
+  - `connect_account` - Secure web-based authentication
+  - `disconnect_account` - Log out and clear session
+  - `book_trip` - Create DATS bookings
+  - `get_trips` - View upcoming trips
+  - `cancel_trip` - Cancel bookings
+  - `check_availability` - Query available dates/times
+  - `get_announcements` - System notices
+  - `get_profile` - User profile and saved locations
+  - `get_info` - Fares, privacy policy, service info
+- [x] **Secure web-based authentication** (credentials never touch Claude)
+  - Azure Static Web App (Canada Central)
+  - Browser-based credential entry
+  - Session cookie polling
+  - Encrypted local session storage (AES-256-GCM)
 - [x] Address geocoding via OpenStreetMap Nominatim
 - [x] Claude Desktop integration
 - [x] No PII in logs (NFR-2.5)
-- [x] Booking window validation (FR-1.7 partial - same-day with 2-hour notice)
+- [x] Booking window validation (3 days ahead, noon cutoff, same-day with 2-hour notice)
 - [x] Cancellation validation (2-hour notice)
+- [x] Accessible trip formatting (WCAG 2.2 AA)
+- [x] Plain language responses (Grade 6 reading level)
+- [x] 88 passing tests
 
 ---
 
@@ -29,12 +45,10 @@ This document tracks planned features and improvements. Items are derived from [
 |---------|---------|-------------|
 | FR-3.1-3.4 | Calendar Integration | Sync DATS bookings with Microsoft Outlook via Graph API (OAuth 2.1 + PKCE) |
 | FR-3.3 | Conflict Detection | Check calendar before suggesting booking times |
-| FR-4.4 | `check_availability` tool | Query available time slots before booking |
-| FR-1.5 | Session Handling | Handle session expiration gracefully with auto-retry |
-| FR-1.6 | Booking Conflict Detection | Detect and report booking errors from DATS |
 | FR-2.4 | Trip Modification | Support "change to 2pm" style modifications |
 | NFR-2.4 | Audit Logging | Log access and modifications (no PII) for POPA compliance |
 | NFR-2.7 | Data Deletion | Capability to delete user data within 30 days (POPA) |
+| NFR-2.6 | Consent Collection | Explicit consent prompt before storing session |
 
 ---
 
@@ -70,8 +84,8 @@ This document tracks planned features and improvements. Items are derived from [
 
 | Client | Status | Notes |
 |--------|--------|-------|
-| Claude Desktop | Working | Native MCP support (stdio) |
-| GitHub Copilot Chat (VS Code) | Working | Experimental MCP support |
+| Claude Desktop | ✅ Working | Native MCP support (stdio) |
+| GitHub Copilot Chat (VS Code) | ✅ Working | Experimental MCP support |
 | M365 Copilot | Planned | Requires plugin conversion (see Future) |
 | Custom Web UI | Planned | For symbol-based/switch access interface (requires HTTP/SSE) |
 
@@ -81,17 +95,17 @@ This document tracks planned features and improvements. Items are derived from [
 
 | Requirement | Status | Notes |
 |-------------|--------|-------|
-| NFR-1.1 Booking < 30s | Achieved | ~2s with direct API |
-| NFR-1.2 Trip list < 10s | Achieved | ~750ms with direct API |
-| NFR-2.1 AES-256 encryption | Done | |
-| NFR-2.2 TLS 1.2+ | Done | DATS API uses HTTPS |
-| NFR-2.3 Canadian residency | Done | Local storage only |
+| NFR-1.1 Booking < 30s | ✅ Achieved | ~2s with direct API |
+| NFR-1.2 Trip list < 10s | ✅ Achieved | ~750ms with direct API |
+| NFR-2.1 AES-256 encryption | ✅ Done | Session cookies encrypted |
+| NFR-2.2 TLS 1.2+ | ✅ Done | DATS API uses HTTPS |
+| NFR-2.3 Canadian residency | ✅ Done | Azure Canada Central + local storage |
 | NFR-2.4 Audit logging | Planned | |
-| NFR-2.5 No PII in logs | Done | |
-| NFR-2.6 Consent collection | Partial | Credentials tool doesn't prompt for consent |
+| NFR-2.5 No PII in logs | ✅ Done | |
+| NFR-2.6 Consent collection | Planned | |
 | NFR-2.7 Data deletion | Planned | |
-| NFR-4.1-4.5 WCAG 2.2 AA | N/A | Applies to custom UI (future) |
+| NFR-4.1-4.5 WCAG 2.2 AA | Partial | Auth page compliant; MCP output accessible |
 
 ---
 
-*Last updated: January 2026*
+*Last updated: January 11, 2026 (v1.0.0)*
