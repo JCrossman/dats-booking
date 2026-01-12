@@ -20,12 +20,11 @@ npm install
 # Build
 npm run build
 
-# Set encryption key for session storage
-export DATS_ENCRYPTION_KEY="your-32-byte-key-here"
-
 # Run the MCP server
 node build/index.js
 ```
+
+Note: Encryption keys are auto-generated and stored locally. No environment variables required.
 
 ## Authentication Flow
 
@@ -128,14 +127,13 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
   "mcpServers": {
     "dats-booking": {
       "command": "node",
-      "args": ["/path/to/mcp-servers/dats-booking/build/index.js"],
-      "env": {
-        "DATS_ENCRYPTION_KEY": "your-32-byte-hex-key"
-      }
+      "args": ["/path/to/mcp-servers/dats-booking/build/index.js"]
     }
   }
 }
 ```
+
+Note: Encryption keys are auto-generated. No environment variables required.
 
 ## License
 
