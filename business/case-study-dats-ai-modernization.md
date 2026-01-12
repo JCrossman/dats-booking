@@ -143,6 +143,126 @@ Addresses are geocoded via OpenStreetMap Nominatim API before being sent to DATS
 
 ---
 
+## Multi-Agent Development Methodology
+
+### AI-Powered Consensus Development
+
+This project was built using a novel **multi-agent consensus approach**—10 specialized AI agents, each with distinct expertise, collaborating through a structured workflow. This methodology demonstrates how AI can augment software development with built-in quality gates and diverse perspectives.
+
+### The 10 Specialized Agents
+
+| Agent | Expertise | Quality Gate |
+|-------|-----------|--------------|
+| **Product Manager** | Requirements, user stories, prioritization | Feature alignment |
+| **Architect** | System design, MCP patterns, integration | Component boundaries |
+| **Developer** | TypeScript implementation, testing | Code delivery |
+| **Security & Privacy** | POPA compliance, credential handling | No critical findings |
+| **Accessibility Specialist** | WCAG 2.2, AAC, switch access | No violations |
+| **Code Quality Reviewer** | Clean code, DRY, maintainability | Score B or better |
+| **QA/Tester** | Test strategy, edge cases, coverage | Coverage requirements |
+| **DevOps/Infrastructure** | CI/CD, Azure deployment, monitoring | Pipeline health |
+| **UX Writer** | Plain language, cognitive accessibility | Grade 6 reading level |
+| **Legal/Compliance** | POPA interpretation, consent, ToS | No compliance issues |
+
+### Orchestration Workflow
+
+```
+                    ┌─────────────────┐
+                    │  User Request   │
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │ Product Manager │  ← Requirements clarification
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │    Architect    │  ← System design
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │    Developer    │  ← Implementation
+                    └────────┬────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+              ▼              ▼              ▼
+       ┌────────────┐ ┌────────────┐ ┌────────────┐
+       │  Security  │ │Accessibility│ │   Code     │  ← Parallel review
+       │  & Privacy │ │ Specialist │ │  Quality   │
+       └─────┬──────┘ └─────┬──────┘ └─────┬──────┘
+              │              │              │
+              └──────────────┼──────────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │   QA/Tester     │  ← Test coverage
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │  Human Review   │  ← Final approval
+                    └─────────────────┘
+```
+
+### Why Multi-Agent Development?
+
+**1. Built-in Quality Gates**
+
+Each agent enforces specific criteria before code proceeds. Security issues, accessibility violations, or compliance concerns are caught during development—not after deployment.
+
+**2. Diverse Expertise Without Expanding the Team**
+
+A solo developer building accessibility software needs expertise in security, WCAG compliance, legal requirements, UX writing, and more. AI agents provide on-demand expertise in each domain.
+
+**3. Consistent Standards**
+
+Each agent has documented review criteria. The Accessibility Specialist always checks for WCAG 2.2 AA compliance, 44x44px touch targets, and screen reader compatibility—every time, without fatigue.
+
+**4. Parallel Review**
+
+Security, Accessibility, and Code Quality reviews run simultaneously, reducing cycle time while maintaining thoroughness.
+
+### Implementation via Claude Code
+
+Agents are implemented as custom slash commands in Claude Code:
+
+```bash
+/project:pm-review          # Requirements analysis
+/project:architect-review   # System design review
+/project:implement          # Feature implementation
+/project:security-review    # Security & POPA compliance
+/project:accessibility-review   # WCAG 2.2 AA review
+/project:code-quality-review    # Clean code review
+/project:qa-review          # Test coverage review
+/project:multi-agent-review # Full workflow orchestration
+```
+
+### Results
+
+The multi-agent approach caught issues that might have shipped otherwise:
+
+- **Security agent** identified credential logging in early prototypes
+- **Accessibility agent** flagged arrow symbols (→) that screen readers mispronounce
+- **UX Writer agent** simplified error messages from Grade 12 to Grade 6 reading level
+- **Legal agent** documented POPA consent requirements for disability data
+
+### Replicability
+
+This methodology is transferable to any software project:
+
+1. **Define agents** with specific expertise domains
+2. **Document review criteria** for each agent
+3. **Establish workflow** with mandatory quality gates
+4. **Implement as slash commands** in Claude Code or similar AI development tools
+5. **Iterate** on agent prompts based on what issues they catch (or miss)
+
+The agent definitions and workflow are open source in the project repository (`AGENTS.md`).
+
+---
+
 ## Accessibility Design
 
 ### Plain Language (Grade 6 Reading Level)
