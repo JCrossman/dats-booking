@@ -1,10 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SessionManager } from '../../src/auth/session-manager.js';
 import { existsSync, readFileSync, unlinkSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
 
 describe('SessionManager', () => {
   let manager: SessionManager;
   let storagePath: string;
+  const storageDir = join(homedir(), '.dats-booking');
+  const keyPath = join(storageDir, '.key');
 
   beforeEach(() => {
     manager = new SessionManager();
@@ -15,6 +19,7 @@ describe('SessionManager', () => {
     if (existsSync(storagePath)) {
       unlinkSync(storagePath);
     }
+    // Note: We don't delete the key file in tests to avoid regenerating it each time
   });
 
   it('should store and retrieve session', async () => {
@@ -122,5 +127,37 @@ describe('SessionManager', () => {
     // This test verifies the migration method exists and returns boolean
     const migrated = await manager.migrateFromCredentials();
     expect(typeof migrated).toBe('boolean');
+  });
+
+  it('should work with auto-generated or environment key', () => {
+    // SessionManager should work regardless of how key is provided
+    // If DATS_ENCRYPTION_KEY env var is set, uses that (backward compatibility)
+    // Otherwise, auto-generates and stores key in ~/.dats-booking/.key
+
+    if (process.env.DATS_ENCRYPTION_KEY) {
+      // Environment variable takes precedence - key file may not exist
+      expect(manager).toBeDefined();
+    } else {
+      // No env var - key file should exist
+      expect(existsSync(keyPath)).toBe(true);
+      const keyContent = readFileSync(keyPath, 'utf8').trim();
+      expect(keyContent).toMatch(/^[0-9a-f]{64}$/);
+    }
+  });
+
+  it('should use same key across multiple instances', async () => {
+    // Store with first manager
+    await manager.store({
+      sessionCookie: 'test-cookie',
+      clientId: '12345',
+      createdAt: new Date().toISOString(),
+    });
+
+    // Create new manager instance (should use same key)
+    const manager2 = new SessionManager();
+    const retrieved = await manager2.retrieve();
+
+    expect(retrieved.sessionCookie).toBe('test-cookie');
+    expect(retrieved.clientId).toBe('12345');
   });
 });

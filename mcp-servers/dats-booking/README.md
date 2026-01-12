@@ -1,26 +1,41 @@
-# DATS Booking MCP Server
+# DATS Booking Assistant
 
-An MCP (Model Context Protocol) server that enables AI assistants to book, view, and manage Edmonton DATS (Disabled Adult Transit Service) trips through natural language.
+Book Edmonton DATS (Disabled Adult Transit Service) trips using natural language in Claude Desktop.
 
-## Features
+## What You Can Do
 
-- **Secure web authentication** - Credentials entered in browser, never sent to Claude
-- **Book trips** with natural language date/time/location descriptions
-- **View upcoming trips** with accessible formatting
-- **Cancel trips** with confirmation prompts
-- **Check availability** for booking dates and times
-- **View profile** including contact info and saved locations
-- **Get announcements** for DATS system notices
-- **Get info** about fares, privacy policy, and service description
+- **Book trips** - Tell Claude where and when you want to go
+- **View trips** - See your upcoming bookings
+- **Cancel trips** - Cancel bookings you no longer need
+- **Check announcements** - See DATS service updates
 
 ## Installation
 
-### Prerequisites
+### Easy Install (Recommended)
 
+1. Download `dats-booking.mcpb`
+2. Double-click the file
+3. Claude Desktop opens and asks to install
+4. Click "Install"
+5. Done!
+
+You need a DATS client account to use this assistant.
+
+### First Time Setup
+
+After installing, say "Connect my DATS account" in Claude. A browser window opens for you to enter your DATS client ID and passcode securely.
+
+---
+
+## For Developers
+
+### Manual Installation
+
+If you prefer to install manually:
+
+**Prerequisites:**
 - Node.js 20+
 - A valid DATS client account
-
-### Setup
 
 ```bash
 # Clone the repository
@@ -34,39 +49,30 @@ npm install
 npm run build
 ```
 
-### Generate Encryption Key
+### Claude Desktop Configuration
 
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-## Configuration
-
-### Claude Desktop
-
-Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "dats-booking": {
       "command": "node",
-      "args": ["/path/to/dats-booking/build/index.js"],
-      "env": {
-        "DATS_ENCRYPTION_KEY": "your-64-char-hex-key"
-      }
+      "args": ["/path/to/dats-booking/build/index.js"]
     }
   }
 }
 ```
 
-### Environment Variables
+Note: Encryption keys are auto-generated. No configuration needed.
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATS_ENCRYPTION_KEY` | Yes | 64-character hex key for AES-256 session encryption |
-| `DATS_AUTH_URL` | No | Azure auth endpoint URL (has default) |
-| `LOG_LEVEL` | No | Logging level: debug, info, warn, error (default: info) |
+### Environment Variables (Optional)
+
+| Variable | Description |
+|----------|-------------|
+| `DATS_ENCRYPTION_KEY` | Override auto-generated encryption key |
+| `DATS_AUTH_URL` | Override Azure auth endpoint URL |
+| `LOG_LEVEL` | Logging level: debug, info, warn, error |
 
 ## MCP Tools
 

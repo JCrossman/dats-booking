@@ -1,0 +1,66 @@
+{
+  "manifest_version": "0.3",
+  "name": "dats-booking",
+  "display_name": "DATS Booking Assistant",
+  "version": "1.0.0",
+  "description": "Book DATS accessible transit trips with natural language",
+  "long_description": "The DATS Booking Assistant helps you book rides for Edmonton's Disabled Adult Transit Service (DATS). Simply tell Claude when and where you want to go.\n\nFeatures:\n- Book trips by saying where and when\n- View your upcoming trips\n- Cancel bookings\n- Check announcements\n\nYou need a DATS client account to use this assistant.\n\nPrivacy: Your DATS password is never stored. When you connect, a browser opens for you to log in securely. Only a temporary session is saved on your computer.",
+  "author": {
+    "name": "DATS Edmonton Community"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "build/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/build/index.js"]
+    }
+  },
+  "tools": [
+    {
+      "name": "connect_account",
+      "description": "Connect your DATS account (opens secure login page)"
+    },
+    {
+      "name": "disconnect_account",
+      "description": "Log out of your DATS account"
+    },
+    {
+      "name": "book_trip",
+      "description": "Book a new DATS trip"
+    },
+    {
+      "name": "get_trips",
+      "description": "See your upcoming trips"
+    },
+    {
+      "name": "cancel_trip",
+      "description": "Cancel a booking"
+    },
+    {
+      "name": "check_availability",
+      "description": "Check available booking times"
+    },
+    {
+      "name": "get_announcements",
+      "description": "Check DATS announcements"
+    },
+    {
+      "name": "get_profile",
+      "description": "View your profile and saved locations"
+    },
+    {
+      "name": "get_info",
+      "description": "Get DATS fares and service info"
+    }
+  ],
+  "compatibility": {
+    "claude_desktop": ">=1.0.0",
+    "platforms": ["darwin", "win32"],
+    "runtimes": {
+      "node": ">=20.0.0"
+    }
+  },
+  "keywords": ["transit", "accessibility", "booking", "dats", "edmonton", "paratransit"],
+  "icon": "icon.png"
+}

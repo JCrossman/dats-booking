@@ -29,13 +29,32 @@ This document tracks planned features and improvements. Items are derived from [
 - [x] Cancellation validation (2-hour notice)
 - [x] Accessible trip formatting (WCAG 2.2 AA)
 - [x] Plain language responses (Grade 6 reading level)
-- [x] 88 passing tests
+- [x] 90 passing tests
 
 ---
 
 ## In Progress
 
-*No items currently in progress*
+### MCPB Distribution (One-Click Install)
+
+**Goal:** Enable non-technical users to install with a single click (no terminal, npm, or config editing).
+
+**Completed:**
+- [x] Auto-generate encryption key (no user config needed)
+- [x] Create manifest.json for MCPB
+- [x] Create icon (512x512 PNG)
+- [x] Build working .mcpb bundle (~26MB)
+- [x] Update README with user-friendly install instructions
+
+**Known Issues:**
+- [ ] Icon not displaying in Claude Desktop install preview
+- [ ] "Access to everything" warning concerning for users (standard for all MCPs)
+- [ ] Self-signing doesn't work (corrupts bundle)
+
+**Next Steps:**
+- Investigate icon display issue (may require verified signing)
+- Consider HTTP/SSE transport as alternative (no scary warnings)
+- Test installation when Claude service is restored
 
 ---
 

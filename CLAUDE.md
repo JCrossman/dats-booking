@@ -214,11 +214,9 @@ azure/dats-auth/               # Azure Static Web App (Canada Central)
 ## Environment Variables
 
 ```bash
-# Required
-DATS_ENCRYPTION_KEY=         # AES-256 key for session encryption
-
-# Optional
-DATS_AUTH_URL=               # Azure auth endpoint (default: https://green-sky-0e461ed10.1.azurestaticapps.net)
+# Optional (encryption key auto-generated if not provided)
+DATS_ENCRYPTION_KEY=         # Override auto-generated AES-256 key
+DATS_AUTH_URL=               # Azure auth endpoint (has default)
 LOG_LEVEL=info               # debug | info | warn | error
 
 # Future (calendar integration)
@@ -227,7 +225,32 @@ AZURE_CLIENT_SECRET=         # Microsoft Entra client secret
 AZURE_TENANT_ID=             # Microsoft Entra tenant
 ```
 
-## Claude Desktop Configuration
+## Distribution
+
+### MCPB Bundle (One-Click Install)
+
+For non-technical users, the MCP server can be packaged as an MCPB bundle:
+
+```bash
+cd mcp-servers/dats-booking
+npm install -g @anthropic-ai/mcpb
+npm run build
+mcpb pack .
+```
+
+This creates `dats-booking.mcpb` (~26MB) that users can double-click to install.
+
+**Current status:**
+- Bundle works and installs correctly
+- Icon doesn't display (may require signing/verification)
+- Claude Desktop shows "access to everything" warning (standard for all MCPs)
+
+**Known issues to resolve:**
+- Icon not showing in install preview
+- Permission warning concerning for non-technical users
+- Consider HTTP/SSE transport for web-based alternative (no installation needed)
+
+### Manual Installation (Developers)
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
@@ -236,14 +259,13 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
   "mcpServers": {
     "dats-booking": {
       "command": "node",
-      "args": ["/path/to/mcp-servers/dats-booking/build/index.js"],
-      "env": {
-        "DATS_ENCRYPTION_KEY": "your-32-byte-key-here"
-      }
+      "args": ["/path/to/mcp-servers/dats-booking/build/index.js"]
     }
   }
 }
 ```
+
+Note: Encryption keys are auto-generated. No environment variables required.
 
 ## Testing
 

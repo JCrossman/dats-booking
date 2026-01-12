@@ -43,21 +43,43 @@ interface EncryptedSession {
 export class SessionManager {
   private readonly storagePath: string;
   private readonly storageDir: string;
+  private readonly keyPath: string;
   private readonly key: Buffer;
 
   constructor() {
-    const encryptionKey = process.env.DATS_ENCRYPTION_KEY;
-    if (!encryptionKey) {
-      throw new Error('DATS_ENCRYPTION_KEY environment variable is required');
-    }
-
-    this.key = scryptSync(encryptionKey, SALT, KEY_LENGTH);
     this.storageDir = join(homedir(), '.dats-booking');
     this.storagePath = join(this.storageDir, 'session.enc');
+    this.keyPath = join(this.storageDir, '.key');
 
     if (!existsSync(this.storageDir)) {
       mkdirSync(this.storageDir, { mode: 0o700 });
     }
+
+    this.key = this.getOrCreateKey();
+  }
+
+  /**
+   * Get existing encryption key or generate a new one.
+   * Key is stored locally so users don't need to configure anything.
+   */
+  private getOrCreateKey(): Buffer {
+    // Check for legacy environment variable (backward compatibility)
+    const envKey = process.env.DATS_ENCRYPTION_KEY;
+    if (envKey) {
+      return scryptSync(envKey, SALT, KEY_LENGTH);
+    }
+
+    // Auto-generate key if it doesn't exist
+    if (existsSync(this.keyPath)) {
+      const storedKey = readFileSync(this.keyPath, 'utf8').trim();
+      return Buffer.from(storedKey, 'hex');
+    }
+
+    // Generate new random key
+    const newKey = randomBytes(KEY_LENGTH);
+    writeFileSync(this.keyPath, newKey.toString('hex'), { mode: 0o600 });
+    logger.info('Generated new encryption key');
+    return newKey;
   }
 
   /**
