@@ -35,7 +35,14 @@ const credentialManager = new CredentialManager();
 
 server.tool(
   'setup_credentials',
-  'Store encrypted DATS credentials for booking automation. Call this first before using other tools.',
+  `Store encrypted DATS credentials for booking automation. Call this first before using other tools.
+
+PRIVACY NOTICE: When you provide your credentials in this chat:
+- They will be encrypted and stored locally on your computer (~/.dats-booking/)
+- They will be visible in this conversation history
+- They are transmitted through Claude's servers to reach this tool
+
+RECOMMENDATION: After setting up your credentials, consider starting a new conversation to keep your credentials out of your chat history.`,
   {
     client_id: z.string().min(1).describe('Your DATS client ID number'),
     passcode: z.string().min(1).describe('Your DATS passcode/password'),
@@ -55,7 +62,7 @@ server.tool(
               {
                 success: true,
                 message:
-                  'Credentials stored securely. You can now use book_trip, get_trips, and cancel_trip.',
+                  'Credentials stored securely and encrypted on your computer. You can now use book_trip, get_trips, check_availability, and cancel_trip. For privacy, consider starting a new conversation so your credentials are not in your chat history.',
               },
               null,
               2
