@@ -356,7 +356,7 @@ export class TripsPage {
       pickupWindow,
       pickupAddress,
       destinationAddress,
-      status: 'confirmed',
+      status: 'S', // Scheduled
       estimatedPickupTime: estPickupMatch ? estPickupMatch[1].trim() : undefined,
       estimatedDropoffTime: estDropoffMatch ? estDropoffMatch[1].trim() : undefined,
     };
@@ -396,7 +396,7 @@ export class TripsPage {
         },
         pickupAddress: 'Your registered address',
         destinationAddress: locationMatch ? locationMatch[1].trim() : 'Scheduled destination',
-        status: 'confirmed',
+        status: 'S', // Scheduled
       });
     }
 
@@ -463,7 +463,7 @@ export class TripsPage {
       pickupWindow,
       pickupAddress: address.includes('Client') ? address : 'Your registered address',
       destinationAddress: address.includes('Client') ? 'Your registered address' : address,
-      status: 'confirmed',
+      status: 'S', // Scheduled
     };
   }
 

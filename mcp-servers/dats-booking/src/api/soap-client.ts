@@ -152,7 +152,7 @@ export class SoapClient {
         },
         pickupAddress,
         destinationAddress: dropoffAddress,
-        status: statusText.includes('cancel') ? 'cancelled' : 'confirmed',
+        status: statusText.includes('cancel') ? 'CA' : 'S',
         estimatedPickupTime: estimatedPickup,
         estimatedDropoffTime: estimatedDropoff,
       };

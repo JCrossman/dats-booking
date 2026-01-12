@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environment": {
+      "value": "prod"
+    },
+    "location": {
+      "value": "canadacentral"
+    },
+    "containerImage": {
+      "value": "ghcr.io/your-org/dats-mcp:latest"
+    },
+    "cosmosEncryptionKey": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.KeyVault/vaults/<vault-name>"
+        },
+        "secretName": "cosmos-encryption-key"
+      }
+    },
+    "datsAuthUrl": {
+      "value": "https://green-sky-0e461ed10.1.azurestaticapps.net"
+    }
+  }
+}

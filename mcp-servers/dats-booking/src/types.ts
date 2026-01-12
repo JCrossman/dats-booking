@@ -79,7 +79,30 @@ export interface BookTripOutput {
 
 // ============= TRIP TYPES =============
 
-export type TripStatus = 'confirmed' | 'pending' | 'cancelled';
+// DATS trip status codes (from DATS website)
+export type TripStatusCode = 'S' | 'U' | 'NS' | 'A' | 'CA' | 'Pn' | 'Pf' | 'NM' | 'R';
+
+export interface TripStatusInfo {
+  code: TripStatusCode;
+  label: string;
+  description: string;
+  isActive: boolean; // Show in default trip list (vs historical/completed)
+}
+
+export const TRIP_STATUSES: Record<TripStatusCode, TripStatusInfo> = {
+  S: { code: 'S', label: 'Scheduled', description: 'Trip booked and scheduled successfully', isActive: true },
+  U: { code: 'U', label: 'Unscheduled', description: 'Trip booked but not scheduled yet', isActive: true },
+  NS: { code: 'NS', label: 'No Show', description: 'You did not show up at the scheduled pickup time', isActive: false },
+  A: { code: 'A', label: 'Arrived', description: 'Vehicle has arrived at the pickup location', isActive: true },
+  CA: { code: 'CA', label: 'Cancelled', description: 'Trip has been cancelled', isActive: false },
+  Pn: { code: 'Pn', label: 'Pending', description: 'Trip needs to be created from your recurring template', isActive: true },
+  Pf: { code: 'Pf', label: 'Performed', description: 'Trip has been completed', isActive: false },
+  NM: { code: 'NM', label: 'Missed Trip', description: 'Vehicle arrived late and did not transport you', isActive: false },
+  R: { code: 'R', label: 'Refused', description: 'You refused the proposed booking solution', isActive: false },
+};
+
+// Keep old type for backwards compatibility
+export type TripStatus = TripStatusCode;
 
 export interface TripPassenger {
   type: 'escort' | 'pca' | 'guest';
@@ -93,7 +116,9 @@ export interface Trip {
   pickupWindow: PickupWindow;
   pickupAddress: string;
   destinationAddress: string;
-  status: TripStatus;
+  status: TripStatusCode;
+  statusLabel?: string; // Human-readable label (e.g., "Scheduled")
+  statusDescription?: string; // Full description for context
   estimatedPickupTime?: string;
   estimatedDropoffTime?: string;
   // Additional trip details
