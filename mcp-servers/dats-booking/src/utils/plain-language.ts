@@ -54,42 +54,58 @@ export function formatCancellationConfirmation(success: boolean, message?: strin
  *
  * Accessibility requirements:
  * - One trip per visual block with blank lines between
- * - Labeled fields (From, To, Time)
- * - Title case for addresses
- * - Predictable, consistent order
+ * - Minimal, scannable format
+ * - Uses markdown for Claude Desktop rendering
+ * - Double newlines to ensure line breaks are preserved
  */
 export function formatTripsForUser(trips: Trip[]): string {
   if (trips.length === 0) {
     return 'You have no upcoming trips.';
   }
 
-  const lines: string[] = [];
-  lines.push(`You have ${trips.length} upcoming ${trips.length === 1 ? 'trip' : 'trips'}:`);
+  const sections: string[] = [];
+  sections.push(`You have ${trips.length} upcoming ${trips.length === 1 ? 'trip' : 'trips'}:`);
 
   // Group trips by date
   const tripsByDate = groupTripsByDate(trips);
 
   for (const [date, dateTrips] of Object.entries(tripsByDate)) {
-    lines.push('');
-    lines.push(date.toUpperCase());
-    lines.push('');
+    // Date header + all trips for that date
+    const dateSection: string[] = [];
+    dateSection.push(`**${date.toUpperCase()}**`);
 
-    dateTrips.forEach((trip, index) => {
-      // Add time-of-day label for clarity
-      const timeLabel = getTimeOfDayLabel(trip.pickupWindow.start);
-      lines.push(`${timeLabel}:`);
-
-      // Each field on its own line with label
-      lines.push(...formatSingleTripAccessible(trip));
-
-      // Blank line between trips
-      if (index < dateTrips.length - 1) {
-        lines.push('');
-      }
+    dateTrips.forEach((trip) => {
+      dateSection.push(formatTripCompact(trip));
     });
+
+    sections.push(dateSection.join('\n\n'));
   }
 
-  return lines.join('\n').trim();
+  // Join sections with double newlines for clear visual separation
+  return sections.join('\n\n');
+}
+
+/**
+ * Format a trip in a compact, scannable format
+ * One trip = one short block that's easy to scan
+ * Uses explicit "From:" and "To:" labels for screen reader compatibility
+ */
+function formatTripCompact(trip: Trip): string {
+  const timeLabel = getTimeOfDayLabel(trip.pickupWindow.start);
+  const timeWindow = `${trip.pickupWindow.start} to ${trip.pickupWindow.end}`;
+  const from = toTitleCase(simplifyAddress(trip.pickupAddress));
+  const to = toTitleCase(simplifyAddress(trip.destinationAddress));
+  const confNum = trip.confirmationNumber || trip.bookingId;
+
+  // 4-line format with explicit labels (screen reader friendly):
+  // Morning trip: 7:50 AM to 8:20 AM
+  // From: 9713 160 Street NW
+  // To: McNally High School
+  // Confirmation: 18789348
+  return `${timeLabel}: ${timeWindow}
+From: ${from}
+To: ${to}
+Confirmation: ${confNum}`;
 }
 
 /**
