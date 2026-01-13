@@ -872,19 +872,9 @@ export class DATSApi {
       // Additional passengers
       const additionalPassengers = this.parsePassengers(xml);
 
-      // Get initial status from API
-      let statusCode = this.mapApiStatusToCode(status);
-
-      // Infer "Performed" status based on date/time
-      // DATS API only returns scheduling status, not real-time status
-      // If pickup window has ended and trip wasn't cancelled, mark as Performed
-      if (statusCode === 'S' && schLate > 0) {
-        const tripDate = this.parseTripDate(date);
-        if (tripDate && this.hasPickupWindowPassed(tripDate, schLate)) {
-          statusCode = 'Pf';
-        }
-      }
-
+      // Use the actual status from the API - do not infer or override
+      // The DATS system knows the true status of trips
+      const statusCode = this.mapApiStatusToCode(status);
       const statusInfo = TRIP_STATUSES[statusCode];
 
       return {
@@ -1175,56 +1165,6 @@ export class DATSApi {
     return hours * 3600 + minutes * 60;
   }
 
-  /**
-   * Parse trip date string to Date object
-   * Handles formats: "Jan 12, 2026", "20260112", "2026-01-12"
-   */
-  private parseTripDate(dateStr: string): Date | null {
-    try {
-      // Format: "Jan 12, 2026"
-      if (dateStr.includes(',')) {
-        const parsed = new Date(dateStr);
-        if (!isNaN(parsed.getTime())) return parsed;
-      }
-
-      // Format: "20260112" (YYYYMMDD)
-      if (/^\d{8}$/.test(dateStr)) {
-        const year = parseInt(dateStr.substring(0, 4), 10);
-        const month = parseInt(dateStr.substring(4, 6), 10) - 1;
-        const day = parseInt(dateStr.substring(6, 8), 10);
-        return new Date(year, month, day);
-      }
-
-      // Format: "2026-01-12"
-      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-        const [year, month, day] = dateStr.split('-').map(Number);
-        return new Date(year, month - 1, day);
-      }
-
-      return null;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Check if pickup window has passed (trip is in the past)
-   * @param tripDate The date of the trip
-   * @param schLateSeconds The late pickup time in seconds from midnight
-   */
-  private hasPickupWindowPassed(tripDate: Date, schLateSeconds: number): boolean {
-    const now = new Date();
-
-    // Get trip date at end of pickup window
-    const tripDateTime = new Date(tripDate);
-    const hours = Math.floor(schLateSeconds / 3600);
-    const minutes = Math.floor((schLateSeconds % 3600) / 60);
-    tripDateTime.setHours(hours, minutes, 0, 0);
-
-    // Trip is performed if pickup window end time has passed
-    return now > tripDateTime;
-  }
-
   private formatDate(date: Date): string {
     const year = date.getFullYear();
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -1234,10 +1174,16 @@ export class DATSApi {
 
   private formatDateDisplay(yyyymmdd: string): string {
     if (!yyyymmdd || yyyymmdd.length !== 8) return yyyymmdd;
-    const year = yyyymmdd.substring(0, 4);
+    const year = parseInt(yyyymmdd.substring(0, 4), 10);
     const month = parseInt(yyyymmdd.substring(4, 6), 10);
     const day = parseInt(yyyymmdd.substring(6, 8), 10);
+
+    // Create date to get correct day of week
+    const date = new Date(year, month - 1, day);
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${months[month - 1]} ${day}, ${year}`;
+    const dayOfWeek = days[date.getDay()];
+
+    return `${dayOfWeek}, ${months[month - 1]} ${day}, ${year}`;
   }
 }

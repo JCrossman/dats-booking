@@ -8,6 +8,29 @@ MCP-based accessible booking assistant for Edmonton's Disabled Adult Transit Ser
 
 **Architecture Decision:** Originally planned for Playwright browser automation, but discovered DATS uses a SOAP/XML API (Trapeze PASS). The implementation uses direct API calls for speed and reliability (~2 seconds vs ~30 seconds for browser automation).
 
+## Security-First Architecture
+
+**Architectural security is of the utmost importance.** Always consider security deeply when making architectural decisions. Never take shortcuts that compromise security, even if they seem faster or easier.
+
+### Guiding Principles
+
+1. **Private by Default**: All internal communication between Azure services must use private networking (VNet, Private Endpoints). Never expose databases or internal services to the public internet.
+
+2. **Least Privilege**: Use managed identities with minimal required permissions. Never use connection strings with embedded credentials when managed identity is available.
+
+3. **Defense in Depth**: Layer security controls. Even if one layer fails, others should protect the system.
+
+4. **Data Residency**: All data must remain in Canada (Canada Central region) for POPA compliance. No exceptions.
+
+5. **No Security Shortcuts**: If a secure solution requires more effort, take the time to do it right. Quick fixes that bypass security controls are never acceptable.
+
+### Azure Network Security
+
+- Container Apps must use VNet integration
+- Cosmos DB, Storage, and other data services must use Private Endpoints
+- Public network access to data services must be disabled
+- Use Network Security Groups (NSGs) to restrict traffic between subnets
+
 ## Multi-Agent Development
 
 This project uses a multi-agent consensus approach for development. Invoke agents via slash commands:
@@ -77,18 +100,20 @@ The MCP server supports two transport modes:
               ┌─────────────────────────┐
               │   Azure Container Apps  │
               │   (Canada Central)      │
-              │   dats-mcp-dev-app      │
+              │   dats-mcp-app          │
+              │   [VNet Integrated]     │
               └───────────┬─────────────┘
-                          │
+                          │ Private Network (10.0.0.0/16)
          ┌────────────────┼────────────────┐
          ▼                ▼                ▼
 ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
 │ Auth Routes │  │ DATS SOAP   │  │ Cosmos DB   │
-│ (same host) │  │ API         │  │ Sessions    │
+│ (same host) │  │ API         │  │ (Private    │
+│             │  │ (external)  │  │  Endpoint)  │
 └─────────────┘  └─────────────┘  └─────────────┘
 ```
 
-**Remote Mode URL:** `https://dats-mcp-dev-app.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/mcp`
+**Remote Mode URL:** `https://dats-mcp-app.whitewater-072cffec.canadacentral.azurecontainerapps.io/mcp`
 
 ## MCP Tools
 
@@ -134,7 +159,7 @@ DATS uses the following status codes for trips:
 | NM | Missed Trip | Vehicle arrived late, did not transport | No |
 | R | Refused | User refused the proposed booking | No |
 
-**Note:** The DATS API doesn't provide real-time status updates. "Performed" status is inferred based on whether the pickup window has passed.
+**Important:** Always use the actual status returned from the DATS API. Never infer or override status based on date/time calculations - the DATS system is the source of truth for trip status.
 
 ### get_trips Filtering
 
@@ -149,10 +174,11 @@ When displaying trips, format as a markdown table:
 ```
 | Date | Time | From | To | Status | Confirmation |
 |------|------|------|-----|--------|--------------|
-| Mon, Jan 12 | 2:30 PM-3:00 PM | McNally High School | 9713 160 St NW | Scheduled | 18789349 |
+| Tue, Jan 13, 2026 | 2:30 PM-3:00 PM | McNally High School | 9713 160 St NW | Scheduled | 18789349 |
 ```
+- Use the `date` field exactly as provided (includes day of week)
 - Use title case for addresses (not ALL CAPS)
-- Simplify addresses to street name only
+- Show the full address from pickupAddress/destinationAddress fields
 - Use the `statusLabel` field for status display
 
 ### Authentication Flow
@@ -209,8 +235,8 @@ Addresses are geocoded via OpenStreetMap Nominatim API, then sent to DATS in ZZ 
 ### Response Formatting
 When displaying trips, use markdown tables for screen reader compatibility:
 - Include columns: Date, Time, From, To, Status, Confirmation
+- Use the `date` field exactly as provided (already includes day of week)
 - Use title case for addresses (not ALL CAPS from API)
-- Show day of week with date (e.g., "Mon, Jan 12")
 - Use `statusLabel` field for status (e.g., "Scheduled", "Performed")
 
 ### Cancellation Flow
@@ -341,7 +367,7 @@ The easiest way to use DATS Booking on mobile devices:
 
 1. Go to [claude.ai](https://claude.ai) → Settings → Connectors
 2. Click "Add custom connector"
-3. Enter URL: `https://dats-mcp-dev-app.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/mcp`
+3. Enter URL: `https://dats-mcp-app.whitewater-072cffec.canadacentral.azurecontainerapps.io/mcp`
 4. Name it "DATS Booking"
 5. The connector syncs to Claude iOS/Android automatically
 

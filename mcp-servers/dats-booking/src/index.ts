@@ -29,7 +29,7 @@ import {
 } from './auth/web-auth.js';
 import { createHttpServer, startHttpServer } from './server/http-server.js';
 import { DATSApi } from './api/dats-api.js';
-import { ErrorCategory, TRIP_STATUSES, type MobilityDevice, type TripStatusCode } from './types.js';
+import { ErrorCategory, type MobilityDevice, type TripStatusCode, TRIP_STATUSES } from './types.js';
 import { wrapError, createErrorResponse } from './utils/errors.js';
 import { logger } from './utils/logger.js';
 import { validateBookingWindow, validateCancellation } from './utils/booking-validation.js';
@@ -712,7 +712,7 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
 
 server.tool(
   'get_trips',
-  `Retrieve DATS trips. By default shows only active trips (Scheduled, Unscheduled, Arrived, Pending).
+  `Retrieve DATS trips. By default shows today's trips (all statuses) plus future Scheduled trips.
 
 DATE FORMATS ACCEPTED:
 - YYYY-MM-DD (e.g., "2026-01-15")
@@ -723,14 +723,14 @@ DATE FORMATS ACCEPTED:
 When user says "Thursday", pass "thursday" directly - the server will calculate the correct date.
 
 TRIP DATA INCLUDES:
-- Date, pickup window, pickup/destination addresses
+- Date, pickup window, pickup/destination addresses (full addresses)
 - Status (Scheduled, Performed, Cancelled, etc.)
 - Mobility device, passengers, phone numbers, fare
 
 FILTERING OPTIONS:
-- By default: Only active trips (Scheduled, Unscheduled, Arrived, Pending)
-- include_all: true - Show ALL trips including Performed, Cancelled, No Show, etc.
-- status_filter: Filter to specific status(es) like ["Pf"] for Performed only
+- By default: Today's trips (all statuses) + future Scheduled trips only
+- include_all: true - Show ALL trips including past Performed, Cancelled, No Show, etc.
+- status_filter: Filter to specific status(es) like ["Pf"] for Performed, ["CA"] for Cancelled
 
 STATUS CODES:
 - S = Scheduled, U = Unscheduled, A = Arrived, Pn = Pending
@@ -806,9 +806,10 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
         trips = trips.filter(trip => status_filter.includes(trip.status as TripStatusCode));
       } else if (!include_all) {
         // Default: only show active trips (Scheduled, Unscheduled, Arrived, Pending)
+        // Uses isActive flag from TRIP_STATUSES
         trips = trips.filter(trip => {
           const statusInfo = TRIP_STATUSES[trip.status as TripStatusCode];
-          return statusInfo?.isActive ?? true;
+          return statusInfo?.isActive ?? false;
         });
       }
       // If include_all is true and no status_filter, show everything

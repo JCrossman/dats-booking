@@ -51,15 +51,9 @@
         window.close();
       } catch (e) {
         // Can't close - user will close manually
+        // Note: Most browsers block window.close() for windows not opened via script
       }
     }, 1500);
-
-    // For iOS Safari, try closing via history if window.close doesn't work
-    if (window.opener === null && window.history.length > 1) {
-      setTimeout(function() {
-        window.history.back();
-      }, 2000);
-    }
   </script>
 </body>
 </html>

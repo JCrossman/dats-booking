@@ -339,8 +339,9 @@ Use these columns: Date, Time, From, To, Status, Confirmation
 Example output format:
 | Date | Time | From | To | Status | Confirmation |
 |------|------|------|-----|--------|--------------|
-| Mon, Jan 12 | 2:30 PM-3:00 PM | McNally High School | 9713 160 St NW | Scheduled | 18789349 |
+| Tue, Jan 13, 2026 | 2:30 PM-3:00 PM | McNally High School | 9713 160 St NW | Scheduled | 18789349 |
 
-For addresses: Use title case (not ALL CAPS), simplify to street name only.
+For dates: Use the date field exactly as provided (it includes day of week). Do NOT modify or recalculate dates.
+For addresses: Use title case (not ALL CAPS). Show the full address from pickupAddress/destinationAddress fields.
 For status: Use the statusLabel field (e.g., "Scheduled", "Performed", "Cancelled").
 `.trim();
