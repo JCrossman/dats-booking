@@ -12,8 +12,7 @@
  * - Avoid jargon and technical terms
  */
 
-import type { Trip, BookTripOutput, PickupWindow, TripStatusCode } from '../types.js';
-import { TRIP_STATUSES } from '../types.js';
+import type { Trip, BookTripOutput, PickupWindow } from '../types.js';
 
 /**
  * Format a booking confirmation for the user
@@ -51,79 +50,14 @@ export function formatCancellationConfirmation(success: boolean, message?: strin
 
 /**
  * Format a list of trips for the user
- * Groups by date, uses plain language, screen-reader friendly
- *
- * Accessibility requirements:
- * - One trip per visual block with blank lines between
- * - Minimal, scannable format
- * - Uses markdown for Claude Desktop rendering
- * - Double newlines to ensure line breaks are preserved
+ * Returns a simple summary - Claude will format the table from structured data
  */
 export function formatTripsForUser(trips: Trip[]): string {
   if (trips.length === 0) {
     return 'You have no upcoming trips.';
   }
 
-  const sections: string[] = [];
-  sections.push(`You have ${trips.length} upcoming ${trips.length === 1 ? 'trip' : 'trips'}:`);
-
-  // Group trips by date
-  const tripsByDate = groupTripsByDate(trips);
-
-  for (const [date, dateTrips] of Object.entries(tripsByDate)) {
-    // Date header + all trips for that date
-    const dateSection: string[] = [];
-    dateSection.push(`**${date.toUpperCase()}**`);
-
-    dateTrips.forEach((trip) => {
-      dateSection.push(formatTripCompact(trip));
-    });
-
-    sections.push(dateSection.join('\n\n'));
-  }
-
-  // Join sections with double newlines for clear visual separation
-  return sections.join('\n\n');
-}
-
-/**
- * Format trip status for display (only show non-normal statuses)
- * Returns null for Scheduled trips since that's the expected state
- */
-function formatTripStatus(status: TripStatusCode): string | null {
-  // Don't show status for normal scheduled trips
-  if (status === 'S') return null;
-
-  const statusInfo = TRIP_STATUSES[status];
-  return statusInfo ? statusInfo.label : null;
-}
-
-/**
- * Format a trip in a compact, scannable format
- * One trip = one short block that's easy to scan
- * Uses explicit "From:" and "To:" labels for screen reader compatibility
- */
-function formatTripCompact(trip: Trip): string {
-  const timeLabel = getTimeOfDayLabel(trip.pickupWindow.start);
-  const timeWindow = `${trip.pickupWindow.start} to ${trip.pickupWindow.end}`;
-  const from = toTitleCase(simplifyAddress(trip.pickupAddress));
-  const to = toTitleCase(simplifyAddress(trip.destinationAddress));
-  const confNum = trip.confirmationNumber || trip.bookingId;
-
-  // Add status indicator for non-scheduled trips
-  const statusText = formatTripStatus(trip.status as TripStatusCode);
-  const statusLine = statusText ? `\nStatus: ${statusText}` : '';
-
-  // Format with explicit labels (screen reader friendly):
-  // Morning trip: 7:50 AM to 8:20 AM
-  // From: 9713 160 Street NW
-  // To: McNally High School
-  // Confirmation: 18789348
-  // Status: Arrived (only shown for non-scheduled trips)
-  return `${timeLabel}: ${timeWindow}
-From: ${from}
-To: ${to}
-Confirmation: ${confNum}${statusLine}`;
+  return `You have ${trips.length} ${trips.length === 1 ? 'trip' : 'trips'}. Display them in a table with columns: Date, Time, From, To, Status, Confirmation.`;
 }
 
 /**
@@ -203,28 +137,6 @@ export function formatSingleTripAccessible(trip: Trip): string[] {
   lines.push(`  Confirmation: ${confNum}`);
 
   return lines;
-}
-
-/**
- * Get a time-of-day label based on the pickup time
- */
-function getTimeOfDayLabel(time: string | undefined): string {
-  if (!time) return 'Trip';
-
-  // Parse hour from time string like "7:50 AM" or "2:30 PM"
-  const match = time.match(/(\d{1,2}):?\d*\s*(AM|PM)/i);
-  if (!match) return 'Trip';
-
-  let hour = parseInt(match[1], 10);
-  const period = match[2].toUpperCase();
-
-  // Convert to 24-hour for easier comparison
-  if (period === 'PM' && hour !== 12) hour += 12;
-  if (period === 'AM' && hour === 12) hour = 0;
-
-  if (hour < 12) return 'Morning trip';
-  if (hour < 17) return 'Afternoon trip';
-  return 'Evening trip';
 }
 
 /**
@@ -384,27 +296,6 @@ export function formatDatePlain(dateStr: string): string {
 }
 
 /**
- * Group trips by their formatted date
- */
-function groupTripsByDate(trips: Trip[]): Record<string, Trip[]> {
-  const grouped: Record<string, Trip[]> = {};
-
-  for (const trip of trips) {
-    const dateKey = formatDatePlain(trip.date);
-    if (!grouped[dateKey]) {
-      grouped[dateKey] = [];
-    }
-    grouped[dateKey].push(trip);
-  }
-
-  return grouped;
-}
-
-/**
- * Plain language guidelines for AI clients
- * Include this in tool descriptions to guide response formatting
- */
-/**
  * Format availability information for the user
  */
 export function formatAvailabilityForUser(
@@ -441,42 +332,15 @@ export function formatAvailabilityForUser(
 }
 
 export const PLAIN_LANGUAGE_GUIDELINES = `
-RESPONSE FORMATTING (Grade 6 reading level):
-- Use short sentences (under 20 words)
-- Use common, everyday words
-- Say "ride" not "transportation", "helper" not "attendant"
-- Use active voice: "Your ride will come" not "A vehicle will be dispatched"
-- Be specific: "between 2:00 and 2:30 PM" not "within the pickup window"
-- For dates, include the day of week: "SUNDAY, JANUARY 12"
+IMPORTANT - HOW TO DISPLAY TRIPS:
+When displaying trips, YOU MUST format them as a markdown table using the "trips" array data.
+Use these columns: Date, Time, From, To, Status, Confirmation
 
-TRIP DISPLAY FORMAT:
-- Display each trip as its own block with blank lines between
-- Use time-of-day labels: "Morning trip:", "Afternoon trip:", "Evening trip:"
-- Use labeled fields on separate lines:
-  - Pickup time: 7:50 AM to 8:20 AM
-  - From: [pickup address]
-  - To: [destination]
-  - Confirmation: [number]
-- Use title case for addresses (not ALL CAPS)
-- Never put multiple trips on the same line
+Example output format:
+| Date | Time | From | To | Status | Confirmation |
+|------|------|------|-----|--------|--------------|
+| Mon, Jan 12 | 2:30 PM-3:00 PM | McNally High School | 9713 160 St NW | Scheduled | 18789349 |
 
-EXAMPLE GOOD TRIP DISPLAY:
-"You have 2 upcoming trips:
-
-MONDAY, JANUARY 12
-
-Morning trip:
-  Pickup time: 7:50 AM to 8:20 AM
-  From: 9713 160 Street NW
-  To: McNally High School
-  Confirmation: 18789348
-
-Afternoon trip:
-  Pickup time: 2:30 PM to 3:00 PM
-  From: McNally High School
-  To: 9713 160 Street NW
-  Confirmation: 18789349"
-
-EXAMPLE BAD TRIP DISPLAY:
-"Monday, January 12 7:50 AM to 8:20 AM, 9713 160 STREET NW to MCNALLY SENIOR HIGH SCHOOL [#18789348] 2:30 PM to 3:00 PM, MCNALLY SENIOR HIGH SCHOOL to 9713 160 STREET NW [#18789349]"
+For addresses: Use title case (not ALL CAPS), simplify to street name only.
+For status: Use the statusLabel field (e.g., "Scheduled", "Performed", "Cancelled").
 `.trim();

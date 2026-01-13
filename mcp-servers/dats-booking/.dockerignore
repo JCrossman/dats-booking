@@ -1,0 +1,22 @@
+# Dependencies
+node_modules
+
+# Build output (will be built in container)
+build
+
+# Development files
+*.md
+.git
+.gitignore
+.env*
+.vscode
+
+# Test files
+*.test.ts
+*.spec.ts
+coverage
+__tests__
+
+# OS files
+.DS_Store
+Thumbs.db

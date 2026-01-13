@@ -80,12 +80,49 @@ npm run format           # Prettier
 | `connect_account` | Opens secure browser page for DATS login (credentials never touch Claude) |
 | `disconnect_account` | Log out and clear session from this computer |
 | `book_trip` | Create a new DATS booking with full options |
-| `get_trips` | Retrieve upcoming trips (cancelled hidden by default) |
+| `get_trips` | Retrieve trips with status filtering (active trips by default) |
 | `check_availability` | Check available dates and time windows for booking |
 | `cancel_trip` | Cancel booking (requires user confirmation first) |
 | `get_announcements` | Get DATS system announcements |
 | `get_profile` | Get user profile, contacts, saved locations |
 | `get_info` | Get general info, fares, privacy policy, service description |
+
+### Trip Statuses
+
+DATS uses the following status codes for trips:
+
+| Code | Label | Description | Active? |
+|------|-------|-------------|---------|
+| S | Scheduled | Trip booked and scheduled successfully | Yes |
+| U | Unscheduled | Trip booked but not scheduled yet | Yes |
+| A | Arrived | Vehicle has arrived at pickup location | Yes |
+| Pn | Pending | Needs to be created from recurring template | Yes |
+| Pf | Performed | Trip has been completed | No |
+| CA | Cancelled | Trip has been cancelled | No |
+| NS | No Show | User did not show up at pickup time | No |
+| NM | Missed Trip | Vehicle arrived late, did not transport | No |
+| R | Refused | User refused the proposed booking | No |
+
+**Note:** The DATS API doesn't provide real-time status updates. "Performed" status is inferred based on whether the pickup window has passed.
+
+### get_trips Filtering
+
+The `get_trips` tool supports filtering options:
+- **Default**: Only active trips (Scheduled, Unscheduled, Arrived, Pending)
+- **include_all**: Set to `true` to show all trips including Performed, Cancelled, etc.
+- **status_filter**: Filter to specific status(es), e.g., `["Pf"]` for Performed only
+
+### Trip Display Format
+
+When displaying trips, format as a markdown table:
+```
+| Date | Time | From | To | Status | Confirmation |
+|------|------|------|-----|--------|--------------|
+| Mon, Jan 12 | 2:30 PM-3:00 PM | McNally High School | 9713 160 St NW | Scheduled | 18789349 |
+```
+- Use title case for addresses (not ALL CAPS)
+- Simplify addresses to street name only
+- Use the `statusLabel` field for status display
 
 ### Authentication Flow
 
@@ -139,12 +176,11 @@ Addresses are geocoded via OpenStreetMap Nominatim API, then sent to DATS in ZZ 
 ## Accessibility Guidelines
 
 ### Response Formatting
-When displaying trips, format for screen reader compatibility:
-- Group trips by date with day of week (e.g., "Sunday, January 12")
-- Lead each trip with the pickup time window
-- Use "to" instead of arrows (→) between locations
-- Put confirmation number at the end in brackets
-- Example: `7:50-8:20 AM: Home to McNally High School [#18789348]`
+When displaying trips, use markdown tables for screen reader compatibility:
+- Include columns: Date, Time, From, To, Status, Confirmation
+- Use title case for addresses (not ALL CAPS from API)
+- Show day of week with date (e.g., "Mon, Jan 12")
+- Use `statusLabel` field for status (e.g., "Scheduled", "Performed")
 
 ### Cancellation Flow
 Always confirm with user before cancelling:

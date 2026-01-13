@@ -3,11 +3,16 @@
  * DATS Booking MCP Server
  *
  * Provides tools for booking Edmonton DATS trips via natural language.
+ * Supports both local (stdio) and remote (HTTP) transport modes.
  *
  * SECURITY: Uses web-based authentication flow.
  * - Users enter credentials in a secure browser page
  * - Credentials NEVER touch Claude or Anthropic systems
- * - Only session cookies are stored locally (encrypted)
+ * - Only session cookies are stored (encrypted locally or in Cosmos DB)
+ *
+ * TRANSPORT MODES:
+ * - stdio (default): Local mode for Claude Desktop, sessions stored locally
+ * - http: Remote mode for Claude mobile/web, sessions stored in Cosmos DB
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -15,7 +20,14 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 
 import { SessionManager } from './auth/session-manager.js';
-import { initiateWebAuth, isWebAuthAvailable } from './auth/web-auth.js';
+import { CosmosSessionStore } from './auth/cosmos-session-store.js';
+import {
+  initiateWebAuth,
+  initiateWebAuthRemote,
+  pollAuthResultRemote,
+  isWebAuthAvailable,
+} from './auth/web-auth.js';
+import { createHttpServer, startHttpServer } from './server/http-server.js';
 import { DATSApi } from './api/dats-api.js';
 import { ErrorCategory, TRIP_STATUSES, type MobilityDevice, type TripStatusCode } from './types.js';
 import { wrapError, createErrorResponse } from './utils/errors.js';
@@ -29,18 +41,84 @@ import {
   PLAIN_LANGUAGE_GUIDELINES,
 } from './utils/plain-language.js';
 
+// ============= TRANSPORT MODE CONFIGURATION =============
+
+/**
+ * Transport mode: 'stdio' for local, 'http' for remote
+ */
+const TRANSPORT_MODE = (process.env.MCP_TRANSPORT || 'stdio') as 'stdio' | 'http';
+const HTTP_PORT = parseInt(process.env.PORT || '3000', 10);
+const HTTP_HOST = process.env.HOST || '0.0.0.0';
+
+/**
+ * Check if running in remote (HTTP) mode
+ */
+function isRemoteMode(): boolean {
+  return TRANSPORT_MODE === 'http';
+}
+
+// ============= SERVER AND SESSION STORES =============
+
 const server = new McpServer({
   name: 'dats-booking',
   version: '1.0.0',
 });
 
+// Local session manager (used in stdio mode)
 const sessionManager = new SessionManager();
+
+// Remote session store (used in HTTP mode) - lazy initialized
+let cosmosSessionStore: CosmosSessionStore | null = null;
+
+function getCosmosStore(): CosmosSessionStore {
+  if (!cosmosSessionStore) {
+    cosmosSessionStore = new CosmosSessionStore();
+  }
+  return cosmosSessionStore;
+}
+
+// ============= SESSION VALIDATION =============
 
 /**
  * Check if session is valid by attempting to use it
  * Returns the session if valid, null if expired/invalid
+ *
+ * @param sessionId - Required for remote mode, optional for local mode
  */
-async function getValidSession(): Promise<{ sessionCookie: string; clientId: string } | null> {
+async function getValidSession(
+  sessionId?: string
+): Promise<{ sessionCookie: string; clientId: string } | null> {
+  // Remote mode: use Cosmos DB session store
+  if (isRemoteMode()) {
+    if (!sessionId) {
+      return null;
+    }
+
+    try {
+      const session = await getCosmosStore().retrieve(sessionId);
+      if (!session) {
+        return null;
+      }
+
+      // Validate session with DATS API
+      const api = new DATSApi({ sessionCookie: session.sessionCookie });
+      await api.getClientInfo(session.clientId);
+
+      // Refresh TTL on successful use
+      await getCosmosStore().refresh(sessionId);
+
+      return {
+        sessionCookie: session.sessionCookie,
+        clientId: session.clientId,
+      };
+    } catch {
+      // Session invalid - delete from store
+      await getCosmosStore().delete(sessionId);
+      return null;
+    }
+  }
+
+  // Local mode: use file-based session manager
   if (!sessionManager.hasSession()) {
     return null;
   }
@@ -73,16 +151,18 @@ server.tool(
   `Connect your DATS account securely. Call this first before using other tools.
 
 HOW IT WORKS:
-1. A secure webpage opens in your browser
+1. A secure webpage opens in your browser (or you'll receive a URL to open)
 2. You enter your DATS client ID and passcode there (not in this chat)
 3. Once connected, close the browser and come back here
 
-PRIVACY: Your credentials are NEVER stored or sent to Claude. They go directly from your browser to DATS. Only a temporary session token is saved on your computer.
+PRIVACY: Your credentials are NEVER stored or sent to Claude. They go directly from your browser to DATS. Only a temporary session token is saved.
 
 Use this tool when:
 - Setting up DATS booking for the first time
 - Your session has expired (typically daily)
-- You want to reconnect your account`,
+- You want to reconnect your account
+
+REMOTE MODE: If using Claude mobile or web, you will receive a URL to open in your browser. After authenticating, call complete_connection with the session_id.`,
   {},
   async () => {
     try {
@@ -97,10 +177,35 @@ Use this tool when:
         });
       }
 
-      // Migrate from old credentials.enc if exists
+      // Remote mode: Return URL for user to open (can't open browser on server)
+      if (isRemoteMode()) {
+        const authInit = initiateWebAuthRemote();
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  success: true,
+                  action: 'open_url',
+                  authUrl: authInit.authUrl,
+                  sessionId: authInit.sessionId,
+                  instructions: authInit.instructions,
+                  nextStep:
+                    'After entering your credentials in the browser, call complete_connection with the session_id above.',
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      // Local mode: Open browser and wait for auth
       await sessionManager.migrateFromCredentials();
 
-      // Initiate web-based authentication
       logger.info('Starting web authentication flow');
       const result = await initiateWebAuth();
 
@@ -142,6 +247,89 @@ Use this tool when:
   }
 );
 
+// ============= TOOL: complete_connection (Remote mode only) =============
+
+server.tool(
+  'complete_connection',
+  `Complete the connection process after authenticating in your browser.
+
+REMOTE MODE ONLY: This tool is used after connect_account returns a URL.
+Once you've entered your credentials in the browser, call this tool with the session_id.
+
+The tool will poll for the authentication result and store your session.`,
+  {
+    session_id: z
+      .string()
+      .uuid()
+      .describe('The session_id returned by connect_account'),
+  },
+  async ({ session_id }) => {
+    try {
+      // This tool only makes sense in remote mode, but handle gracefully
+      if (!isRemoteMode()) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  success: false,
+                  message:
+                    'This tool is only needed in remote mode. In local mode, connect_account handles everything.',
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      logger.info(`Completing connection for session: ${session_id.substring(0, 8)}...`);
+
+      // Poll for authentication result
+      const result = await pollAuthResultRemote(session_id);
+
+      if (!result.success || !result.sessionCookie || !result.clientId) {
+        return createErrorResponse({
+          category: ErrorCategory.AUTH_FAILURE,
+          message: result.error || 'Authentication did not complete. Please try again.',
+          recoverable: true,
+        });
+      }
+
+      // Store in Cosmos DB
+      await getCosmosStore().store(session_id, {
+        sessionCookie: result.sessionCookie,
+        clientId: result.clientId,
+        createdAt: new Date().toISOString(),
+      });
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                success: true,
+                sessionId: session_id,
+                message:
+                  'Your DATS account is connected! You can now book trips, view upcoming trips, and more. ' +
+                  'Include the session_id in future requests to stay connected.',
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const datsError = wrapError(error);
+      return createErrorResponse(datsError.toToolError());
+    }
+  }
+);
+
 // ============= TOOL: disconnect_account =============
 
 server.tool(
@@ -153,13 +341,52 @@ Use this tool when:
 - You want to switch to a different DATS account
 - You are done using DATS booking
 
-After disconnecting, you will need to use connect_account to log in again.`,
-  {},
-  async () => {
-    try {
-      const hadSession = sessionManager.hasSession();
+After disconnecting, you will need to use connect_account to log in again.
 
-      // Clear the stored session
+REMOTE MODE: Include session_id to disconnect a specific session.`,
+  {
+    session_id: z
+      .string()
+      .uuid()
+      .optional()
+      .describe('Session ID to disconnect (required for remote mode)'),
+  },
+  async ({ session_id }) => {
+    try {
+      // Remote mode: delete from Cosmos DB
+      if (isRemoteMode()) {
+        if (!session_id) {
+          return createErrorResponse({
+            category: ErrorCategory.VALIDATION_ERROR,
+            message: 'session_id is required to disconnect in remote mode.',
+            recoverable: true,
+          });
+        }
+
+        const hadSession = await getCosmosStore().hasSession(session_id);
+        await getCosmosStore().delete(session_id);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  success: true,
+                  message: hadSession
+                    ? 'You have been logged out. Your session has been cleared. To use DATS booking again, you will need to connect your account.'
+                    : 'Session not found or already expired.',
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      // Local mode: clear file-based session
+      const hadSession = sessionManager.hasSession();
       await sessionManager.clear();
 
       if (hadSession) {
@@ -214,8 +441,15 @@ IMPORTANT: Before calling this tool, always confirm with the user by summarizing
 The response includes a "userMessage" field with pre-formatted plain language confirmation.
 You should display this userMessage to the user as-is.
 
+REMOTE MODE: Include session_id from connect_account/complete_connection.
+
 ${PLAIN_LANGUAGE_GUIDELINES}`,
   {
+    session_id: z
+      .string()
+      .uuid()
+      .optional()
+      .describe('Session ID (required for remote mode, optional for local)'),
     pickup_date: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -272,7 +506,7 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
   async (params) => {
     try {
       // Check for valid session
-      const session = await getValidSession();
+      const session = await getValidSession(params.session_id);
       if (!session) {
         return createErrorResponse({
           category: ErrorCategory.CREDENTIALS_NOT_FOUND,
@@ -347,20 +581,34 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
 
 server.tool(
   'get_trips',
-  `Retrieve upcoming booked DATS trips. Cancelled trips are hidden by default.
+  `Retrieve DATS trips. By default shows only active trips (Scheduled, Unscheduled, Arrived, Pending).
 
 TRIP DATA INCLUDES:
 - Date, pickup window, pickup/destination addresses
-- Mobility device type (wheelchair, scooter, ambulatory)
-- Additional passengers (escort, PCA, guest) with count
-- Pickup/dropoff phone numbers and comments
-- Fare amount
+- Status (Scheduled, Performed, Cancelled, etc.)
+- Mobility device, passengers, phone numbers, fare
 
-The response includes a "userMessage" field with pre-formatted plain language text.
+FILTERING OPTIONS:
+- By default: Only active trips (Scheduled, Unscheduled, Arrived, Pending)
+- include_all: true - Show ALL trips including Performed, Cancelled, No Show, etc.
+- status_filter: Filter to specific status(es) like ["Pf"] for Performed only
+
+STATUS CODES:
+- S = Scheduled, U = Unscheduled, A = Arrived, Pn = Pending
+- Pf = Performed, CA = Cancelled, NS = No Show, NM = Missed, R = Refused
+
+The response includes a "userMessage" field with trips formatted as a markdown table.
 You should display this userMessage to the user as-is.
+
+REMOTE MODE: Include session_id from connect_account/complete_connection.
 
 ${PLAIN_LANGUAGE_GUIDELINES}`,
   {
+    session_id: z
+      .string()
+      .uuid()
+      .optional()
+      .describe('Session ID (required for remote mode, optional for local)'),
     date_from: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -370,16 +618,20 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional()
-      .describe('End date filter (YYYY-MM-DD). Defaults to 7 days from now.'),
-    include_cancelled: z
+      .describe('End date filter (YYYY-MM-DD). Defaults to 2 months from now.'),
+    include_all: z
       .boolean()
       .optional()
-      .describe('Set to true to include cancelled trips. Defaults to false.'),
+      .describe('Set to true to include ALL trips (Performed, Cancelled, etc.). Defaults to false.'),
+    status_filter: z
+      .array(z.enum(['S', 'U', 'A', 'Pn', 'Pf', 'CA', 'NS', 'NM', 'R']))
+      .optional()
+      .describe('Filter to specific status(es). Example: ["Pf"] for Performed only, ["Pf", "CA"] for Performed and Cancelled.'),
   },
-  async ({ date_from, date_to, include_cancelled = false }) => {
+  async ({ session_id, date_from, date_to, include_all = false, status_filter }) => {
     try {
       // Check for valid session
-      const session = await getValidSession();
+      const session = await getValidSession(session_id);
       if (!session) {
         return createErrorResponse({
           category: ErrorCategory.CREDENTIALS_NOT_FOUND,
@@ -398,13 +650,18 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
 
       let trips = await api.getClientTrips(session.clientId, fromDate, toDate);
 
-      // Filter out inactive trips (cancelled, performed, no-show, etc.) by default
-      if (!include_cancelled) {
+      // Apply status filtering
+      if (status_filter && status_filter.length > 0) {
+        // Filter to specific statuses requested
+        trips = trips.filter(trip => status_filter.includes(trip.status as TripStatusCode));
+      } else if (!include_all) {
+        // Default: only show active trips (Scheduled, Unscheduled, Arrived, Pending)
         trips = trips.filter(trip => {
           const statusInfo = TRIP_STATUSES[trip.status as TripStatusCode];
           return statusInfo?.isActive ?? true;
         });
       }
+      // If include_all is true and no status_filter, show everything
 
       // Generate plain language summary for the user
       const userMessage = formatTripsForUser(trips);
@@ -437,18 +694,25 @@ Use this tool to help users find when they can book a trip. You can:
 The response includes a "userMessage" field with pre-formatted plain language text.
 You should display this userMessage to the user as-is.
 
+REMOTE MODE: Include session_id from connect_account/complete_connection.
+
 ${PLAIN_LANGUAGE_GUIDELINES}`,
   {
+    session_id: z
+      .string()
+      .uuid()
+      .optional()
+      .describe('Session ID (required for remote mode, optional for local)'),
     date: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional()
       .describe('Optional: specific date to check times for (YYYY-MM-DD format). If not provided, returns all available dates.'),
   },
-  async ({ date }) => {
+  async ({ session_id, date }) => {
     try {
       // Check for valid session
-      const session = await getValidSession();
+      const session = await getValidSession(session_id);
       if (!session) {
         return createErrorResponse({
           category: ErrorCategory.CREDENTIALS_NOT_FOUND,
@@ -502,17 +766,24 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
 
 server.tool(
   'cancel_trip',
-  'Cancel an existing DATS booking. Requires 2-hour minimum notice. IMPORTANT: Before calling this tool, always confirm with the user by summarizing the trip details (date, time, pickup, destination) and explicitly asking "Are you sure you want to cancel this trip?" Only proceed after user confirms. You can use either the numeric booking ID or the alphanumeric confirmation number.',
+  `Cancel an existing DATS booking. Requires 2-hour minimum notice. IMPORTANT: Before calling this tool, always confirm with the user by summarizing the trip details (date, time, pickup, destination) and explicitly asking "Are you sure you want to cancel this trip?" Only proceed after user confirms. You can use either the numeric booking ID or the alphanumeric confirmation number.
+
+REMOTE MODE: Include session_id from connect_account/complete_connection.`,
   {
+    session_id: z
+      .string()
+      .uuid()
+      .optional()
+      .describe('Session ID (required for remote mode, optional for local)'),
     confirmation_number: z
       .string()
       .min(1)
       .describe('The DATS booking ID (numeric like 18789348) or confirmation number (alphanumeric like T011EBCA7)'),
   },
-  async ({ confirmation_number }) => {
+  async ({ session_id, confirmation_number }) => {
     try {
       // Check for valid session
-      const session = await getValidSession();
+      const session = await getValidSession(session_id);
       if (!session) {
         return createErrorResponse({
           category: ErrorCategory.CREDENTIALS_NOT_FOUND,
@@ -588,12 +859,20 @@ server.tool(
 
 server.tool(
   'get_announcements',
-  'Get DATS system announcements and important notices for clients.',
-  {},
-  async () => {
+  `Get DATS system announcements and important notices for clients.
+
+REMOTE MODE: Include session_id from connect_account/complete_connection.`,
+  {
+    session_id: z
+      .string()
+      .uuid()
+      .optional()
+      .describe('Session ID (required for remote mode, optional for local)'),
+  },
+  async ({ session_id }) => {
     try {
       // Check for valid session
-      const session = await getValidSession();
+      const session = await getValidSession(session_id);
       if (!session) {
         return createErrorResponse({
           category: ErrorCategory.CREDENTIALS_NOT_FOUND,
@@ -626,12 +905,20 @@ server.tool(
 
 server.tool(
   'get_profile',
-  'Get your DATS client profile including personal info, contact details, and mobility aids.',
-  {},
-  async () => {
+  `Get your DATS client profile including personal info, contact details, and mobility aids.
+
+REMOTE MODE: Include session_id from connect_account/complete_connection.`,
+  {
+    session_id: z
+      .string()
+      .uuid()
+      .optional()
+      .describe('Session ID (required for remote mode, optional for local)'),
+  },
+  async ({ session_id }) => {
     try {
       // Check for valid session
-      const session = await getValidSession();
+      const session = await getValidSession(session_id);
       if (!session) {
         return createErrorResponse({
           category: ErrorCategory.CREDENTIALS_NOT_FOUND,
@@ -751,12 +1038,38 @@ server.tool(
 
 // ============= MAIN =============
 
-async function main(): Promise<void> {
+/**
+ * Start the MCP server in stdio mode (local, for Claude Desktop)
+ */
+async function startStdioServer(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
   logger.info('DATS Booking MCP Server running on stdio');
   logger.info(`Session available: ${sessionManager.hasSession()}`);
+}
+
+/**
+ * Start the MCP server in HTTP mode (remote, for Claude mobile/web)
+ */
+async function startRemoteServer(): Promise<void> {
+  logger.info('Starting DATS Booking MCP Server in HTTP mode');
+
+  const app = createHttpServer(server);
+  await startHttpServer(app, HTTP_PORT, HTTP_HOST);
+}
+
+/**
+ * Main entry point - starts appropriate server based on transport mode
+ */
+async function main(): Promise<void> {
+  logger.info(`Transport mode: ${TRANSPORT_MODE}`);
+
+  if (TRANSPORT_MODE === 'http') {
+    await startRemoteServer();
+  } else {
+    await startStdioServer();
+  }
 }
 
 main().catch((error) => {
