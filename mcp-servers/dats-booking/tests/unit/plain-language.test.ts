@@ -83,11 +83,9 @@ describe('formatTripsForUser', () => {
 
     const message = formatTripsForUser(trips);
 
-    expect(message).toContain('1 upcoming trip');
-    expect(message).toContain('9:00 AM');
-    expect(message).toContain('Home');
-    expect(message).toContain('City Hall');
-    expect(message).toContain('12345678');
+    // Function now returns simple count + instruction for Claude to format
+    expect(message).toContain('1 trip');
+    expect(message).toContain('table');
   });
 
   it('should format multiple trips', () => {
@@ -114,9 +112,9 @@ describe('formatTripsForUser', () => {
 
     const message = formatTripsForUser(trips);
 
-    expect(message).toContain('2 upcoming trips');
-    expect(message).toContain('11111111');
-    expect(message).toContain('22222222');
+    // Function now returns simple count + instruction for Claude to format
+    expect(message).toContain('2 trips');
+    expect(message).toContain('table');
   });
 });
 
