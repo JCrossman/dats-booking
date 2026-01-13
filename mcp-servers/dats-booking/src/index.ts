@@ -51,6 +51,18 @@ const HTTP_PORT = parseInt(process.env.PORT || '3000', 10);
 const HTTP_HOST = process.env.HOST || '0.0.0.0';
 
 /**
+ * Get current date context for tool descriptions
+ * Helps Claude calculate dates correctly when users say things like "Thursday"
+ */
+function getDateContext(): string {
+  const now = new Date();
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayName = days[now.getDay()];
+  const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+  return `TODAY: ${dayName}, ${dateStr}`;
+}
+
+/**
  * Check if running in remote (HTTP) mode
  */
 function isRemoteMode(): boolean {
@@ -436,6 +448,9 @@ server.tool(
   'book_trip',
   `Create a new DATS booking. Requires credentials to be set up first.
 
+${getDateContext()}
+When user says relative dates like "Thursday" or "tomorrow", calculate the actual date from today.
+
 IMPORTANT: Before calling this tool, always confirm with the user by summarizing the booking details (date, time, pickup address, destination, and any special options like mobility device or companions) and explicitly asking "Do you want me to book this trip?" Only proceed after user confirms.
 
 The response includes a "userMessage" field with pre-formatted plain language confirmation.
@@ -583,6 +598,9 @@ server.tool(
   'get_trips',
   `Retrieve DATS trips. By default shows only active trips (Scheduled, Unscheduled, Arrived, Pending).
 
+${getDateContext()}
+When user says relative dates like "Thursday" or "next week", calculate the actual date from today.
+
 TRIP DATA INCLUDES:
 - Date, pickup window, pickup/destination addresses
 - Status (Scheduled, Performed, Cancelled, etc.)
@@ -686,6 +704,9 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
 server.tool(
   'check_availability',
   `Check available dates and times for DATS bookings.
+
+${getDateContext()}
+When user says relative dates like "Thursday" or "tomorrow", calculate the actual date from today.
 
 Use this tool to help users find when they can book a trip. You can:
 - Get all available booking dates (up to 3 days ahead)
