@@ -45,39 +45,57 @@ npm run format           # Prettier
 
 ## Architecture
 
+The MCP server supports two transport modes:
+
+### Local Mode (Claude Desktop)
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  AI Clients (Claude Desktop, Copilot, Custom Web UI)        │
+│  Claude Desktop / Copilot                                    │
 └──────────────────────────┬──────────────────────────────────┘
                            │ MCP Protocol (stdio)
                            ▼
               ┌─────────────────────────┐
               │   DATS Booking MCP      │
-              │                         │
-              │  connect_account        │  ← Opens browser for secure login
-              │  book_trip              │
-              │  get_trips              │
-              │  check_availability     │
-              │  cancel_trip            │
-              │  get_announcements      │
-              │  get_profile            │
-              │  get_info               │
+              │   (local Node.js)       │
               └───────────┬─────────────┘
                           │
          ┌────────────────┼────────────────┐
          ▼                ▼                ▼
 ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-│ Azure Auth  │  │ DATS SOAP   │  │ Static HTML │
-│ Web App     │  │ API         │  │ Pages       │
-│ (Canada)    │  │ /PassInfo   │  │ /Public/... │
+│ Azure Auth  │  │ DATS SOAP   │  │ Local File  │
+│ Web App     │  │ API         │  │ Session     │
 └─────────────┘  └─────────────┘  └─────────────┘
 ```
+
+### Remote Mode (Claude Mobile/Web)
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Claude iOS / Android / Web                                  │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ HTTPS (Streamable HTTP)
+                           ▼
+              ┌─────────────────────────┐
+              │   Azure Container Apps  │
+              │   (Canada Central)      │
+              │   dats-mcp-dev-app      │
+              └───────────┬─────────────┘
+                          │
+         ┌────────────────┼────────────────┐
+         ▼                ▼                ▼
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│ Auth Routes │  │ DATS SOAP   │  │ Cosmos DB   │
+│ (same host) │  │ API         │  │ Sessions    │
+└─────────────┘  └─────────────┘  └─────────────┘
+```
+
+**Remote Mode URL:** `https://dats-mcp-dev-app.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/mcp`
 
 ## MCP Tools
 
 | Tool | Description |
 |------|-------------|
 | `connect_account` | Opens secure browser page for DATS login (credentials never touch Claude) |
+| `complete_connection` | Complete authentication after browser login (remote mode only) |
 | `disconnect_account` | Log out and clear session from this computer |
 | `book_trip` | Create a new DATS booking with full options |
 | `get_trips` | Retrieve trips with status filtering (active trips by default) |
@@ -86,6 +104,19 @@ npm run format           # Prettier
 | `get_announcements` | Get DATS system announcements |
 | `get_profile` | Get user profile, contacts, saved locations |
 | `get_info` | Get general info, fares, privacy policy, service description |
+
+### Flexible Date Formats
+
+The `book_trip`, `get_trips`, and `check_availability` tools accept flexible date formats:
+
+| Format | Example | Description |
+|--------|---------|-------------|
+| YYYY-MM-DD | `2026-01-15` | Standard ISO date |
+| Day name | `thursday` | Next occurrence of that day |
+| Relative | `today`, `tomorrow` | Relative to current date |
+| Next week | `next monday` | Next week's occurrence |
+
+**Important:** When a user says "Thursday", pass `"thursday"` directly to the tool. The server calculates the correct date using the user's timezone (defaults to America/Edmonton).
 
 ### Trip Statuses
 
@@ -207,22 +238,39 @@ Always confirm with user before cancelling:
 ```
 mcp-servers/dats-booking/
 ├── src/
-│   ├── index.ts              # MCP server entry point (9 tools)
+│   ├── index.ts              # MCP server entry point (10 tools)
 │   ├── types.ts              # TypeScript interfaces
 │   ├── api/
-│   │   ├── auth-client.ts    # Direct login API (used by Azure Function)
-│   │   └── dats-api.ts       # SOAP API client (booking, trips, profile)
+│   │   ├── auth-client.ts    # Direct login API
+│   │   ├── dats-api.ts       # SOAP API client (booking, trips, profile)
+│   │   └── soap-client.ts    # Generic SOAP client
 │   ├── auth/
-│   │   ├── session-manager.ts    # Encrypted session storage
+│   │   ├── session-manager.ts    # Local encrypted session storage (stdio mode)
+│   │   ├── cosmos-session-store.ts # Cosmos DB session storage (HTTP mode)
 │   │   └── web-auth.ts           # Browser launch + Azure polling
+│   ├── server/
+│   │   ├── http-server.ts        # Express.js HTTP server (remote mode)
+│   │   └── auth-routes.ts        # Auth endpoints for Container App
 │   └── utils/
 │       ├── errors.ts         # Error handling
-│       └── logger.ts         # Stderr logging (no PII)
+│       ├── logger.ts         # Stderr logging (no PII)
+│       ├── booking-validation.ts # Business rule validation
+│       └── plain-language.ts     # User-friendly message formatting
+├── static/                   # Auth pages served in HTTP mode
+│   ├── index.html            # Login form
+│   ├── success.html          # Success page
+│   ├── app.js                # Form handler
+│   └── styles.css            # Styles
+├── Dockerfile                # Container image (~50MB)
 ├── build/                    # Compiled JavaScript
 ├── package.json
 └── tsconfig.json
 
-azure/dats-auth/               # Azure Static Web App (Canada Central)
+azure/dats-mcp/                # Azure Infrastructure (Bicep)
+├── main.bicep                 # Container Apps, Cosmos DB, Managed Identity
+└── azuredeploy.parameters.json
+
+azure/dats-auth/               # Azure Static Web App (local mode auth)
 ├── api/                       # Azure Functions
 │   ├── auth-login/            # POST /api/auth/login
 │   ├── auth-status/           # GET /api/auth/status/{sessionId}
@@ -230,7 +278,6 @@ azure/dats-auth/               # Azure Static Web App (Canada Central)
 ├── src/                       # Static web files
 │   ├── index.html             # Accessible login form
 │   ├── success.html           # Connection success page
-│   ├── error.html             # Error page
 │   ├── styles.css             # WCAG 2.2 AA styles
 │   └── app.js                 # Form handler
 └── staticwebapp.config.json   # Routing config
@@ -240,22 +287,47 @@ azure/dats-auth/               # Azure Static Web App (Canada Central)
 
 | Path | Purpose |
 |------|---------|
-| `mcp-servers/dats-booking/src/index.ts` | MCP server with all 9 tools |
+| `mcp-servers/dats-booking/src/index.ts` | MCP server with 10 tools (stdio + HTTP) |
 | `mcp-servers/dats-booking/src/api/dats-api.ts` | SOAP API client |
-| `mcp-servers/dats-booking/src/auth/session-manager.ts` | Encrypted session storage |
+| `mcp-servers/dats-booking/src/auth/session-manager.ts` | Local encrypted session storage |
+| `mcp-servers/dats-booking/src/auth/cosmos-session-store.ts` | Cosmos DB session storage (remote) |
 | `mcp-servers/dats-booking/src/auth/web-auth.ts` | Browser launch + Azure polling |
+| `mcp-servers/dats-booking/src/server/http-server.ts` | Express HTTP server (remote mode) |
+| `mcp-servers/dats-booking/src/server/auth-routes.ts` | Auth API endpoints |
+| `mcp-servers/dats-booking/Dockerfile` | Container image for Azure |
+| `azure/dats-mcp/main.bicep` | Azure infrastructure (Container Apps, Cosmos DB) |
 | `azure/dats-auth/api/auth-login/index.ts` | Azure Function: authenticate with DATS |
-| `azure/dats-auth/src/index.html` | Accessible login form (WCAG 2.2 AA) |
 
 ## Environment Variables
 
+### Local Mode (stdio)
 ```bash
 # Optional (encryption key auto-generated if not provided)
 DATS_ENCRYPTION_KEY=         # Override auto-generated AES-256 key
 DATS_AUTH_URL=               # Azure auth endpoint (has default)
 LOG_LEVEL=info               # debug | info | warn | error
+```
 
-# Future (calendar integration)
+### Remote Mode (HTTP)
+```bash
+MCP_TRANSPORT=http           # Enable HTTP mode
+PORT=3000                    # Server port
+HOST=0.0.0.0                 # Server host
+
+# Cosmos DB (session storage)
+COSMOS_ENDPOINT=             # Cosmos DB endpoint URL
+COSMOS_DATABASE=dats-sessions
+COSMOS_CONTAINER=sessions
+COSMOS_ENCRYPTION_KEY=       # AES-256 key for session encryption
+
+# Azure Managed Identity
+AZURE_CLIENT_ID=             # User-assigned managed identity client ID
+
+LOG_LEVEL=info               # debug | info | warn | error
+```
+
+### Future (calendar integration)
+```bash
 AZURE_CLIENT_ID=             # Microsoft Entra app registration
 AZURE_CLIENT_SECRET=         # Microsoft Entra client secret
 AZURE_TENANT_ID=             # Microsoft Entra tenant
@@ -263,9 +335,21 @@ AZURE_TENANT_ID=             # Microsoft Entra tenant
 
 ## Distribution
 
-### MCPB Bundle (One-Click Install)
+### Claude Mobile/Web (Remote Connector)
 
-For non-technical users, the MCP server can be packaged as an MCPB bundle:
+The easiest way to use DATS Booking on mobile devices:
+
+1. Go to [claude.ai](https://claude.ai) → Settings → Connectors
+2. Click "Add custom connector"
+3. Enter URL: `https://dats-mcp-dev-app.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/mcp`
+4. Name it "DATS Booking"
+5. The connector syncs to Claude iOS/Android automatically
+
+**No installation required** - works on any device with Claude access.
+
+### MCPB Bundle (One-Click Install for Desktop)
+
+For Claude Desktop users who prefer local installation:
 
 ```bash
 cd mcp-servers/dats-booking
@@ -276,15 +360,9 @@ mcpb pack .
 
 This creates `dats-booking.mcpb` (~26MB) that users can double-click to install.
 
-**Current status:**
-- Bundle works and installs correctly
-- Icon doesn't display (may require signing/verification)
-- Claude Desktop shows "access to everything" warning (standard for all MCPs)
-
-**Known issues to resolve:**
-- Icon not showing in install preview
-- Permission warning concerning for non-technical users
-- Consider HTTP/SSE transport for web-based alternative (no installation needed)
+**Known issues:**
+- Icon not showing in install preview (may require verified signing)
+- "Access to everything" warning (standard for all MCPs)
 
 ### Manual Installation (Developers)
 
@@ -302,6 +380,29 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 ```
 
 Note: Encryption keys are auto-generated. No environment variables required.
+
+### Docker Deployment (Remote Server)
+
+Build and run the remote MCP server:
+
+```bash
+cd mcp-servers/dats-booking
+
+# Build image
+docker build --platform linux/amd64 -t dats-mcp .
+
+# Run locally for testing
+docker run -p 3000:3000 \
+  -e MCP_TRANSPORT=http \
+  -e COSMOS_ENDPOINT=<endpoint> \
+  -e COSMOS_ENCRYPTION_KEY=<key> \
+  dats-mcp
+
+# Push to Azure Container Registry
+az acr login --name datsmcpregistry
+docker tag dats-mcp datsmcpregistry.azurecr.io/dats-mcp:latest
+docker push datsmcpregistry.azurecr.io/dats-mcp:latest
+```
 
 ## Testing
 

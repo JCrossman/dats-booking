@@ -1,6 +1,6 @@
 # DATS Booking Assistant
 
-Book Edmonton DATS (Disabled Adult Transit Service) trips using natural language in Claude Desktop.
+Book Edmonton DATS (Disabled Adult Transit Service) trips using natural language in Claude.
 
 ## What You Can Do
 
@@ -11,7 +11,19 @@ Book Edmonton DATS (Disabled Adult Transit Service) trips using natural language
 
 ## Installation
 
-### Easy Install (Recommended)
+### Claude Mobile/Web (Easiest)
+
+Use DATS Booking on your phone or in the browser:
+
+1. Go to [claude.ai](https://claude.ai) → Settings → Connectors
+2. Click "Add custom connector"
+3. Enter URL: `https://dats-mcp-dev-app.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/mcp`
+4. Name it "DATS Booking"
+5. The connector syncs to Claude iOS/Android automatically
+
+**No installation required!**
+
+### Claude Desktop (One-Click Install)
 
 1. Download `dats-booking.mcpb`
 2. Double-click the file
@@ -23,7 +35,7 @@ You need a DATS client account to use this assistant.
 
 ### First Time Setup
 
-After installing, say "Connect my DATS account" in Claude. A browser window opens for you to enter your DATS client ID and passcode securely.
+After installing, say "Connect my DATS account" in Claude. A browser window opens (or you'll see a link to open) for you to enter your DATS client ID and passcode securely.
 
 ---
 
@@ -97,10 +109,11 @@ Create a new DATS trip booking.
 **Important:** The assistant will summarize booking details and ask for confirmation before submitting.
 
 **Parameters:**
-- `pickup_date` (string): Date in YYYY-MM-DD format
+- `pickup_date` (string): Date - accepts YYYY-MM-DD, day name ("thursday"), or relative ("tomorrow")
 - `pickup_time` (string): Time in HH:MM 24-hour format
 - `pickup_address` (string): Full pickup address in Edmonton
 - `destination_address` (string): Full destination address
+- `timezone` (optional string): Timezone for date calculation (default: America/Edmonton)
 - `mobility_device` (optional): wheelchair, scooter, walker, or none
 - `companion` (optional boolean): Whether a companion will travel
 - `return_trip` (optional boolean): Book a return trip
@@ -116,16 +129,19 @@ Create a new DATS trip booking.
 Retrieve upcoming booked DATS trips.
 
 **Parameters:**
-- `date_from` (optional string): Start date filter (YYYY-MM-DD)
-- `date_to` (optional string): End date filter (YYYY-MM-DD)
-- `include_cancelled` (optional boolean): Include cancelled trips (default: false)
+- `date_from` (optional string): Start date - accepts YYYY-MM-DD, day name ("thursday"), or relative ("today")
+- `date_to` (optional string): End date filter (same formats)
+- `timezone` (optional string): Timezone for date calculation (default: America/Edmonton)
+- `include_all` (optional boolean): Include all trips including cancelled/performed (default: false)
+- `status_filter` (optional array): Filter to specific statuses, e.g., `["Pf"]` for Performed only
 
 ### check_availability
 
 Check available dates and times for DATS bookings.
 
 **Parameters:**
-- `date` (optional string): Specific date to check times for (YYYY-MM-DD)
+- `date` (optional string): Specific date - accepts YYYY-MM-DD, day name ("thursday"), or relative ("tomorrow")
+- `timezone` (optional string): Timezone for date calculation (default: America/Edmonton)
 
 ### cancel_trip
 

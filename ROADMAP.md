@@ -4,11 +4,25 @@ This document tracks planned features and improvements. Items are derived from [
 
 ---
 
+## Completed (v1.1.0)
+
+- [x] **Remote MCP Server** (HTTP/SSE transport for Claude Mobile/Web)
+  - Azure Container Apps deployment (Canada Central)
+  - Cosmos DB session storage (encrypted, 24-hour TTL)
+  - Streamable HTTP transport for iOS/Android/Web
+  - Add as connector: `https://dats-mcp-dev-app.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/mcp`
+- [x] **Flexible date parsing** - Server-side date calculation
+  - Accepts day names ("thursday"), relative dates ("tomorrow"), and YYYY-MM-DD
+  - Timezone-aware (defaults to America/Edmonton)
+  - Fixes date calculation issues with Claude's UTC assumptions
+- [x] `complete_connection` tool for remote authentication flow
+
 ## Completed (v1.0.0)
 
 - [x] Direct SOAP API integration (Trapeze PASS)
-- [x] MCP server with 9 tools:
+- [x] MCP server with 10 tools:
   - `connect_account` - Secure web-based authentication
+  - `complete_connection` - Complete auth in remote mode
   - `disconnect_account` - Log out and clear session
   - `book_trip` - Create DATS bookings
   - `get_trips` - View upcoming trips
@@ -75,7 +89,6 @@ This document tracks planned features and improvements. Items are derived from [
 
 | PRD Ref | Feature | Description | Notes |
 |---------|---------|-------------|-------|
-| FR-4.6 | HTTP/SSE Transport | Support remote MCP clients over HTTP | Enables web-based clients |
 | FR-3.5 | Shared Calendars | Support caregiver access to shared calendars | |
 | - | M365 Copilot Integration | Expose DATS booking as M365 Copilot plugin | Requires REST API + OpenAPI spec |
 | FR-5.1 | Symbol-based UI | ARASAAC symbol selection for non-verbal users | Custom web UI needed |
@@ -85,6 +98,7 @@ This document tracks planned features and improvements. Items are derived from [
 | US-2.3 | Caregiver Notifications | Email/SMS alerts when trips booked/cancelled | |
 | - | Recurring Bookings | Auto-book regular trips (e.g., weekly dialysis) | May require DATS approval |
 | - | Multi-city Support | Extend to other Canadian paratransit systems | Different APIs per city |
+| - | Custom Connector Icon | Custom branding for Claude connector | Waiting for MCP protocol support |
 
 ---
 
@@ -104,9 +118,12 @@ This document tracks planned features and improvements. Items are derived from [
 | Client | Status | Notes |
 |--------|--------|-------|
 | Claude Desktop | ✅ Working | Native MCP support (stdio) |
+| Claude iOS | ✅ Working | Via remote connector (HTTP) |
+| Claude Android | ✅ Working | Via remote connector (HTTP) |
+| Claude Web | ✅ Working | Via remote connector (HTTP) |
 | GitHub Copilot Chat (VS Code) | ✅ Working | Experimental MCP support |
 | M365 Copilot | Planned | Requires plugin conversion (see Future) |
-| Custom Web UI | Planned | For symbol-based/switch access interface (requires HTTP/SSE) |
+| Custom Web UI | Possible | HTTP endpoint available for custom clients |
 
 ---
 
@@ -127,4 +144,4 @@ This document tracks planned features and improvements. Items are derived from [
 
 ---
 
-*Last updated: January 11, 2026 (v1.0.0)*
+*Last updated: January 13, 2026 (v1.1.0)*

@@ -12,6 +12,14 @@ An MCP (Model Context Protocol) server that enables natural language booking of 
 
 ## Quick Start
 
+### Claude Mobile/Web (Easiest)
+
+1. Go to [claude.ai](https://claude.ai) → Settings → Connectors
+2. Add custom connector: `https://dats-mcp-dev-app.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/mcp`
+3. Works on iOS, Android, and web - no installation needed!
+
+### Claude Desktop (Local Installation)
+
 ```bash
 # Install dependencies
 cd mcp-servers/dats-booking
@@ -77,29 +85,37 @@ Credentials are **never** sent to Claude or Anthropic. Instead:
 
 ## Architecture
 
+The server supports two modes: **local** (stdio for Claude Desktop) and **remote** (HTTP for Claude Mobile/Web).
+
 ```
 mcp-servers/dats-booking/
 ├── src/
-│   ├── index.ts              # MCP server entry point (9 tools)
+│   ├── index.ts              # MCP server entry point (10 tools)
 │   ├── api/
 │   │   ├── auth-client.ts    # Direct API authentication
 │   │   └── dats-api.ts       # SOAP API client
 │   ├── auth/
-│   │   ├── web-auth.ts       # Browser auth + Azure polling
-│   │   └── session-manager.ts # Encrypted session storage
+│   │   ├── web-auth.ts           # Browser auth + Azure polling
+│   │   ├── session-manager.ts    # Local encrypted session storage
+│   │   └── cosmos-session-store.ts # Remote session storage (Cosmos DB)
+│   ├── server/
+│   │   ├── http-server.ts        # Express HTTP server (remote mode)
+│   │   └── auth-routes.ts        # Auth API endpoints
 │   └── utils/                # Logging, validation, errors
+├── static/                   # Auth pages for remote mode
+└── Dockerfile                # Container image for Azure
 
-azure/dats-auth/
+azure/dats-mcp/               # Remote mode infrastructure
+├── main.bicep                # Container Apps, Cosmos DB, Managed Identity
+
+azure/dats-auth/              # Local mode auth (Azure Static Web App)
 ├── src/                      # Static Web App (login UI)
 │   ├── index.html            # Accessible login form
 │   ├── success.html          # Connection success page
 │   └── app.js                # Form handler
 └── api/                      # Azure Functions
     ├── auth-login/           # POST /api/auth/login
-    ├── auth-status/          # GET /api/auth/status/{sessionId}
-    └── shared/
-        ├── dats-client.ts    # DATS authentication
-        └── session-store.ts  # Azure Blob session storage
+    └── auth-status/          # GET /api/auth/status/{sessionId}
 ```
 
 ## Performance
