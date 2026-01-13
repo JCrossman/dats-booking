@@ -15,7 +15,11 @@ This document tracks planned features and improvements. Items are derived from [
   - Accepts day names ("thursday"), relative dates ("tomorrow"), and YYYY-MM-DD
   - Timezone-aware (defaults to America/Edmonton)
   - Fixes date calculation issues with Claude's UTC assumptions
-- [x] `complete_connection` tool for remote authentication flow
+- [x] **Background auth polling** - Automatic session storage
+  - `connect_account` starts polling immediately when returning auth URL
+  - Session stored automatically when user completes authentication
+  - `complete_connection` tool rarely needed (kept for backward compatibility)
+- [x] **Auth URL fix** for Container Apps (explicit DATS_AUTH_URL env var)
 
 ## Completed (v1.0.0)
 
@@ -51,7 +55,7 @@ This document tracks planned features and improvements. Items are derived from [
 
 ### MCPB Distribution (One-Click Install)
 
-**Goal:** Enable non-technical users to install with a single click (no terminal, npm, or config editing).
+**Status:** Deprioritized - Remote connector is now the recommended installation method.
 
 **Completed:**
 - [x] Auto-generate encryption key (no user config needed)
@@ -65,10 +69,25 @@ This document tracks planned features and improvements. Items are derived from [
 - [ ] "Access to everything" warning concerning for users (standard for all MCPs)
 - [ ] Self-signing doesn't work (corrupts bundle)
 
-**Next Steps:**
-- Investigate icon display issue (may require verified signing)
-- Consider HTTP/SSE transport as alternative (no scary warnings)
-- Test installation when Claude service is restored
+**Recommendation:** Use the remote connector instead (no installation required):
+`https://dats-mcp-dev-app.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/mcp`
+
+---
+
+## Known Limitations
+
+### Seamless Auth Flow (Not Possible)
+
+**Issue:** Users must say "done" after authenticating before Claude continues with their original request.
+
+**Root cause:** MCP's request-response architecture:
+- Tools return ONE response and cannot push updates to Claude
+- Blocking until auth completes causes the app to hang (user never sees auth URL)
+- Server cannot notify Claude when authentication completes
+
+**Current workaround:** Background polling stores the session automatically. User just needs to say "done" or "connected" after authenticating, and Claude will retry their original request.
+
+**Would require:** Streaming tool responses or server-push notifications (not in MCP spec)
 
 ---
 
@@ -144,4 +163,4 @@ This document tracks planned features and improvements. Items are derived from [
 
 ---
 
-*Last updated: January 13, 2026 (v1.1.0)*
+*Last updated: January 13, 2026 (v1.1.1)*

@@ -7,16 +7,19 @@ An MCP (Model Context Protocol) server that enables natural language booking of 
 - **Secure Web Authentication**: Credentials entered in browser, never sent to Claude/Anthropic
 - **Direct API Integration**: Fast SOAP API calls (~750ms total) instead of slow browser automation
 - **Natural Language Booking**: Book trips by describing where and when you need to go
+- **Flexible Date Parsing**: Say "Thursday" or "tomorrow" - server handles timezone-aware date calculation
 - **Trip Management**: View upcoming trips, cancel bookings
 - **Accessibility First**: Designed for AAC devices, switch access, and screen readers
 
 ## Quick Start
 
-### Claude Mobile/Web (Easiest)
+### Claude Mobile/Web (Recommended)
 
 1. Go to [claude.ai](https://claude.ai) → Settings → Connectors
 2. Add custom connector: `https://dats-mcp-dev-app.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/mcp`
 3. Works on iOS, Android, and web - no installation needed!
+
+**First use:** Ask "Show my DATS trips" → Open the auth link → Enter credentials → Say "done" → Claude continues automatically.
 
 ### Claude Desktop (Local Installation)
 

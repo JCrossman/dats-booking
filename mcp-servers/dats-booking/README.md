@@ -11,7 +11,7 @@ Book Edmonton DATS (Disabled Adult Transit Service) trips using natural language
 
 ## Installation
 
-### Claude Mobile/Web (Easiest)
+### Claude Mobile/Web (Recommended)
 
 Use DATS Booking on your phone or in the browser:
 
@@ -22,6 +22,8 @@ Use DATS Booking on your phone or in the browser:
 5. The connector syncs to Claude iOS/Android automatically
 
 **No installation required!**
+
+**First use:** Just ask for trips or book a ride. Claude will show you a login link. Open it, enter your credentials, then say "done" and Claude continues with your request.
 
 ### Claude Desktop (One-Click Install)
 

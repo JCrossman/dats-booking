@@ -94,8 +94,8 @@ The MCP server supports two transport modes:
 
 | Tool | Description |
 |------|-------------|
-| `connect_account` | Opens secure browser page for DATS login (credentials never touch Claude) |
-| `complete_connection` | Complete authentication after browser login (remote mode only) |
+| `connect_account` | Opens secure browser page for DATS login (credentials never touch Claude). In remote mode, starts background polling automatically. |
+| `complete_connection` | Complete authentication (remote mode only). Rarely needed - background polling handles this automatically. |
 | `disconnect_account` | Log out and clear session from this computer |
 | `book_trip` | Create a new DATS booking with full options |
 | `get_trips` | Retrieve trips with status filtering (active trips by default) |
