@@ -1039,14 +1039,10 @@ export class DATSApi {
       const creationConfNum = this.extractXml(xml, 'CreationConfirmationNumber');
       const date = this.extractXml(xml, 'DateF') || this.extractXml(xml, 'RawDate');
       const status = this.extractXml(xml, 'SchedStatusF').toLowerCase();
-      const actualStatus = this.extractXml(xml, 'ActualStatus');
-      const performStatus = this.extractXml(xml, 'PerformStatus');
 
-      // Determine the most accurate current status using all available fields
-      const effectiveStatus = this.determineEffectiveStatus(status, actualStatus, performStatus);
-
-      // DEBUG: Log all status fields and the effective status being used
-      logger.info(`DATS API status for booking ${bookingId}: SchedStatusF="${status}", ActualStatus="${actualStatus}", PerformStatus="${performStatus}" → effective="${effectiveStatus}"`);
+      // Use the API status directly - no interpretation
+      // The DATS API is the single source of truth
+      logger.info(`DATS API status for booking ${bookingId}: SchedStatusF="${status}"`);
 
       // Parse pickup leg
       const pickupMatch = xml.match(/<PickUpLeg[^>]*>([\s\S]*?)<\/PickUpLeg>/);
@@ -1087,8 +1083,8 @@ export class DATSApi {
       // Additional passengers
       const additionalPassengers = this.parsePassengers(xml);
 
-      // Use the effective status determined from all available status fields
-      const statusCode = this.mapApiStatusToCode(effectiveStatus);
+      // Use the API status directly - no interpretation
+      const statusCode = this.mapApiStatusToCode(status);
       const statusInfo = TRIP_STATUSES[statusCode];
 
       return {
@@ -1143,54 +1139,6 @@ export class DATSApi {
       'WA': 'Walker',
     };
     return mapping[spaceType] || undefined;
-  }
-
-  /**
-   * Determine the most accurate current status from all available status fields
-   *
-   * DATS returns multiple status fields that update at different times:
-   * - SchedStatusF: The scheduled status (initial booking state)
-   * - ActualStatus: Real-time status updates (Arrived, Departed, etc.)
-   * - PerformStatus: Final outcome (Performed, No Show, etc.)
-   *
-   * Priority order (most specific to least specific):
-   * 1. PerformStatus - If trip is completed/failed, this is definitive
-   * 2. ActualStatus - Real-time updates during the trip
-   * 3. SchedStatusF - Initial scheduled status (fallback)
-   */
-  private determineEffectiveStatus(schedStatus: string, actualStatus: string, performStatus: string): string {
-    const actual = actualStatus.toLowerCase().trim();
-    const perform = performStatus.toLowerCase().trim();
-
-    // Check PerformStatus first - these are final outcomes
-    if (perform) {
-      if (perform.includes('perform') || perform === 'pf' || perform === 'p') {
-        return 'performed';
-      }
-      if (perform.includes('no show') || perform === 'ns') {
-        return 'no show';
-      }
-      if (perform.includes('miss') || perform === 'nm') {
-        return 'missed trip';
-      }
-    }
-
-    // Check ActualStatus - real-time updates
-    if (actual) {
-      if (actual.includes('arrived') || actual === 'a') {
-        return 'arrived';
-      }
-      if (actual.includes('depart') || actual.includes('transit')) {
-        // In transit - still show as arrived/active for now
-        return 'arrived';
-      }
-      if (actual.includes('complet') || actual.includes('done')) {
-        return 'performed';
-      }
-    }
-
-    // Fall back to scheduled status
-    return schedStatus;
   }
 
   /**

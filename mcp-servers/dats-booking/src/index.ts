@@ -772,6 +772,9 @@ STATUS CODES:
 The response includes a "userMessage" field with trips formatted as a markdown table.
 You should display this userMessage to the user as-is.
 
+**FOR ACTIVE/CURRENT TRIPS:** If a trip is happening NOW or within 60 minutes,
+ALSO use the track_trip tool to get real-time details (vehicle location, driver name, ETA).
+
 REMOTE MODE: Include session_id from connect_account/complete_connection.
 
 ${PLAIN_LANGUAGE_GUIDELINES}`,
@@ -891,23 +894,26 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
 
 server.tool(
   'track_trip',
-  `Track a DATS trip in real-time.
+  `Track a DATS trip in real-time. USE THIS FOR ACTIVE/CURRENT TRIPS.
 
-Returns live information for trips within 60 minutes of pickup:
+Returns live information including:
 - Real-time ETA (estimated time of arrival)
 - Vehicle location (GPS coordinates)
 - Vehicle details (make, model, number)
-- Driver name
+- Driver name and provider
 - Pickup/dropoff status (scheduled, arrived, departed)
 
-IMPORTANT: This only works for imminent trips (within 60 minutes of pickup time).
-If no booking_id is provided, returns tracking for the next imminent trip.
+IMPORTANT: Works for trips within 60 minutes of pickup time.
 
-Use this tool when:
-- User asks "Where is my ride?"
+**ALWAYS use this tool when:**
+- User asks about their "active" or "current" trip
+- User asks "Where is my ride?" or "Track my ride"
 - User asks "When will my ride arrive?"
-- User wants to track their vehicle
-- User asks about their driver`,
+- User wants to know about their driver or vehicle
+- User's trip is happening NOW or starting soon
+- After get_trips shows a trip within the next 60 minutes
+
+This provides MUCH more detail than get_trips for active rides.`,
   {
     session_id: z
       .string()
