@@ -1038,11 +1038,29 @@ export class DATSApi {
       const bookingId = this.extractXml(xml, 'BookingId');
       const creationConfNum = this.extractXml(xml, 'CreationConfirmationNumber');
       const date = this.extractXml(xml, 'DateF') || this.extractXml(xml, 'RawDate');
-      const status = this.extractXml(xml, 'SchedStatusF').toLowerCase();
 
-      // Use the API status directly - no interpretation
-      // The DATS API is the single source of truth
-      logger.info(`DATS API status for booking ${bookingId}: SchedStatusF="${status}"`);
+      // Read ALL status fields from the API
+      const schedStatusF = this.extractXml(xml, 'SchedStatusF');
+      const actualStatus = this.extractXml(xml, 'ActualStatus');
+      const performStatus = this.extractXml(xml, 'PerformStatus');
+      const apiStatusCode = this.extractXml(xml, 'StatusCode');
+
+      // Log ALL status fields to see what DATS actually returns
+      logger.info(`BOOKING ${bookingId} RAW API STATUS FIELDS: SchedStatusF="${schedStatusF}", ActualStatus="${actualStatus}", PerformStatus="${performStatus}", StatusCode="${apiStatusCode}"`);
+
+      // Use PerformStatus if available (most definitive), then ActualStatus, then SchedStatusF
+      let finalStatus = schedStatusF;
+      if (performStatus && performStatus.trim() !== '') {
+        finalStatus = performStatus;
+        logger.info(`Using PerformStatus: "${performStatus}"`);
+      } else if (actualStatus && actualStatus.trim() !== '') {
+        finalStatus = actualStatus;
+        logger.info(`Using ActualStatus: "${actualStatus}"`);
+      } else {
+        logger.info(`Using SchedStatusF: "${schedStatusF}"`);
+      }
+
+      const status = finalStatus.toLowerCase();
 
       // Parse pickup leg
       const pickupMatch = xml.match(/<PickUpLeg[^>]*>([\s\S]*?)<\/PickUpLeg>/);
