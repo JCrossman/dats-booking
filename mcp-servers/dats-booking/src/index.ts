@@ -258,7 +258,7 @@ Use this tool when:
 - Your session has expired (typically daily)
 - You want to reconnect your account
 
-REMOTE MODE: If using Claude mobile or web, you will receive a URL to open in your browser. Authentication happens in the background - just come back here when done.`,
+REMOTE MODE: If using Claude mobile or web, you will receive a URL to open in your browser. After authenticating, just say "done" or "connected" and your original request will continue.`,
   {},
   async () => {
     try {
@@ -273,29 +273,24 @@ REMOTE MODE: If using Claude mobile or web, you will receive a URL to open in yo
         });
       }
 
-      // Remote mode: Return URL for user to open (can't open browser on server)
+      // Remote mode: Return URL immediately, poll in background
+      // User authenticates, then says "done" to continue - session will be ready
       if (isRemoteMode()) {
         const authInit = initiateWebAuthRemote();
 
-        // Start background polling - session will be stored automatically when auth completes
-        // This runs in the background while user authenticates
+        // Start background polling - session stored automatically when auth completes
         pollAuthResultRemote(authInit.sessionId)
           .then(async (result) => {
             if (result.success && result.sessionCookie && result.clientId) {
-              // Store session in Cosmos DB - will be ready when user returns
               await getCosmosStore().store(authInit.sessionId, {
                 sessionCookie: result.sessionCookie,
                 clientId: result.clientId,
                 createdAt: new Date().toISOString(),
               });
-              logger.info(`Background auth completed for session: ${authInit.sessionId.substring(0, 8)}...`);
-            } else {
-              logger.warn(`Background auth failed for session: ${authInit.sessionId.substring(0, 8)}... - ${result.error}`);
+              logger.info(`Background auth completed: ${authInit.sessionId.substring(0, 8)}...`);
             }
           })
-          .catch((err) => {
-            logger.error(`Background polling error: ${err}`);
-          });
+          .catch((err) => logger.error(`Background polling error: ${err}`));
 
         return {
           content: [
@@ -307,12 +302,11 @@ REMOTE MODE: If using Claude mobile or web, you will receive a URL to open in yo
                   action: 'open_url',
                   authUrl: authInit.authUrl,
                   sessionId: authInit.sessionId,
-                  instructions:
-                    'Open this URL to connect your DATS account. Enter your client ID and passcode on the secure page. ' +
-                    'The page will close automatically when done. Come back here and your session will be ready.',
+                  message:
+                    'Open this URL to connect your DATS account. After entering your credentials, just say "done" or "connected" here.',
                   forAssistant:
-                    'After the user says they have connected, immediately retry their original request using the session_id above. ' +
-                    'Do NOT ask them to do anything else - just proceed with what they originally asked for.',
+                    'Show the user the authUrl link. When they say they are done/connected, IMMEDIATELY retry their original request ' +
+                    'using the session_id. Do NOT ask them to repeat their request - just do what they originally asked.',
                 },
                 null,
                 2
