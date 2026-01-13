@@ -51,15 +51,99 @@ const HTTP_PORT = parseInt(process.env.PORT || '3000', 10);
 const HTTP_HOST = process.env.HOST || '0.0.0.0';
 
 /**
- * Get current date context for tool descriptions
- * Helps Claude calculate dates correctly when users say things like "Thursday"
+ * Parse a date string that can be either YYYY-MM-DD or a relative date like "Thursday"
+ * Uses the specified timezone for calculations (defaults to America/Edmonton for DATS users)
  */
-function getDateContext(): string {
+function parseFlexibleDate(dateStr: string, timezone: string = 'America/Edmonton'): string {
+  // If already in YYYY-MM-DD format, return as-is
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return dateStr;
+  }
+
+  // Get current date in the user's timezone
   const now = new Date();
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const dayName = days[now.getDay()];
-  const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
-  return `TODAY: ${dayName}, ${dateStr}`;
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const [year, month, day] = formatter.format(now).split('-').map(Number);
+
+  // Create a date object representing "today" in user's timezone
+  const today = new Date(year, month - 1, day);
+  const currentDayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
+
+  const input = dateStr.toLowerCase().trim();
+
+  // Handle relative date keywords
+  if (input === 'today') {
+    return formatDateYMD(today);
+  }
+  if (input === 'tomorrow') {
+    today.setDate(today.getDate() + 1);
+    return formatDateYMD(today);
+  }
+  if (input === 'yesterday') {
+    today.setDate(today.getDate() - 1);
+    return formatDateYMD(today);
+  }
+
+  // Handle day names (find next occurrence)
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayIndex = dayNames.indexOf(input);
+  if (dayIndex !== -1) {
+    // Calculate days until the target day
+    let daysUntil = dayIndex - currentDayOfWeek;
+    if (daysUntil <= 0) {
+      daysUntil += 7; // Move to next week if today or past
+    }
+    today.setDate(today.getDate() + daysUntil);
+    return formatDateYMD(today);
+  }
+
+  // Handle "next <day>"
+  const nextDayMatch = input.match(/^next\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$/);
+  if (nextDayMatch) {
+    const targetDay = dayNames.indexOf(nextDayMatch[1]);
+    let daysUntil = targetDay - currentDayOfWeek;
+    if (daysUntil <= 0) {
+      daysUntil += 7;
+    }
+    today.setDate(today.getDate() + daysUntil);
+    return formatDateYMD(today);
+  }
+
+  // If we can't parse it, return as-is (will fail validation if invalid)
+  return dateStr;
+}
+
+function formatDateYMD(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Get current date info for the response (helps Claude understand context)
+ */
+function getCurrentDateInfo(timezone: string = 'America/Edmonton'): { today: string; dayOfWeek: string } {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const dayFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    weekday: 'long',
+  });
+  return {
+    today: formatter.format(now),
+    dayOfWeek: dayFormatter.format(now),
+  };
 }
 
 /**
@@ -448,8 +532,13 @@ server.tool(
   'book_trip',
   `Create a new DATS booking. Requires credentials to be set up first.
 
-${getDateContext()}
-When user says relative dates like "Thursday" or "tomorrow", calculate the actual date from today.
+DATE FORMATS ACCEPTED:
+- YYYY-MM-DD (e.g., "2026-01-15")
+- Day names: "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"
+- Relative: "today", "tomorrow"
+- Next week: "next monday", "next tuesday", etc.
+
+When user says "Thursday", pass "thursday" directly - the server will calculate the correct date.
 
 IMPORTANT: Before calling this tool, always confirm with the user by summarizing the booking details (date, time, pickup address, destination, and any special options like mobility device or companions) and explicitly asking "Do you want me to book this trip?" Only proceed after user confirms.
 
@@ -467,12 +556,15 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
       .describe('Session ID (required for remote mode, optional for local)'),
     pickup_date: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
-      .describe('Pickup date in YYYY-MM-DD format'),
+      .describe('Pickup date: YYYY-MM-DD, day name (e.g., "thursday"), or relative ("today", "tomorrow")'),
     pickup_time: z
       .string()
       .regex(/^\d{2}:\d{2}$/)
       .describe('Desired pickup time in HH:MM 24-hour format'),
+    timezone: z
+      .string()
+      .optional()
+      .describe('Timezone for date calculations (e.g., "America/Edmonton"). Defaults to America/Edmonton.'),
     pickup_address: z
       .string()
       .min(5)
@@ -531,8 +623,17 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
         });
       }
 
+      // Parse flexible date (handles "thursday", "tomorrow", etc.)
+      const timezone = params.timezone || 'America/Edmonton';
+      const parsedPickupDate = parseFlexibleDate(params.pickup_date, timezone);
+
+      // Log the date parsing for debugging
+      if (params.pickup_date !== parsedPickupDate) {
+        logger.info(`Date parsing: "${params.pickup_date}" -> "${parsedPickupDate}" (timezone: ${timezone})`);
+      }
+
       // Validate booking window against DATS business rules
-      const validation = validateBookingWindow(params.pickup_date, params.pickup_time);
+      const validation = validateBookingWindow(parsedPickupDate, params.pickup_time);
 
       if (!validation.valid) {
         return createErrorResponse({
@@ -546,7 +647,7 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
       const api = new DATSApi({ sessionCookie: session.sessionCookie });
 
       const bookingDetails = {
-        pickupDate: params.pickup_date,
+        pickupDate: parsedPickupDate,
         pickupTime: params.pickup_time,
         pickupAddress: params.pickup_address,
         destinationAddress: params.destination_address,
@@ -598,8 +699,13 @@ server.tool(
   'get_trips',
   `Retrieve DATS trips. By default shows only active trips (Scheduled, Unscheduled, Arrived, Pending).
 
-${getDateContext()}
-When user says relative dates like "Thursday" or "next week", calculate the actual date from today.
+DATE FORMATS ACCEPTED:
+- YYYY-MM-DD (e.g., "2026-01-15")
+- Day names: "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"
+- Relative: "today", "tomorrow"
+- Next week: "next monday", "next tuesday", etc.
+
+When user says "Thursday", pass "thursday" directly - the server will calculate the correct date.
 
 TRIP DATA INCLUDES:
 - Date, pickup window, pickup/destination addresses
@@ -629,14 +735,16 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
       .describe('Session ID (required for remote mode, optional for local)'),
     date_from: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional()
-      .describe('Start date filter (YYYY-MM-DD). Defaults to today.'),
+      .describe('Start date: YYYY-MM-DD, day name (e.g., "thursday"), or relative ("today", "tomorrow"). Defaults to today.'),
     date_to: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional()
-      .describe('End date filter (YYYY-MM-DD). Defaults to 2 months from now.'),
+      .describe('End date: YYYY-MM-DD, day name, or relative. Defaults to 2 months from now.'),
+    timezone: z
+      .string()
+      .optional()
+      .describe('Timezone for date calculations (e.g., "America/Edmonton"). Defaults to America/Edmonton for DATS users.'),
     include_all: z
       .boolean()
       .optional()
@@ -646,7 +754,7 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
       .optional()
       .describe('Filter to specific status(es). Example: ["Pf"] for Performed only, ["Pf", "CA"] for Performed and Cancelled.'),
   },
-  async ({ session_id, date_from, date_to, include_all = false, status_filter }) => {
+  async ({ session_id, date_from, date_to, timezone = 'America/Edmonton', include_all = false, status_filter }) => {
     try {
       // Check for valid session
       const session = await getValidSession(session_id);
@@ -662,9 +770,18 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
       logger.info('Using session for trip retrieval');
       const api = new DATSApi({ sessionCookie: session.sessionCookie });
 
-      // Convert date format if provided (YYYY-MM-DD to YYYYMMDD)
-      const fromDate = date_from ? date_from.replace(/-/g, '') : undefined;
-      const toDate = date_to ? date_to.replace(/-/g, '') : undefined;
+      // Parse flexible dates (handles "thursday", "tomorrow", etc.)
+      const parsedFromDate = date_from ? parseFlexibleDate(date_from, timezone) : undefined;
+      const parsedToDate = date_to ? parseFlexibleDate(date_to, timezone) : undefined;
+
+      // Log the date parsing for debugging
+      if (date_from) {
+        logger.info(`Date parsing: "${date_from}" -> "${parsedFromDate}" (timezone: ${timezone})`);
+      }
+
+      // Convert date format (YYYY-MM-DD to YYYYMMDD)
+      const fromDate = parsedFromDate ? parsedFromDate.replace(/-/g, '') : undefined;
+      const toDate = parsedToDate ? parsedToDate.replace(/-/g, '') : undefined;
 
       let trips = await api.getClientTrips(session.clientId, fromDate, toDate);
 
@@ -684,11 +801,20 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
       // Generate plain language summary for the user
       const userMessage = formatTripsForUser(trips);
 
+      // Include date context in response
+      const dateInfo = getCurrentDateInfo(timezone);
+      const dateContext = {
+        serverDate: dateInfo.today,
+        serverDayOfWeek: dateInfo.dayOfWeek,
+        timezone,
+        ...(date_from && parsedFromDate !== date_from ? { requestedDate: date_from, resolvedDate: parsedFromDate } : {}),
+      };
+
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({ success: true, trips, userMessage }, null, 2),
+            text: JSON.stringify({ success: true, trips, dateContext, userMessage }, null, 2),
           },
         ],
       };
@@ -705,8 +831,12 @@ server.tool(
   'check_availability',
   `Check available dates and times for DATS bookings.
 
-${getDateContext()}
-When user says relative dates like "Thursday" or "tomorrow", calculate the actual date from today.
+DATE FORMATS ACCEPTED:
+- YYYY-MM-DD (e.g., "2026-01-15")
+- Day names: "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"
+- Relative: "today", "tomorrow"
+
+When user says "Thursday", pass "thursday" directly - the server will calculate the correct date.
 
 Use this tool to help users find when they can book a trip. You can:
 - Get all available booking dates (up to 3 days ahead)
@@ -726,11 +856,14 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
       .describe('Session ID (required for remote mode, optional for local)'),
     date: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional()
-      .describe('Optional: specific date to check times for (YYYY-MM-DD format). If not provided, returns all available dates.'),
+      .describe('Specific date to check: YYYY-MM-DD, day name (e.g., "thursday"), or relative ("today", "tomorrow"). If not provided, returns all available dates.'),
+    timezone: z
+      .string()
+      .optional()
+      .describe('Timezone for date calculations (e.g., "America/Edmonton"). Defaults to America/Edmonton.'),
   },
-  async ({ session_id, date }) => {
+  async ({ session_id, date, timezone = 'America/Edmonton' }) => {
     try {
       // Check for valid session
       const session = await getValidSession(session_id);
@@ -750,21 +883,30 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
       const availableDates = await api.getBookingDaysWindow(session.clientId);
 
       let timeWindow: { earliest: string; latest: string } | undefined;
+      let parsedDate: string | undefined;
 
-      // If a specific date was requested, get the time window for that date
+      // If a specific date was requested, parse and get the time window for that date
       if (date) {
+        parsedDate = parseFlexibleDate(date, timezone);
+        if (date !== parsedDate) {
+          logger.info(`Date parsing: "${date}" -> "${parsedDate}" (timezone: ${timezone})`);
+        }
         // Convert YYYY-MM-DD to YYYYMMDD for API
-        const apiDate = date.replace(/-/g, '');
+        const apiDate = parsedDate.replace(/-/g, '');
         timeWindow = await api.getBookingTimesWindow(session.clientId, apiDate);
       }
 
-      // Generate plain language summary
-      const userMessage = formatAvailabilityForUser(availableDates, timeWindow, date);
+      // Generate plain language summary (use parsed date for display)
+      const userMessage = formatAvailabilityForUser(availableDates, timeWindow, parsedDate || date);
 
       const result = {
         success: true,
         availableDates,
-        ...(date && timeWindow ? { requestedDate: date, timeWindow } : {}),
+        ...(date && timeWindow ? {
+          requestedDate: date,
+          ...(parsedDate && parsedDate !== date ? { resolvedDate: parsedDate } : {}),
+          timeWindow,
+        } : {}),
         userMessage,
       };
 
