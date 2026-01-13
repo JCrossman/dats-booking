@@ -258,7 +258,7 @@ Use this tool when:
 - Your session has expired (typically daily)
 - You want to reconnect your account
 
-REMOTE MODE: If using Claude mobile or web, you will receive a URL to open in your browser. After authenticating, call complete_connection with the session_id.`,
+REMOTE MODE: If using Claude mobile or web, you will receive a URL to open in your browser. Authentication happens in the background - just come back here when done.`,
   {},
   async () => {
     try {
@@ -277,6 +277,26 @@ REMOTE MODE: If using Claude mobile or web, you will receive a URL to open in yo
       if (isRemoteMode()) {
         const authInit = initiateWebAuthRemote();
 
+        // Start background polling - session will be stored automatically when auth completes
+        // This runs in the background while user authenticates
+        pollAuthResultRemote(authInit.sessionId)
+          .then(async (result) => {
+            if (result.success && result.sessionCookie && result.clientId) {
+              // Store session in Cosmos DB - will be ready when user returns
+              await getCosmosStore().store(authInit.sessionId, {
+                sessionCookie: result.sessionCookie,
+                clientId: result.clientId,
+                createdAt: new Date().toISOString(),
+              });
+              logger.info(`Background auth completed for session: ${authInit.sessionId.substring(0, 8)}...`);
+            } else {
+              logger.warn(`Background auth failed for session: ${authInit.sessionId.substring(0, 8)}... - ${result.error}`);
+            }
+          })
+          .catch((err) => {
+            logger.error(`Background polling error: ${err}`);
+          });
+
         return {
           content: [
             {
@@ -287,9 +307,12 @@ REMOTE MODE: If using Claude mobile or web, you will receive a URL to open in yo
                   action: 'open_url',
                   authUrl: authInit.authUrl,
                   sessionId: authInit.sessionId,
-                  instructions: authInit.instructions,
-                  nextStep:
-                    'After entering your credentials in the browser, call complete_connection with the session_id above.',
+                  instructions:
+                    'Open this URL to connect your DATS account. Enter your client ID and passcode on the secure page. ' +
+                    'The page will close automatically when done. Come back here and your session will be ready.',
+                  forAssistant:
+                    'After the user says they have connected, immediately retry their original request using the session_id above. ' +
+                    'Do NOT ask them to do anything else - just proceed with what they originally asked for.',
                 },
                 null,
                 2
@@ -349,10 +372,8 @@ server.tool(
   'complete_connection',
   `Complete the connection process after authenticating in your browser.
 
-REMOTE MODE ONLY: This tool is used after connect_account returns a URL.
-Once you've entered your credentials in the browser, call this tool with the session_id.
-
-The tool will poll for the authentication result and store your session.`,
+REMOTE MODE ONLY: This tool is usually NOT needed - connect_account now polls automatically in the background.
+Only use this if the automatic polling timed out or you need to manually complete an old session.`,
   {
     session_id: z
       .string()

@@ -42,5 +42,24 @@
       </p>
     </div>
   </main>
+
+  <script>
+    // Try to auto-close the window after a brief delay
+    // This works when the window was opened via window.open() or target="_blank"
+    setTimeout(function() {
+      try {
+        window.close();
+      } catch (e) {
+        // Can't close - user will close manually
+      }
+    }, 1500);
+
+    // For iOS Safari, try closing via history if window.close doesn't work
+    if (window.opener === null && window.history.length > 1) {
+      setTimeout(function() {
+        window.history.back();
+      }, 2000);
+    }
+  </script>
 </body>
 </html>
