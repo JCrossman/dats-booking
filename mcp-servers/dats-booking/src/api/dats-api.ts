@@ -1039,28 +1039,9 @@ export class DATSApi {
       const creationConfNum = this.extractXml(xml, 'CreationConfirmationNumber');
       const date = this.extractXml(xml, 'DateF') || this.extractXml(xml, 'RawDate');
 
-      // Read ALL status fields from the API
+      // Get status from API (SchedStatusF is the primary status field)
       const schedStatusF = this.extractXml(xml, 'SchedStatusF');
-      const actualStatus = this.extractXml(xml, 'ActualStatus');
-      const performStatus = this.extractXml(xml, 'PerformStatus');
-      const apiStatusCode = this.extractXml(xml, 'StatusCode');
-
-      // Log ALL status fields to see what DATS actually returns
-      logger.info(`BOOKING ${bookingId} RAW API STATUS FIELDS: SchedStatusF="${schedStatusF}", ActualStatus="${actualStatus}", PerformStatus="${performStatus}", StatusCode="${apiStatusCode}"`);
-
-      // Use PerformStatus if available (most definitive), then ActualStatus, then SchedStatusF
-      let finalStatus = schedStatusF;
-      if (performStatus && performStatus.trim() !== '') {
-        finalStatus = performStatus;
-        logger.info(`Using PerformStatus: "${performStatus}"`);
-      } else if (actualStatus && actualStatus.trim() !== '') {
-        finalStatus = actualStatus;
-        logger.info(`Using ActualStatus: "${actualStatus}"`);
-      } else {
-        logger.info(`Using SchedStatusF: "${schedStatusF}"`);
-      }
-
-      const status = finalStatus.toLowerCase();
+      const status = schedStatusF.toLowerCase();
 
       // Parse pickup leg
       const pickupMatch = xml.match(/<PickUpLeg[^>]*>([\s\S]*?)<\/PickUpLeg>/);
@@ -1101,8 +1082,20 @@ export class DATSApi {
       // Additional passengers
       const additionalPassengers = this.parsePassengers(xml);
 
-      // Use the API status directly - no interpretation
-      const statusCode = this.mapApiStatusToCode(status);
+      // Get initial status from API
+      let statusCode = this.mapApiStatusToCode(status);
+
+      // Infer "Performed" status based on date/time
+      // DATS API only returns scheduling status ("Scheduled"), not real-time status
+      // If pickup window has ended and trip wasn't cancelled, mark as Performed
+      if (statusCode === 'S' && schLate > 0) {
+        const tripDate = this.parseTripDate(date);
+        if (tripDate && this.hasPickupWindowPassed(tripDate, schLate)) {
+          statusCode = 'Pf';
+          logger.info(`BOOKING ${bookingId}: Inferred status as "Performed" (pickup window has passed)`);
+        }
+      }
+
       const statusInfo = TRIP_STATUSES[statusCode];
 
       return {
@@ -1413,5 +1406,46 @@ export class DATSApi {
     const dayOfWeek = days[date.getDay()];
 
     return `${dayOfWeek}, ${months[month - 1]} ${day}, ${year}`;
+  }
+
+  private parseTripDate(dateStr: string): Date | null {
+    try {
+      // Format: "Mon, Jan 12, 2026"
+      if (dateStr.includes(',')) {
+        const parsed = new Date(dateStr);
+        if (!isNaN(parsed.getTime())) return parsed;
+      }
+
+      // Format: "20260112" (YYYYMMDD)
+      if (/^\d{8}$/.test(dateStr)) {
+        const year = parseInt(dateStr.substring(0, 4), 10);
+        const month = parseInt(dateStr.substring(4, 6), 10) - 1;
+        const day = parseInt(dateStr.substring(6, 8), 10);
+        return new Date(year, month, day);
+      }
+
+      // Format: "2026-01-12"
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        const [year, month, day] = dateStr.split('-').map(Number);
+        return new Date(year, month - 1, day);
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  private hasPickupWindowPassed(tripDate: Date, schLateSeconds: number): boolean {
+    const now = new Date();
+
+    // Get trip date at end of pickup window
+    const tripDateTime = new Date(tripDate);
+    const hours = Math.floor(schLateSeconds / 3600);
+    const minutes = Math.floor((schLateSeconds % 3600) / 60);
+    tripDateTime.setHours(hours, minutes, 0, 0);
+
+    // Trip is performed if pickup window end time has passed
+    return now > tripDateTime;
   }
 }
