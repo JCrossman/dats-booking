@@ -32,8 +32,6 @@ param containerImage string = 'ghcr.io/your-org/dats-mcp:latest'
 @description('Encryption key for Cosmos DB session data')
 param cosmosEncryptionKey string
 
-@description('Existing DATS Auth URL')
-param datsAuthUrl string = 'https://green-sky-0e461ed10.1.azurestaticapps.net'
 
 // ============= VARIABLES =============
 
@@ -220,8 +218,8 @@ resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
             { name: 'COSMOS_CONTAINER', value: cosmosContainer.name }
             { name: 'COSMOS_ENCRYPTION_KEY', secretRef: 'cosmos-encryption-key' }
             { name: 'AZURE_CLIENT_ID', value: managedIdentity.properties.clientId }
-            // Auth is now handled by Container App itself (same IP = valid sessions)
-            // DATS_AUTH_URL removed - server auto-detects its own URL
+            // Auth URL must be explicit - CONTAINER_APP_HOSTNAME returns revision-specific hostname
+            { name: 'DATS_AUTH_URL', value: 'https://${resourcePrefix}-app.${containerAppEnvironment.properties.defaultDomain}' }
             { name: 'LOG_LEVEL', value: environment == 'prod' ? 'info' : 'debug' }
           ]
           probes: [
