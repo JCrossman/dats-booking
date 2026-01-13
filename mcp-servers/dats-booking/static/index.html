@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Connect your DATS account securely">
+  <title>Connect to DATS</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="main-content" role="main">
+    <div class="container">
+      <!-- Header with trust message -->
+      <header>
+        <h1>Connect to DATS</h1>
+        <p class="trust-message">
+          Your credentials are private. We use them once to connect, then forget them immediately.
+          We never store your password.
+        </p>
+      </header>
+
+      <!-- Login Form -->
+      <form id="login-form" aria-labelledby="form-title">
+        <h2 id="form-title" class="visually-hidden">Enter your DATS credentials</h2>
+
+        <div class="form-group">
+          <label for="client-id">Your Client ID</label>
+          <input
+            type="text"
+            id="client-id"
+            name="clientId"
+            autocomplete="username"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            required
+            aria-required="true"
+            aria-describedby="client-id-help"
+            placeholder="Enter your client ID number"
+          >
+          <p id="client-id-help" class="help-text">
+            This is the number DATS gave you when you registered.
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label for="passcode">Your Passcode</label>
+          <input
+            type="password"
+            id="passcode"
+            name="passcode"
+            autocomplete="current-password"
+            required
+            aria-required="true"
+            aria-describedby="passcode-help"
+            placeholder="Enter your passcode"
+          >
+          <p id="passcode-help" class="help-text">
+            This is the password you use to book trips online.
+          </p>
+        </div>
+
+        <button type="submit" id="submit-btn" class="btn-primary">
+          <span class="btn-text">Connect My Account</span>
+          <span class="btn-loading" aria-hidden="true" style="display: none;">
+            Connecting...
+          </span>
+        </button>
+      </form>
+
+      <!-- Error message area -->
+      <div id="error-message" class="error-box" role="alert" aria-live="polite" style="display: none;">
+        <p id="error-text"></p>
+        <button type="button" id="retry-btn" class="btn-secondary">Try Again</button>
+      </div>
+
+      <!-- Help section -->
+      <section class="help-section" aria-labelledby="help-title">
+        <h2 id="help-title">Need help?</h2>
+        <p>
+          If you forgot your client ID or passcode, call DATS at
+          <a href="tel:780-496-4567">780-496-4567</a> (Option 4).
+        </p>
+      </section>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

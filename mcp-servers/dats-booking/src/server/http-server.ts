@@ -13,9 +13,50 @@
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { randomUUID } from 'crypto';
+import { readFileSync, existsSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { logger } from '../utils/logger.js';
+import { createAuthRouter } from './auth-routes.js';
+
+// Get the directory of the current module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load icon at startup (it's small, ~12KB)
+let iconBuffer: Buffer | null = null;
+let iconSvg: string | null = null;
+try {
+  // Icon is at project root, two levels up from build/server/
+  const iconPath = join(__dirname, '..', '..', 'icon.png');
+  const svgPath = join(__dirname, '..', '..', 'icon.svg');
+  iconBuffer = readFileSync(iconPath);
+  iconSvg = readFileSync(svgPath, 'utf-8');
+  logger.debug('Loaded icon files');
+} catch {
+  logger.warn('Could not load icon files');
+}
+
+// Load static HTML/CSS/JS files for auth pages
+const staticDir = join(__dirname, '..', '..', 'static');
+let loginHtml: string | null = null;
+let successHtml: string | null = null;
+let appJs: string | null = null;
+let stylesCss: string | null = null;
+
+try {
+  if (existsSync(staticDir)) {
+    loginHtml = readFileSync(join(staticDir, 'index.html'), 'utf-8');
+    successHtml = readFileSync(join(staticDir, 'success.html'), 'utf-8');
+    appJs = readFileSync(join(staticDir, 'app.js'), 'utf-8');
+    stylesCss = readFileSync(join(staticDir, 'styles.css'), 'utf-8');
+    logger.debug('Loaded static auth files');
+  }
+} catch {
+  logger.warn('Could not load static auth files');
+}
 
 // Map of active transports by MCP session ID
 const transports = new Map<string, StreamableHTTPServerTransport>();
@@ -60,6 +101,78 @@ export function createHttpServer(mcpServer: McpServer): Application {
       timestamp: new Date().toISOString(),
       activeSessions: transports.size,
     });
+  });
+
+  // Icon endpoints - serve the DATS bus logo
+  app.get(['/favicon.ico', '/favicon.png', '/icon.png', '/logo.png'], (_req: Request, res: Response) => {
+    if (iconBuffer) {
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.send(iconBuffer);
+    } else {
+      res.status(404).json({ error: 'Icon not found' });
+    }
+  });
+
+  app.get(['/icon.svg', '/logo.svg'], (_req: Request, res: Response) => {
+    if (iconSvg) {
+      res.setHeader('Content-Type', 'image/svg+xml');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.send(iconSvg);
+    } else {
+      res.status(404).json({ error: 'Icon not found' });
+    }
+  });
+
+  // Well-known MCP metadata endpoint
+  app.get('/.well-known/mcp.json', (_req: Request, res: Response) => {
+    res.json({
+      name: 'DATS Booking',
+      description: 'Book accessible transit rides with Edmonton DATS',
+      icon: '/icon.png',
+      version: '1.0.0',
+      mcp_endpoint: '/mcp',
+    });
+  });
+
+  // Auth API routes
+  app.use('/api/auth', createAuthRouter());
+
+  // Static auth pages
+  app.get('/', (_req: Request, res: Response) => {
+    if (loginHtml) {
+      res.setHeader('Content-Type', 'text/html');
+      res.send(loginHtml);
+    } else {
+      res.status(404).json({ error: 'Login page not available' });
+    }
+  });
+
+  app.get('/success.html', (_req: Request, res: Response) => {
+    if (successHtml) {
+      res.setHeader('Content-Type', 'text/html');
+      res.send(successHtml);
+    } else {
+      res.status(404).json({ error: 'Success page not available' });
+    }
+  });
+
+  app.get('/app.js', (_req: Request, res: Response) => {
+    if (appJs) {
+      res.setHeader('Content-Type', 'application/javascript');
+      res.send(appJs);
+    } else {
+      res.status(404).json({ error: 'Not found' });
+    }
+  });
+
+  app.get('/styles.css', (_req: Request, res: Response) => {
+    if (stylesCss) {
+      res.setHeader('Content-Type', 'text/css');
+      res.send(stylesCss);
+    } else {
+      res.status(404).json({ error: 'Not found' });
+    }
   });
 
   // MCP endpoint - handles all MCP protocol traffic

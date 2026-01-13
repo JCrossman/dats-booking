@@ -53,7 +53,8 @@ export class SoapClient {
       });
 
       if (!response.ok) {
-        logger.error(`SOAP API error: ${response.status}`);
+        const errorBody = await response.text();
+        logger.error(`SOAP API error: ${response.status} - ${errorBody.substring(0, 500)}`);
         return [];
       }
 

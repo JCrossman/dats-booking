@@ -16,9 +16,33 @@
 import { randomUUID } from 'crypto';
 import { logger } from '../utils/logger.js';
 
-// Azure Static Web App URL - set via environment or use default
-const AUTH_BASE_URL =
-  process.env.DATS_AUTH_URL || 'https://green-sky-0e461ed10.1.azurestaticapps.net';
+// Auth URL - uses Container App URL in HTTP mode, Azure Static Web App in stdio mode
+// In HTTP mode, auth is handled by the same server (prevents IP mismatch)
+function resolveAuthBaseUrl(): string {
+  // If DATS_AUTH_URL is explicitly set, use it
+  if (process.env.DATS_AUTH_URL) {
+    return process.env.DATS_AUTH_URL;
+  }
+
+  // In HTTP mode, use the Container App's own URL for auth
+  if (process.env.MCP_TRANSPORT === 'http') {
+    // Try environment variables first
+    const host = process.env.CONTAINER_APP_HOSTNAME ||
+                 process.env.WEBSITE_HOSTNAME;
+    if (host) {
+      const protocol = host.includes('localhost') ? 'http' : 'https';
+      return `${protocol}://${host}`;
+    }
+    // Fallback to known Container App hostname for dev environment
+    // This ensures auth happens on the same server as API calls (same IP)
+    return 'https://dats-mcp-dev-app.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io';
+  }
+
+  // Default to Azure Static Web App for local/stdio mode
+  return 'https://green-sky-0e461ed10.1.azurestaticapps.net';
+}
+
+const AUTH_BASE_URL = resolveAuthBaseUrl();
 
 // Polling configuration
 const POLL_INTERVAL_MS = 2000; // 2 seconds between polls

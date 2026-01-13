@@ -220,7 +220,8 @@ resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
             { name: 'COSMOS_CONTAINER', value: cosmosContainer.name }
             { name: 'COSMOS_ENCRYPTION_KEY', secretRef: 'cosmos-encryption-key' }
             { name: 'AZURE_CLIENT_ID', value: managedIdentity.properties.clientId }
-            { name: 'DATS_AUTH_URL', value: datsAuthUrl }
+            // Auth is now handled by Container App itself (same IP = valid sessions)
+            // DATS_AUTH_URL removed - server auto-detects its own URL
             { name: 'LOG_LEVEL', value: environment == 'prod' ? 'info' : 'debug' }
           ]
           probes: [

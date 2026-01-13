@@ -41,6 +41,12 @@ COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nodejs:nodejs /app/build ./build
 COPY --from=builder --chown=nodejs:nodejs /app/package.json ./
 
+# Copy icon files for MCP connector branding
+COPY --chown=nodejs:nodejs icon.png icon.svg ./
+
+# Copy static files for auth pages
+COPY --chown=nodejs:nodejs static ./static
+
 # Switch to non-root user
 USER nodejs
 
