@@ -160,7 +160,7 @@ DATS uses the following status codes for trips:
 | NM | Missed Trip | Vehicle arrived late, did not transport | No |
 | R | Refused | User refused the proposed booking | No |
 
-**Important:** Always use the actual status returned from the DATS API. Never infer or override status based on date/time calculations - the DATS system is the source of truth for trip status.
+**Status Inference:** The DATS API only returns "Scheduled" status in `PassGetClientTrips` - it does not automatically update trips to "Performed" after completion. The MCP server implements date-based inference: if a trip has status "Scheduled" and the pickup window end time has passed, it automatically infers the status as "Performed" (Pf). This ensures completed trips display correctly.
 
 ### get_trips Filtering
 

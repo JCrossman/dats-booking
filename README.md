@@ -7,8 +7,9 @@ An MCP (Model Context Protocol) server that enables natural language booking of 
 - **Secure Web Authentication**: Credentials entered in browser, never sent to Claude/Anthropic
 - **Direct API Integration**: Fast SOAP API calls (~750ms total) instead of slow browser automation
 - **Natural Language Booking**: Book trips by describing where and when you need to go
+- **Real-Time Trip Tracking**: Live vehicle location, driver info, ETA for imminent trips
 - **Flexible Date Parsing**: Say "Thursday" or "tomorrow" - server handles timezone-aware date calculation
-- **Trip Management**: View upcoming trips, cancel bookings
+- **Trip Management**: View upcoming trips, cancel bookings, intelligent status display
 - **Accessibility First**: Designed for AAC devices, switch access, and screen readers
 
 ## Quick Start
@@ -78,7 +79,8 @@ Credentials are **never** sent to Claude or Anthropic. Instead:
 |------|-------------|
 | `connect_account` | Open secure login page to connect DATS account |
 | `disconnect_account` | Log out and clear session |
-| `get_trips` | Retrieve upcoming booked trips |
+| `get_trips` | Retrieve upcoming booked trips with intelligent status display |
+| `track_trip` | Real-time tracking: vehicle location, ETA, driver info (within 60 min of pickup) |
 | `book_trip` | Create a new DATS booking |
 | `cancel_trip` | Cancel an existing booking |
 | `check_availability` | Check available booking dates and times |
