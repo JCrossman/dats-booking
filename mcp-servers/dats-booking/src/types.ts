@@ -146,6 +146,50 @@ export interface CancelTripOutput {
   error?: ToolError;
 }
 
+// ============= TRACKING TYPES =============
+
+export interface VehicleInfo {
+  vehicleNumber: string;
+  make: string;
+  model: string;
+  description: string;
+  driverName: string;
+  driverBadgeNum: string;
+  driverPhone?: string;
+  location: {
+    lat: number;
+    lon: number;
+  };
+  lastUpdate: string; // Time of last GPS update
+}
+
+export interface EventTrackingInfo {
+  estimatedTime: string; // Formatted time (e.g., "2:51 PM")
+  eta: string; // Formatted ETA
+  location: {
+    lat: number;
+    lon: number;
+  };
+  address: string;
+  actualArriveTime?: string;
+  actualDepartTime?: string;
+  isImminent: boolean; // True if this is the next event
+  status: 'scheduled' | 'arrived' | 'departed' | 'completed';
+}
+
+export interface TrackTripOutput {
+  success: boolean;
+  bookingId: string;
+  confirmationNumber?: string;
+  pickup: EventTrackingInfo;
+  dropoff: EventTrackingInfo;
+  vehicle?: VehicleInfo;
+  provider?: string;
+  runName?: string;
+  lastChecked: string;
+  error?: ToolError;
+}
+
 // ============= AUDIT TYPES =============
 
 export type AuditAction =

@@ -124,6 +124,7 @@ The MCP server supports two transport modes:
 | `disconnect_account` | Log out and clear session from this computer |
 | `book_trip` | Create a new DATS booking with full options |
 | `get_trips` | Retrieve trips with status filtering (active trips by default) |
+| `track_trip` | Real-time tracking: vehicle location, ETA, driver info (within 60 min of pickup) |
 | `check_availability` | Check available dates and time windows for booking |
 | `cancel_trip` | Cancel booking (requires user confirmation first) |
 | `get_announcements` | Get DATS system announcements |
@@ -180,6 +181,27 @@ When displaying trips, format as a markdown table:
 - Use title case for addresses (not ALL CAPS)
 - Show the full address from pickupAddress/destinationAddress fields
 - Use the `statusLabel` field for status display
+
+### Real-Time Trip Tracking
+
+The `track_trip` tool provides live tracking for imminent trips:
+
+| Field | Description |
+|-------|-------------|
+| `pickup.eta` | Estimated pickup time |
+| `dropoff.eta` | Estimated dropoff time |
+| `vehicle.location` | Live GPS coordinates of the vehicle |
+| `vehicle.driverName` | Driver's name |
+| `vehicle.make/model` | Vehicle description (e.g., "Toyota Caravan") |
+| `provider` | Service provider (e.g., "PRESTIGE") |
+| `pickup.status` | `scheduled`, `arrived`, or `departed` |
+
+**Availability:** Only works within 60 minutes of the scheduled pickup time.
+
+**Use cases:**
+- "Where is my ride?"
+- "When will my ride arrive?"
+- "Who is my driver?"
 
 ### Authentication Flow
 

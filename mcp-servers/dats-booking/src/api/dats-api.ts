@@ -4,7 +4,7 @@
  */
 
 import { logger } from '../utils/logger.js';
-import { ErrorCategory, TRIP_STATUSES, type Trip, type TripPassenger, type BookTripInput, type BookTripOutput, type PickupWindow, type TripStatusCode } from '../types.js';
+import { ErrorCategory, TRIP_STATUSES, type Trip, type TripPassenger, type BookTripInput, type BookTripOutput, type PickupWindow, type TripStatusCode, type TrackTripOutput, type VehicleInfo, type EventTrackingInfo } from '../types.js';
 
 const PASS_INFO_SERVER_URL = 'https://datsonlinebooking.edmonton.ca/PassInfoServer';
 const PASS_INFO_SERVER_ASYNC_URL = 'https://datsonlinebooking.edmonton.ca/PassInfoServerAsync';
@@ -661,6 +661,221 @@ export class DATSApi {
     return this.parseCancelTripResponse(response);
   }
 
+  /**
+   * Track a trip in real-time
+   * Returns live vehicle location, ETA, and driver info for imminent trips
+   */
+  async trackTrip(clientId: string, bookingId?: string): Promise<TrackTripOutput> {
+    // Get current time in Edmonton timezone
+    const now = new Date();
+    const edmontonTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Edmonton' }));
+    const dateStr = this.formatDate(edmontonTime);
+
+    // Time in microseconds since midnight (as used by the API)
+    const midnightEdmonton = new Date(edmontonTime);
+    midnightEdmonton.setHours(0, 0, 0, 0);
+    const microsecondsSinceMidnight = (edmontonTime.getTime() - midnightEdmonton.getTime()) * 1000;
+
+    const soap = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <SOAP-ENV:Body>
+    <PassPullForImminentArrivals>
+      <duration>60</duration>
+      <date>${dateStr}</date>
+      <time>${microsecondsSinceMidnight}</time>
+      <ClientId>${clientId}</ClientId>
+    </PassPullForImminentArrivals>
+  </SOAP-ENV:Body>
+</SOAP-ENV:Envelope>`;
+
+    const response = await this.callApi(soap, true); // Use async endpoint
+    return this.parseTrackTripResponse(response, bookingId);
+  }
+
+  /**
+   * Parse the tracking response from PassPullForImminentArrivals
+   */
+  private parseTrackTripResponse(xml: string, requestedBookingId?: string): TrackTripOutput {
+    if (!xml || !xml.includes('PassPullForImminentArrivalsResponse')) {
+      return {
+        success: false,
+        bookingId: requestedBookingId || '',
+        pickup: this.emptyEventInfo(),
+        dropoff: this.emptyEventInfo(),
+        lastChecked: new Date().toISOString(),
+        error: {
+          category: ErrorCategory.SYSTEM_ERROR,
+          message: 'No tracking data available',
+          recoverable: true,
+        },
+      };
+    }
+
+    // Find the booking element (may have multiple if multiple trips)
+    const bookingRegex = /<booking>([\s\S]*?)<\/booking>/g;
+    let match;
+    let bookingXml: string | null = null;
+
+    while ((match = bookingRegex.exec(xml)) !== null) {
+      const bXml = match[1];
+      const foundBookingId = this.extractXml(bXml, 'BookingId');
+
+      // If a specific booking was requested, find it
+      if (requestedBookingId) {
+        if (foundBookingId === requestedBookingId) {
+          bookingXml = bXml;
+          break;
+        }
+      } else {
+        // Otherwise, take the first one
+        bookingXml = bXml;
+        break;
+      }
+    }
+
+    if (!bookingXml) {
+      return {
+        success: false,
+        bookingId: requestedBookingId || '',
+        pickup: this.emptyEventInfo(),
+        dropoff: this.emptyEventInfo(),
+        lastChecked: new Date().toISOString(),
+        error: {
+          category: ErrorCategory.VALIDATION_ERROR,
+          message: 'No imminent trips found. Live tracking is only available within 60 minutes of pickup.',
+          recoverable: true,
+        },
+      };
+    }
+
+    const bookingId = this.extractXml(bookingXml, 'BookingId');
+
+    // Parse pickup event
+    const pickupMatch = bookingXml.match(/<Pickup[^>]*>([\s\S]*?)<\/Pickup>/);
+    const pickup = pickupMatch ? this.parseEventInfo(pickupMatch[1], 'PU') : this.emptyEventInfo();
+
+    // Parse dropoff event
+    const dropoffMatch = bookingXml.match(/<Dropoff[^>]*>([\s\S]*?)<\/Dropoff>/);
+    const dropoff = dropoffMatch ? this.parseEventInfo(dropoffMatch[1], 'DO') : this.emptyEventInfo();
+
+    // Parse vehicle info
+    const vehicleMatch = bookingXml.match(/<Vehicle[^>]*>([\s\S]*?)<\/Vehicle>/);
+    const vehicle = vehicleMatch ? this.parseVehicleInfo(vehicleMatch[1]) : undefined;
+
+    // Get provider and run info from events
+    const eventMatch = bookingXml.match(/<Event>([\s\S]*?)<\/Event>/);
+    const provider = eventMatch ? this.extractXml(eventMatch[1], 'ProviderName') : undefined;
+    const runName = eventMatch ? this.extractXml(eventMatch[1], 'RunName') : undefined;
+
+    // Get address info from Events (more complete than Pickup/Dropoff)
+    const eventsRegex = /<Event>([\s\S]*?)<\/Event>/g;
+    let eventIdx = 0;
+    while ((match = eventsRegex.exec(bookingXml)) !== null) {
+      const eventXml = match[1];
+      const activity = this.extractXml(eventXml, 'Activity');
+      if (activity === 'PU' && !pickup.address) {
+        pickup.address = this.formatEventAddress(eventXml);
+      } else if (activity === 'DO' && !dropoff.address) {
+        dropoff.address = this.formatEventAddress(eventXml);
+      }
+      eventIdx++;
+    }
+
+    const lastCheckTime = this.extractXml(xml, 'lastCheckTime');
+    const lastChecked = lastCheckTime ? this.secondsToTime(Math.floor(parseInt(lastCheckTime, 10) / 1000)) : new Date().toISOString();
+
+    return {
+      success: true,
+      bookingId,
+      pickup,
+      dropoff,
+      vehicle,
+      provider,
+      runName,
+      lastChecked,
+    };
+  }
+
+  /**
+   * Parse event tracking info from XML
+   */
+  private parseEventInfo(xml: string, _activity: 'PU' | 'DO'): EventTrackingInfo {
+    const estTime = parseInt(this.extractXml(xml, 'EstTime'), 10);
+    const eta = parseInt(this.extractXml(xml, 'ETA'), 10);
+    const lat = parseInt(this.extractXml(xml, 'Lat'), 10) / 1000000;
+    const lon = parseInt(this.extractXml(xml, 'Lon'), 10) / 1000000;
+    const actualArrive = parseInt(this.extractXml(xml, 'ActualArriveTime'), 10);
+    const actualDepart = parseInt(this.extractXml(xml, 'ActualDepartTime'), 10);
+    const isImminent = this.extractXml(xml, 'ImminentEvent') === '1';
+
+    // Determine status
+    let status: 'scheduled' | 'arrived' | 'departed' | 'completed' = 'scheduled';
+    if (actualDepart > 0) {
+      status = 'departed';
+    } else if (actualArrive > 0) {
+      status = 'arrived';
+    }
+
+    return {
+      estimatedTime: estTime > 0 ? this.secondsToTime(estTime) : '',
+      eta: eta > 0 ? this.secondsToTime(eta) : '',
+      location: { lat, lon },
+      address: '', // Will be filled from Events section
+      actualArriveTime: actualArrive > 0 ? this.secondsToTime(actualArrive) : undefined,
+      actualDepartTime: actualDepart > 0 ? this.secondsToTime(actualDepart) : undefined,
+      isImminent,
+      status,
+    };
+  }
+
+  /**
+   * Parse vehicle info from XML
+   */
+  private parseVehicleInfo(xml: string): VehicleInfo {
+    const lat = parseInt(this.extractXml(xml, 'Lat'), 10) / 1000000;
+    const lon = parseInt(this.extractXml(xml, 'Lon'), 10) / 1000000;
+    const avlUpdateTime = parseInt(this.extractXml(xml, 'AVLUpdateTime'), 10);
+
+    return {
+      vehicleNumber: this.extractXml(xml, 'VehicleNumber'),
+      make: this.extractXml(xml, 'Make'),
+      model: this.extractXml(xml, 'Model'),
+      description: this.extractXml(xml, 'Description'),
+      driverName: this.extractXml(xml, 'DriverName'),
+      driverBadgeNum: this.extractXml(xml, 'DriverBadgeNum'),
+      driverPhone: this.extractXml(xml, 'DriverPhone') || undefined,
+      location: { lat, lon },
+      lastUpdate: avlUpdateTime > 0 ? this.secondsToTime(avlUpdateTime) : '',
+    };
+  }
+
+  /**
+   * Format address from event XML
+   */
+  private formatEventAddress(xml: string): string {
+    const streetNo = this.extractXml(xml, 'StreetNo');
+    const onStreet = this.extractXml(xml, 'OnStreet');
+    const city = this.extractXml(xml, 'City');
+    const state = this.extractXml(xml, 'State');
+
+    if (!streetNo && !onStreet) return '';
+    return `${streetNo} ${onStreet}, ${city}, ${state}`.trim();
+  }
+
+  /**
+   * Create empty event info for error responses
+   */
+  private emptyEventInfo(): EventTrackingInfo {
+    return {
+      estimatedTime: '',
+      eta: '',
+      location: { lat: 0, lon: 0 },
+      address: '',
+      isImminent: false,
+      status: 'scheduled',
+    };
+  }
+
   // ==================== HELPERS ====================
 
   /**
@@ -824,14 +1039,14 @@ export class DATSApi {
       const creationConfNum = this.extractXml(xml, 'CreationConfirmationNumber');
       const date = this.extractXml(xml, 'DateF') || this.extractXml(xml, 'RawDate');
       const status = this.extractXml(xml, 'SchedStatusF').toLowerCase();
-      const schedStatus = this.extractXml(xml, 'SchedStatus');
-      const bookingStatus = this.extractXml(xml, 'BookingStatus');
-      const tripStatus = this.extractXml(xml, 'TripStatus');
       const actualStatus = this.extractXml(xml, 'ActualStatus');
       const performStatus = this.extractXml(xml, 'PerformStatus');
 
-      // DEBUG: Log all status fields from DATS API
-      logger.info(`DATS API status fields for booking ${bookingId}: SchedStatusF="${status}", SchedStatus="${schedStatus}", BookingStatus="${bookingStatus}", TripStatus="${tripStatus}", ActualStatus="${actualStatus}", PerformStatus="${performStatus}"`);
+      // Determine the most accurate current status using all available fields
+      const effectiveStatus = this.determineEffectiveStatus(status, actualStatus, performStatus);
+
+      // DEBUG: Log all status fields and the effective status being used
+      logger.info(`DATS API status for booking ${bookingId}: SchedStatusF="${status}", ActualStatus="${actualStatus}", PerformStatus="${performStatus}" → effective="${effectiveStatus}"`);
 
       // Parse pickup leg
       const pickupMatch = xml.match(/<PickUpLeg[^>]*>([\s\S]*?)<\/PickUpLeg>/);
@@ -872,9 +1087,8 @@ export class DATSApi {
       // Additional passengers
       const additionalPassengers = this.parsePassengers(xml);
 
-      // Use the actual status from the API - do not infer or override
-      // The DATS system knows the true status of trips
-      const statusCode = this.mapApiStatusToCode(status);
+      // Use the effective status determined from all available status fields
+      const statusCode = this.mapApiStatusToCode(effectiveStatus);
       const statusInfo = TRIP_STATUSES[statusCode];
 
       return {
@@ -929,6 +1143,54 @@ export class DATSApi {
       'WA': 'Walker',
     };
     return mapping[spaceType] || undefined;
+  }
+
+  /**
+   * Determine the most accurate current status from all available status fields
+   *
+   * DATS returns multiple status fields that update at different times:
+   * - SchedStatusF: The scheduled status (initial booking state)
+   * - ActualStatus: Real-time status updates (Arrived, Departed, etc.)
+   * - PerformStatus: Final outcome (Performed, No Show, etc.)
+   *
+   * Priority order (most specific to least specific):
+   * 1. PerformStatus - If trip is completed/failed, this is definitive
+   * 2. ActualStatus - Real-time updates during the trip
+   * 3. SchedStatusF - Initial scheduled status (fallback)
+   */
+  private determineEffectiveStatus(schedStatus: string, actualStatus: string, performStatus: string): string {
+    const actual = actualStatus.toLowerCase().trim();
+    const perform = performStatus.toLowerCase().trim();
+
+    // Check PerformStatus first - these are final outcomes
+    if (perform) {
+      if (perform.includes('perform') || perform === 'pf' || perform === 'p') {
+        return 'performed';
+      }
+      if (perform.includes('no show') || perform === 'ns') {
+        return 'no show';
+      }
+      if (perform.includes('miss') || perform === 'nm') {
+        return 'missed trip';
+      }
+    }
+
+    // Check ActualStatus - real-time updates
+    if (actual) {
+      if (actual.includes('arrived') || actual === 'a') {
+        return 'arrived';
+      }
+      if (actual.includes('depart') || actual.includes('transit')) {
+        // In transit - still show as arrived/active for now
+        return 'arrived';
+      }
+      if (actual.includes('complet') || actual.includes('done')) {
+        return 'performed';
+      }
+    }
+
+    // Fall back to scheduled status
+    return schedStatus;
   }
 
   /**

@@ -126,6 +126,39 @@ function formatDateYMD(date: Date): string {
 }
 
 /**
+ * Normalize a trip date string to YYYY-MM-DD format for comparison
+ * Handles formats like "Tue, Jan 13, 2026" from the DATS API
+ */
+function normalizeTripDate(dateStr: string): string {
+  // If already in YYYY-MM-DD format, return as-is
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return dateStr;
+  }
+
+  // Handle "Tue, Jan 13, 2026" format
+  const monthNames: Record<string, string> = {
+    jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+    jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+  };
+
+  // Try to parse "Day, Mon DD, YYYY" format
+  const match = dateStr.match(/([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/);
+  if (match) {
+    const monthStr = match[1].toLowerCase().substring(0, 3);
+    const month = monthNames[monthStr];
+    const day = match[2].padStart(2, '0');
+    const year = match[3];
+
+    if (month) {
+      return `${year}-${month}-${day}`;
+    }
+  }
+
+  // Fallback: return empty string (won't match any date)
+  return '';
+}
+
+/**
  * Get current date info for the response (helps Claude understand context)
  */
 function getCurrentDateInfo(timezone: string = 'America/Edmonton'): { today: string; dayOfWeek: string } {
@@ -805,9 +838,22 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
         // Filter to specific statuses requested
         trips = trips.filter(trip => status_filter.includes(trip.status as TripStatusCode));
       } else if (!include_all) {
-        // Default: only show active trips (Scheduled, Unscheduled, Arrived, Pending)
-        // Uses isActive flag from TRIP_STATUSES
+        // Default: Today's trips (ALL statuses) + future active trips only
+        // This ensures completed/cancelled trips for today are visible
+        const todayStr = getCurrentDateInfo(timezone).today; // YYYY-MM-DD format
+
         trips = trips.filter(trip => {
+          // Parse the trip date to compare with today
+          // Trip date format is "Tue, Jan 13, 2026"
+          const tripDateNormalized = normalizeTripDate(trip.date);
+          const isToday = tripDateNormalized === todayStr;
+
+          // Show ALL trips for today (including Performed, Cancelled, etc.)
+          if (isToday) {
+            return true;
+          }
+
+          // For future trips, only show active statuses
           const statusInfo = TRIP_STATUSES[trip.status as TripStatusCode];
           return statusInfo?.isActive ?? false;
         });
@@ -831,6 +877,129 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
           {
             type: 'text',
             text: JSON.stringify({ success: true, trips, dateContext, userMessage }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      const datsError = wrapError(error);
+      return createErrorResponse(datsError.toToolError());
+    }
+  }
+);
+
+// ============= TOOL: track_trip =============
+
+server.tool(
+  'track_trip',
+  `Track a DATS trip in real-time.
+
+Returns live information for trips within 60 minutes of pickup:
+- Real-time ETA (estimated time of arrival)
+- Vehicle location (GPS coordinates)
+- Vehicle details (make, model, number)
+- Driver name
+- Pickup/dropoff status (scheduled, arrived, departed)
+
+IMPORTANT: This only works for imminent trips (within 60 minutes of pickup time).
+If no booking_id is provided, returns tracking for the next imminent trip.
+
+Use this tool when:
+- User asks "Where is my ride?"
+- User asks "When will my ride arrive?"
+- User wants to track their vehicle
+- User asks about their driver`,
+  {
+    session_id: z
+      .string()
+      .uuid()
+      .optional()
+      .describe('Session ID (required for remote mode, optional for local)'),
+    booking_id: z.string().optional().describe('Optional booking ID to track a specific trip'),
+  },
+  async ({ session_id, booking_id }) => {
+    try {
+      const session = await getValidSession(session_id);
+      if (!session) {
+        return createErrorResponse({
+          category: ErrorCategory.CREDENTIALS_NOT_FOUND,
+          message:
+            'Your session has expired or you have not connected your DATS account yet. Would you like me to open the secure login page? (Use the connect_account tool)',
+          recoverable: true,
+        });
+      }
+
+      const api = new DATSApi({ sessionCookie: session.sessionCookie });
+      const result = await api.trackTrip(session.clientId, booking_id);
+
+      if (!result.success) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      // Format a user-friendly message with clear structure
+      const lines: string[] = [];
+
+      // Status header
+      if (result.pickup.status === 'arrived') {
+        lines.push('YOUR RIDE HAS ARRIVED!');
+      } else if (result.vehicle) {
+        lines.push('Your ride is on the way!');
+      }
+      lines.push('');
+
+      // ETA section
+      if (result.pickup.eta) {
+        lines.push(`Estimated pickup: ${result.pickup.eta}`);
+      }
+      if (result.dropoff.eta) {
+        lines.push(`Estimated dropoff: ${result.dropoff.eta}`);
+      }
+      lines.push('');
+
+      // Route
+      if (result.pickup.address) {
+        lines.push(`From: ${result.pickup.address}`);
+      }
+      if (result.dropoff.address) {
+        lines.push(`To: ${result.dropoff.address}`);
+      }
+      lines.push('');
+
+      // Vehicle & Driver info
+      if (result.vehicle) {
+        lines.push('--- Vehicle Info ---');
+        lines.push(`Vehicle: ${result.vehicle.make} ${result.vehicle.model} #${result.vehicle.vehicleNumber}`);
+        lines.push(`Driver: ${result.vehicle.driverName}`);
+        if (result.provider) {
+          lines.push(`Provider: ${result.provider}`);
+        }
+        lines.push('');
+      }
+
+      lines.push(`Last updated: ${result.lastChecked}`);
+
+      const userMessage = lines.join('\n');
+
+      // Add display instructions for Claude
+      const displayInstructions = `
+DISPLAY THIS TRACKING INFO CLEARLY:
+- Show the ETA prominently
+- Include ALL vehicle and driver details
+- Use simple text format (not tables) for mobile readability
+- If vehicle has arrived, emphasize that fact
+`.trim();
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ ...result, userMessage, displayInstructions }, null, 2),
           },
         ],
       };
