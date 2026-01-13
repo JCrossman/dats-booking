@@ -156,6 +156,18 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 Note: Encryption keys are auto-generated. No environment variables required.
 
+## For Developers
+
+**🚧 Code Quality Refactoring In Progress**
+
+If you're contributing to this project, please note we're currently in Phase 1 of a 4-phase code quality refactoring plan. See `REFACTORING_PLAN.md` for details.
+
+**Quick Start for Contributors:**
+- Read `CLAUDE.md` for development guidance
+- Check `REFACTORING_PLAN.md` for current refactoring status
+- Run `npm test` before committing
+- Follow the multi-agent review process for significant changes
+
 ## License
 
 MIT

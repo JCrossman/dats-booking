@@ -53,6 +53,54 @@ This project uses a multi-agent consensus approach for development. Invoke agent
 
 See `AGENTS.md` for full agent definitions.
 
+## 🚧 Code Quality Refactoring In Progress
+
+**Status:** Phase 1 of 4 - Ready to Start
+**Last Updated:** 2026-01-13
+**Review Score:** B- (Good foundations, needs refactoring)
+
+### Current Work
+
+A comprehensive code quality review identified **2 major god objects** and several DRY violations. We're in the middle of a **4-phase refactoring plan** (49.5 hours total).
+
+**📋 See `REFACTORING_PLAN.md` for complete details and current status.**
+
+### Quick Status
+
+**Phase 1 - Quick Wins (3.5 hours)** ← **YOU ARE HERE**
+- [ ] Archive automation/ directory (deprecated Playwright code)
+- [ ] Extract date helpers from index.ts
+- [ ] Create constants.ts for magic numbers
+
+**Next Phases:**
+- Phase 2: Foundation refactoring (10 hours)
+- Phase 3: Tool handler reorganization (14 hours)
+- Phase 4: God object splitting (22 hours)
+
+### Key Issues Identified
+
+1. **`src/api/dats-api.ts`** (1,451 LOC) - God object with 52+ methods
+2. **`src/index.ts`** (1,432 LOC) - 10 tool handlers in one file
+3. Duplicated encryption logic in session stores
+4. Magic numbers throughout codebase
+5. Dead code in `src/automation/` directory
+
+### How to Resume
+
+1. Open `REFACTORING_PLAN.md` for detailed task checklist
+2. Check todo list for current progress
+3. Start with Phase 1, Task 1 (archiving automation/)
+4. Follow verification steps after each task
+5. Commit after Phase 1 completion
+
+### Documentation Files
+
+- **Refactoring Plan:** `REFACTORING_PLAN.md` (project root)
+- **Detailed Review:** `.claude/plans/hazy-honking-peacock.md`
+- **Todo Tracking:** Active in Claude Code sessions
+
+---
+
 ## Build Commands
 
 ```bash
