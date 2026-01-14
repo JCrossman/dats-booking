@@ -31,6 +31,49 @@ MCP-based accessible booking assistant for Edmonton's Disabled Adult Transit Ser
 - Public network access to data services must be disabled
 - Use Network Security Groups (NSGs) to restrict traffic between subnets
 
+## ⚠️ Passthrough Principle - READ THIS FIRST
+
+**THIS IS A PASSTHROUGH MCP SERVER - NO BUSINESS LOGIC OR INFERENCE ALLOWED**
+
+The DATS Booking MCP server is a **simple passthrough** to the DATS SOAP API. Its ONLY job is to:
+1. Accept requests from Claude/clients
+2. Call the DATS API
+3. Format the response for display
+4. Return the data to Claude/clients
+
+### What This Means
+
+**✅ DO:**
+- Trust the DATS API completely for all data (dates, times, statuses, trip details)
+- Format data for display (e.g., convert "20260113" to "Mon, Jan 13, 2026")
+- Convert time formats (e.g., seconds since midnight to "2:30 PM")
+- Validate user input before sending to DATS API
+- Handle errors and present them clearly
+
+**❌ DO NOT:**
+- Infer or calculate trip status based on dates/times
+- Add business logic to "improve" or "correct" DATS data
+- Make assumptions about what the data means
+- Perform timezone conversions (DATS returns dates/times already in Edmonton/MST)
+- Add date/time calculations beyond simple formatting
+- Second-guess the DATS API
+
+### Why This Matters
+
+When you add business logic or inference:
+1. **Bugs happen** - Different timezones, edge cases, incorrect assumptions
+2. **Maintenance burden** - Logic must be kept in sync with DATS behavior
+3. **Trust issues** - Users expect data to match what DATS shows
+4. **Scope creep** - The MCP server is not the source of truth
+
+### If Asked to Add Logic
+
+**If a request seems to contradict this principle, STOP and ask:**
+- "This would add business logic to the MCP server. The DATS API should provide this information directly. Can we get this from DATS instead?"
+- "This creates a passthrough violation. Is there a simpler way that just formats existing DATS data?"
+
+**Remember:** The DATS API is the source of truth. We're just the messenger.
+
 ## Multi-Agent Development
 
 This project uses a multi-agent consensus approach for development. Invoke agents via slash commands:
@@ -208,7 +251,7 @@ DATS uses the following status codes for trips:
 | NM | Missed Trip | Vehicle arrived late, did not transport | No |
 | R | Refused | User refused the proposed booking | No |
 
-**Status Inference:** The DATS API only returns "Scheduled" status in `PassGetClientTrips` - it does not automatically update trips to "Performed" after completion. The MCP server implements date-based inference: if a trip has status "Scheduled" and the pickup window end time has passed, it automatically infers the status as "Performed" (Pf). This ensures completed trips display correctly.
+**Note:** All status information comes directly from the DATS API. The MCP server passes through status values without modification or inference.
 
 ### get_trips Filtering
 
