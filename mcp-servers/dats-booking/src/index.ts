@@ -70,9 +70,9 @@ function parseFlexibleDate(dateStr: string, timezone: string = 'America/Edmonton
   });
   const [year, month, day] = formatter.format(now).split('-').map(Number);
 
-  // Create a date object representing "today" in user's timezone
-  const today = new Date(year, month - 1, day);
-  const currentDayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
+  // Create a UTC date object representing "today" (timezone-neutral)
+  const today = new Date(Date.UTC(year, month - 1, day));
+  const currentDayOfWeek = today.getUTCDay(); // 0 = Sunday, 6 = Saturday
 
   const input = dateStr.toLowerCase().trim();
 
@@ -81,11 +81,11 @@ function parseFlexibleDate(dateStr: string, timezone: string = 'America/Edmonton
     return formatDateYMD(today);
   }
   if (input === 'tomorrow') {
-    today.setDate(today.getDate() + 1);
+    today.setUTCDate(today.getUTCDate() + 1);
     return formatDateYMD(today);
   }
   if (input === 'yesterday') {
-    today.setDate(today.getDate() - 1);
+    today.setUTCDate(today.getUTCDate() - 1);
     return formatDateYMD(today);
   }
 
@@ -98,7 +98,7 @@ function parseFlexibleDate(dateStr: string, timezone: string = 'America/Edmonton
     if (daysUntil <= 0) {
       daysUntil += 7; // Move to next week if today or past
     }
-    today.setDate(today.getDate() + daysUntil);
+    today.setUTCDate(today.getUTCDate() + daysUntil);
     return formatDateYMD(today);
   }
 
@@ -110,7 +110,7 @@ function parseFlexibleDate(dateStr: string, timezone: string = 'America/Edmonton
     if (daysUntil <= 0) {
       daysUntil += 7;
     }
-    today.setDate(today.getDate() + daysUntil);
+    today.setUTCDate(today.getUTCDate() + daysUntil);
     return formatDateYMD(today);
   }
 
@@ -119,9 +119,9 @@ function parseFlexibleDate(dateStr: string, timezone: string = 'America/Edmonton
 }
 
 function formatDateYMD(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
 

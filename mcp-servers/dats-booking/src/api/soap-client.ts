@@ -26,7 +26,7 @@ export class SoapClient {
     const today = new Date();
     const defaultFromDate = this.formatDate(today);
     const futureDate = new Date(today);
-    futureDate.setMonth(futureDate.getMonth() + 2);
+    futureDate.setUTCMonth(futureDate.getUTCMonth() + 2);
     const defaultToDate = this.formatDate(futureDate);
 
     const soapBody = `<?xml version="1.0" encoding="UTF-8"?>
@@ -213,9 +213,9 @@ export class SoapClient {
    * Format date as YYYYMMDD
    */
   private formatDate(date: Date): string {
-    const year = date.getFullYear();
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
+    const year = date.getUTCFullYear();
+    const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+    const day = date.getUTCDate().toString().padStart(2, '0');
     return `${year}${month}${day}`;
   }
 }

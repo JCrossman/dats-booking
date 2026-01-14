@@ -181,13 +181,13 @@ function parsePickupDateTime(date: string, time: string): Date | null {
       return null;
     }
 
-    const result = new Date(year, month - 1, day, hours, minutes);
+    const result = new Date(Date.UTC(year, month - 1, day, hours, minutes));
 
     // Validate the date is real (e.g., not Feb 30)
     if (
-      result.getFullYear() !== year ||
-      result.getMonth() !== month - 1 ||
-      result.getDate() !== day
+      result.getUTCFullYear() !== year ||
+      result.getUTCMonth() !== month - 1 ||
+      result.getUTCDate() !== day
     ) {
       return null;
     }
@@ -219,9 +219,9 @@ function parseTripDateTime(dateStr: string, timeStr: string): Date | null {
       // "Sunday, January 12" or "Jan 12, 2026"
       const parsed = new Date(dateStr);
       if (!isNaN(parsed.getTime())) {
-        year = parsed.getFullYear();
-        month = parsed.getMonth() + 1;
-        day = parsed.getDate();
+        year = parsed.getUTCFullYear();
+        month = parsed.getUTCMonth() + 1;
+        day = parsed.getUTCDate();
       } else {
         return null;
       }
@@ -229,9 +229,9 @@ function parseTripDateTime(dateStr: string, timeStr: string): Date | null {
       // Try native parsing as fallback
       const parsed = new Date(dateStr);
       if (!isNaN(parsed.getTime())) {
-        year = parsed.getFullYear();
-        month = parsed.getMonth() + 1;
-        day = parsed.getDate();
+        year = parsed.getUTCFullYear();
+        month = parsed.getUTCMonth() + 1;
+        day = parsed.getUTCDate();
       } else {
         return null;
       }
@@ -257,7 +257,7 @@ function parseTripDateTime(dateStr: string, timeStr: string): Date | null {
       return null;
     }
 
-    return new Date(year, month - 1, day, hours, minutes);
+    return new Date(Date.UTC(year, month - 1, day, hours, minutes));
   } catch {
     return null;
   }
@@ -268,9 +268,9 @@ function parseTripDateTime(dateStr: string, timeStr: string): Date | null {
  */
 function isSameDayBooking(now: Date, pickup: Date): boolean {
   return (
-    now.getFullYear() === pickup.getFullYear() &&
-    now.getMonth() === pickup.getMonth() &&
-    now.getDate() === pickup.getDate()
+    now.getUTCFullYear() === pickup.getUTCFullYear() &&
+    now.getUTCMonth() === pickup.getUTCMonth() &&
+    now.getUTCDate() === pickup.getUTCDate()
   );
 }
 
@@ -280,8 +280,8 @@ function isSameDayBooking(now: Date, pickup: Date): boolean {
  */
 function getNoonCutoffForDate(pickupDate: Date): Date {
   const cutoff = new Date(pickupDate);
-  cutoff.setDate(cutoff.getDate() - 1);
-  cutoff.setHours(12, 0, 0, 0);
+  cutoff.setUTCDate(cutoff.getUTCDate() - 1);
+  cutoff.setUTCHours(12, 0, 0, 0);
   return cutoff;
 }
 

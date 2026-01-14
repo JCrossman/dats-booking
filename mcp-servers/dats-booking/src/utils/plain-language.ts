@@ -270,11 +270,11 @@ export function formatDatePlain(dateStr: string): string {
       const year = parseInt(dateStr.substring(0, 4), 10);
       const month = parseInt(dateStr.substring(4, 6), 10) - 1;
       const day = parseInt(dateStr.substring(6, 8), 10);
-      date = new Date(year, month, day);
+      date = new Date(Date.UTC(year, month, day));
     } else if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
       // YYYY-MM-DD
       const [year, month, day] = dateStr.split('-').map(Number);
-      date = new Date(year, month - 1, day);
+      date = new Date(Date.UTC(year, month - 1, day));
     } else {
       // Try native parsing
       date = new Date(dateStr);

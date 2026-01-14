@@ -32,8 +32,8 @@ export function validateBookingRequest(input: BookTripInput): string | null {
   }
 
   const maxAdvance = new Date(now);
-  maxAdvance.setDate(maxAdvance.getDate() + 3);
-  maxAdvance.setHours(23, 59, 59, 999);
+  maxAdvance.setUTCDate(maxAdvance.getUTCDate() + 3);
+  maxAdvance.setUTCHours(23, 59, 59, 999);
 
   if (bookingDateTime > maxAdvance) {
     return 'DATS allows booking only up to 3 days in advance.';
@@ -48,7 +48,7 @@ export function validateBookingRequest(input: BookTripInput): string | null {
   }
 
   if (isNextDay(now, bookingDate)) {
-    const currentHour = now.getHours();
+    const currentHour = now.getUTCHours();
     if (currentHour >= 12) {
       return 'Next-day bookings must be made before noon.';
     }
@@ -77,16 +77,16 @@ function parseDate(dateStr: string): Date | null {
   if (!match) return null;
 
   const [, year, month, day] = match;
-  const date = new Date(
+  const date = new Date(Date.UTC(
     parseInt(year, 10),
     parseInt(month, 10) - 1,
     parseInt(day, 10)
-  );
+  ));
 
   if (
-    date.getFullYear() !== parseInt(year, 10) ||
-    date.getMonth() !== parseInt(month, 10) - 1 ||
-    date.getDate() !== parseInt(day, 10)
+    date.getUTCFullYear() !== parseInt(year, 10) ||
+    date.getUTCMonth() !== parseInt(month, 10) - 1 ||
+    date.getUTCDate() !== parseInt(day, 10)
   ) {
     return null;
   }
@@ -100,21 +100,21 @@ function combineDateAndTime(date: Date, timeStr: string): Date | null {
 
   const [, hours, minutes] = match;
   const combined = new Date(date);
-  combined.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+  combined.setUTCHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
 
   return combined;
 }
 
 function isSameDay(date1: Date, date2: Date): boolean {
   return (
-    date1.getFullYear() === date2.getFullYear() &&
-    date1.getMonth() === date2.getMonth() &&
-    date1.getDate() === date2.getDate()
+    date1.getUTCFullYear() === date2.getUTCFullYear() &&
+    date1.getUTCMonth() === date2.getUTCMonth() &&
+    date1.getUTCDate() === date2.getUTCDate()
   );
 }
 
 function isNextDay(today: Date, bookingDate: Date): boolean {
   const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
   return isSameDay(tomorrow, bookingDate);
 }
