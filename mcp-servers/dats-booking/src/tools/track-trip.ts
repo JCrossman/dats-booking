@@ -28,26 +28,30 @@ export function createTrackTripTool(deps: TrackTripDependencies): ToolRegistrati
     register(server: McpServer) {
       server.tool(
         'track_trip',
-        `Track a DATS trip in real-time. USE THIS FOR ACTIVE/CURRENT TRIPS.
+        `Track a DATS trip in real-time. Provides live vehicle location, ETA, and driver info.
 
-Returns live information including:
+IMPORTANT: Live tracking only works AFTER DATS has dispatched a vehicle. If tracking is not available:
+1. First check trip status with get_trips
+2. Show the user the actual DATS status (Scheduled, Arrived, etc.)
+3. Do NOT infer that trip "has passed" - DATS status is the source of truth
+
+Returns when available:
 - Real-time ETA (estimated time of arrival)
 - Vehicle location (GPS coordinates)
 - Vehicle details (make, model, number)
 - Driver name and provider
 - Pickup/dropoff status (scheduled, arrived, departed)
 
-IMPORTANT: Works for trips within 60 minutes of pickup time.
-
-**ALWAYS use this tool when:**
-- User asks about their "active" or "current" trip
+**Use this tool when:**
 - User asks "Where is my ride?" or "Track my ride"
 - User asks "When will my ride arrive?"
-- User wants to know about their driver or vehicle
-- User's trip is happening NOW or starting soon
-- After get_trips shows a trip within the next 60 minutes
+- User wants driver or vehicle information
+- After get_trips shows a trip is imminent
 
-This provides MUCH more detail than get_trips for active rides.`,
+**If tracking is unavailable:**
+- Use get_trips to show current DATS status
+- Tell user vehicle hasn't been dispatched yet
+- Do NOT say trip "has already passed" unless DATS status is Performed/Cancelled`,
         {
           session_id: z
             .string()

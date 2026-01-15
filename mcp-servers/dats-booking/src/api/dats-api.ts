@@ -668,23 +668,13 @@ export class DATSApi {
    * Returns live vehicle location, ETA, and driver info for imminent trips
    */
   async trackTrip(clientId: string, bookingId?: string): Promise<TrackTripOutput> {
-    // Get current time in Edmonton timezone
-    const now = new Date();
-    const edmontonTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Edmonton' }));
-    const dateStr = this.formatDate(edmontonTime);
-
-    // Time in microseconds since midnight (as used by the API)
-    const midnightEdmonton = new Date(edmontonTime);
-    midnightEdmonton.setHours(0, 0, 0, 0);
-    const microsecondsSinceMidnight = (edmontonTime.getTime() - midnightEdmonton.getTime()) * 1000;
-
+    // NOTE: Do NOT send date/time parameters - the DATS portal only sends duration and ClientId
+    // Including date/time causes the API to return no results even for active trips
     const soap = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <SOAP-ENV:Body>
     <PassPullForImminentArrivals>
       <duration>60</duration>
-      <date>${dateStr}</date>
-      <time>${microsecondsSinceMidnight}</time>
       <ClientId>${clientId}</ClientId>
     </PassPullForImminentArrivals>
   </SOAP-ENV:Body>
@@ -744,7 +734,7 @@ export class DATSApi {
         lastChecked: new Date().toISOString(),
         error: {
           category: ErrorCategory.VALIDATION_ERROR,
-          message: 'No imminent trips found. Live tracking is only available within 60 minutes of pickup.',
+          message: 'Live tracking not available. DATS has not dispatched a vehicle yet. Use get_trips to check current trip status.',
           recoverable: true,
         },
       };
