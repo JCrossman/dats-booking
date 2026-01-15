@@ -61,6 +61,33 @@ export function formatTripsForUser(trips: Trip[]): string {
 }
 
 /**
+ * Format saved locations as a markdown table
+ */
+export function formatSavedLocations(locations: Array<{ name: string; address: string; city: string; state: string; zipCode: string }>): string {
+  if (locations.length === 0) {
+    return 'You have no saved locations. You can save frequently used addresses through the DATS website or by calling 780-496-4567.';
+  }
+
+  const lines: string[] = [];
+  lines.push(`You have ${locations.length} saved ${locations.length === 1 ? 'location' : 'locations'}:\n`);
+
+  // Create markdown table
+  lines.push('| Name | Address |');
+  lines.push('|------|---------|');
+
+  for (const loc of locations) {
+    const name = loc.name || 'Unnamed';
+    const fullAddress = [loc.address, loc.city, loc.state, loc.zipCode]
+      .filter(part => part && part.trim())
+      .join(', ');
+
+    lines.push(`| ${name} | ${fullAddress} |`);
+  }
+
+  return lines.join('\n');
+}
+
+/**
  * Format a single trip in plain language (legacy format, kept for compatibility)
  */
 export function formatSingleTrip(trip: Trip): string {

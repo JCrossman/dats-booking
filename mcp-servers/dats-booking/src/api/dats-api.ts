@@ -140,6 +140,7 @@ export class DATSApi {
     });
 
     const response = await this.callApi(soap);
+    logger.debug(`getContactInfo raw response: ${response.substring(0, 500)}`);
     return this.parseContactInfo(response, clientId);
   }
 
@@ -190,6 +191,7 @@ export class DATSApi {
     });
 
     const response = await this.callApi(soap);
+    logger.debug(`getSavedLocations raw response: ${response.substring(0, 500)}`);
     return this.parseSavedLocations(response);
   }
 
@@ -1001,6 +1003,7 @@ export class DATSApi {
       });
     }
 
+    logger.debug(`parseSavedLocations found ${locations.length} locations`);
     return locations;
   }
 
@@ -1246,26 +1249,35 @@ export class DATSApi {
   }
 
   private parseContactInfo(xml: string, clientId: string): ContactInfo | null {
-    if (!xml.includes('PassGetClientContactInfoResponse')) return null;
+    if (!xml.includes('PassGetClientContactInfoResponse')) {
+      logger.debug('parseContactInfo: Response does not contain PassGetClientContactInfoResponse');
+      return null;
+    }
 
     const emergencyContacts: Array<{ name: string; phone: string; relationship?: string }> = [];
     let homePhone: string | undefined;
     let workPhone: string | undefined;
     let cellPhone: string | undefined;
     let email: string | undefined;
-    let firstName = '';
-    let lastName = '';
+
+    // Try to extract name from the response
+    let firstName = this.extractXml(xml, 'FirstName');
+    let lastName = this.extractXml(xml, 'LastName');
 
     // Parse ContactInfo elements
     const contactRegex = /<ContactInfo[^>]*>([\s\S]*?)<\/ContactInfo>/g;
     let match;
+    let contactCount = 0;
 
     while ((match = contactRegex.exec(xml)) !== null) {
+      contactCount++;
       const contactXml = match[1];
       const addressType = this.extractXml(contactXml, 'AddressType');
       const deviceAbbr = this.extractXml(contactXml, 'DeviceAbbr');
       const connectString = this.extractXml(contactXml, 'ConnectString');
       const comments = this.extractXml(contactXml, 'Comments');
+
+      logger.debug(`Contact ${contactCount}: AddressType=${addressType}, DeviceAbbr=${deviceAbbr}`);
 
       // CE = Contact/Emergency contact
       if (addressType === 'CE') {
@@ -1288,6 +1300,8 @@ export class DATSApi {
         }
       }
     }
+
+    logger.debug(`parseContactInfo found ${contactCount} ContactInfo elements, ${emergencyContacts.length} emergency contacts`);
 
     return {
       clientId,

@@ -38,6 +38,7 @@ import {
   formatCancellationConfirmation,
   formatTripsForUser,
   formatAvailabilityForUser,
+  formatSavedLocations,
   PLAIN_LANGUAGE_GUIDELINES,
 } from './utils/plain-language.js';
 
@@ -1292,6 +1293,35 @@ REMOTE MODE: Include session_id from connect_account/complete_connection.`,
         api.getSavedLocations(session.clientId),
       ]);
 
+      // Format saved locations as a markdown table
+      const savedLocationsMessage = formatSavedLocations(savedLocations || []);
+
+      // Build user-friendly message about data availability
+      const hasContactInfo = contactInfo && (
+        contactInfo.homePhone || contactInfo.workPhone ||
+        contactInfo.cellPhone || contactInfo.email ||
+        contactInfo.emergencyContacts.length > 0
+      );
+
+      const notes: string[] = [];
+      if (!hasContactInfo) {
+        notes.push('No additional contact information found in DATS system (phone numbers, email, emergency contacts).');
+      }
+
+      // Build the full user message
+      const userMessage = [
+        'Your DATS Profile:',
+        '',
+        clientInfo ? `Name: ${clientInfo.firstName} ${clientInfo.lastName}` : '',
+        clientInfo?.phone ? `Phone: ${clientInfo.phone}` : '',
+        '',
+        savedLocationsMessage,
+        '',
+        ...notes,
+      ]
+        .filter(line => line !== null && line !== undefined)
+        .join('\n');
+
       return {
         content: [
           {
@@ -1304,6 +1334,8 @@ REMOTE MODE: Include session_id from connect_account/complete_connection.`,
                   contact: contactInfo,
                   savedLocations,
                 },
+                userMessage,
+                forAssistant: 'Display the userMessage to the user as-is (it contains pre-formatted markdown). The profile was retrieved successfully.',
               },
               null,
               2
