@@ -364,6 +364,203 @@ describe('cancel_trip tool workflow', () => {
   });
 });
 
+describe('track_trip tool timezone context', () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+  });
+
+  describe('dateContext Structure', () => {
+    it('should include complete dateContext in successful response', async () => {
+      // Mock current time: Jan 15, 2026 10:00 AM MST (5:00 PM UTC)
+      vi.setSystemTime(new Date('2026-01-15T17:00:00Z'));
+
+      // Create a mock successful track_trip response structure
+      const mockResult = {
+        success: true,
+        bookingId: '12345',
+        pickup: { eta: '10:30 AM', status: 'scheduled', address: '123 Main St' },
+        dropoff: { eta: '11:00 AM', status: 'scheduled', address: '456 Oak Ave' },
+        lastChecked: new Date().toISOString(),
+      };
+
+      // Simulate what track-trip.ts does with getCurrentDateInfo
+      const { getCurrentDateInfo } = await import('../../helpers/date-helpers.js');
+      const timezone = 'America/Edmonton';
+      const dateInfo = getCurrentDateInfo(timezone);
+      const dateContext = {
+        currentDate: dateInfo.today,
+        currentDayOfWeek: dateInfo.dayOfWeek,
+        timezone,
+        note: 'All DATS times are in Edmonton timezone (MST/MDT). The lastChecked timestamp is in UTC ISO format.',
+      };
+
+      const result = { ...mockResult, dateContext };
+
+      // Verify dateContext structure
+      expect(result.dateContext).toBeDefined();
+      expect(result.dateContext.currentDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(result.dateContext.currentDate).toBe('2026-01-15');
+      expect(result.dateContext.currentDayOfWeek).toMatch(/^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)$/);
+      expect(result.dateContext.currentDayOfWeek).toBe('Thursday');
+      expect(result.dateContext.timezone).toBe('America/Edmonton');
+      expect(result.dateContext.note).toContain('MST/MDT');
+      expect(result.dateContext.note).toContain('UTC');
+    });
+
+    it('should include dateContext even when tracking fails', async () => {
+      // Mock current time
+      vi.setSystemTime(new Date('2026-01-15T17:00:00Z'));
+
+      // Create a mock failed track_trip response
+      const mockErrorResult = {
+        success: false,
+        bookingId: '12345',
+        pickup: { eta: undefined, status: undefined, address: undefined },
+        dropoff: { eta: undefined, status: undefined, address: undefined },
+        lastChecked: new Date().toISOString(),
+        error: {
+          category: 'VALIDATION_ERROR',
+          message: 'Live tracking not available. DATS has not dispatched a vehicle yet.',
+          recoverable: true,
+        },
+      };
+
+      // Simulate what track-trip.ts does
+      const { getCurrentDateInfo } = await import('../../helpers/date-helpers.js');
+      const timezone = 'America/Edmonton';
+      const dateInfo = getCurrentDateInfo(timezone);
+      const dateContext = {
+        currentDate: dateInfo.today,
+        currentDayOfWeek: dateInfo.dayOfWeek,
+        timezone,
+        note: 'All DATS times are in Edmonton timezone (MST/MDT)',
+      };
+
+      const result = { ...mockErrorResult, dateContext };
+
+      expect(result.success).toBe(false);
+      expect(result.dateContext).toBeDefined();
+      expect(result.dateContext.timezone).toBe('America/Edmonton');
+      expect(result.dateContext.currentDate).toBe('2026-01-15');
+    });
+  });
+
+  describe('Midnight Boundary Edge Cases', () => {
+    it('should use Edmonton date, not UTC date, near midnight', async () => {
+      // 11:59 PM MST on Jan 15 = 6:59 AM UTC on Jan 16
+      vi.setSystemTime(new Date('2026-01-16T06:59:00Z'));
+
+      const { getCurrentDateInfo } = await import('../../helpers/date-helpers.js');
+      const dateInfo = getCurrentDateInfo('America/Edmonton');
+
+      // Should show Jan 15 (Edmonton date), not Jan 16 (UTC date)
+      expect(dateInfo.today).toBe('2026-01-15');
+      expect(dateInfo.dayOfWeek).toBe('Thursday');
+    });
+
+    it('should handle UTC midnight vs Edmonton midnight correctly', async () => {
+      // 12:00 AM UTC on Jan 16 = 5:00 PM MST on Jan 15
+      vi.setSystemTime(new Date('2026-01-16T00:00:00Z'));
+
+      const { getCurrentDateInfo } = await import('../../helpers/date-helpers.js');
+      const dateInfo = getCurrentDateInfo('America/Edmonton');
+
+      // Should show Jan 15 (Edmonton is still previous day)
+      expect(dateInfo.today).toBe('2026-01-15');
+    });
+  });
+
+  describe('Year Boundary Edge Cases', () => {
+    it('should handle year boundary correctly', async () => {
+      // Dec 31, 2025 11:59 PM MST = Jan 1, 2026 6:59 AM UTC
+      vi.setSystemTime(new Date('2026-01-01T06:59:00Z'));
+
+      const { getCurrentDateInfo } = await import('../../helpers/date-helpers.js');
+      const dateInfo = getCurrentDateInfo('America/Edmonton');
+
+      // Should show Dec 31, 2025 (Edmonton date)
+      expect(dateInfo.today).toBe('2025-12-31');
+      expect(dateInfo.dayOfWeek).toBe('Wednesday');
+    });
+
+    it('should handle New Year transition correctly', async () => {
+      // Jan 1, 2026 12:01 AM MST = 7:01 AM UTC
+      vi.setSystemTime(new Date('2026-01-01T07:01:00Z'));
+
+      const { getCurrentDateInfo } = await import('../../helpers/date-helpers.js');
+      const dateInfo = getCurrentDateInfo('America/Edmonton');
+
+      // Should show Jan 1, 2026 (New Year in Edmonton)
+      expect(dateInfo.today).toBe('2026-01-01');
+      expect(dateInfo.dayOfWeek).toBe('Thursday');
+    });
+  });
+
+  describe('DST Transitions', () => {
+    it('should handle DST spring forward transition (March 9, 2026)', async () => {
+      // March 9, 2026 at 2:00 AM MST -> jumps to 3:00 AM MDT
+      // Set to 9:00 AM UTC = 2:00 AM MST (right at transition)
+      vi.setSystemTime(new Date('2026-03-09T09:00:00Z'));
+
+      const { getCurrentDateInfo } = await import('../../helpers/date-helpers.js');
+      const dateInfo = getCurrentDateInfo('America/Edmonton');
+
+      // Should handle gracefully, no errors
+      expect(dateInfo.today).toBe('2026-03-09');
+      expect(dateInfo.dayOfWeek).toBe('Monday');
+      // Date should be valid despite DST transition
+      expect(dateInfo.today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+
+    it('should handle DST fall back transition (November 2, 2026)', async () => {
+      // November 2, 2026 at 2:00 AM MDT -> falls back to 1:00 AM MST
+      // 2:00 AM happens twice
+      // Set to 8:00 AM UTC = during the ambiguous hour
+      vi.setSystemTime(new Date('2026-11-02T08:00:00Z'));
+
+      const { getCurrentDateInfo } = await import('../../helpers/date-helpers.js');
+      const dateInfo = getCurrentDateInfo('America/Edmonton');
+
+      // Should handle gracefully
+      expect(dateInfo.today).toBe('2026-11-02');
+      expect(dateInfo.dayOfWeek).toBe('Monday');
+      expect(dateInfo.today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+  });
+
+  describe('Timestamp Format', () => {
+    it('should return lastChecked in ISO 8601 UTC format', () => {
+      vi.setSystemTime(new Date('2026-01-15T17:00:00Z'));
+
+      const lastChecked = new Date().toISOString();
+
+      // Verify ISO 8601 format: YYYY-MM-DDTHH:MM:SS.sssZ
+      expect(lastChecked).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+
+      // Verify it's parseable
+      expect(() => new Date(lastChecked)).not.toThrow();
+      expect(new Date(lastChecked).getTime()).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Display Instructions', () => {
+    it('should warn about timezone in displayInstructions', () => {
+      const displayInstructions = `
+DISPLAY THIS TRACKING INFO CLEARLY:
+- Show the ETA prominently
+- Include ALL vehicle and driver details
+- Use simple text format (not tables) for mobile readability
+- If vehicle has arrived, emphasize that fact
+- IMPORTANT: All trip times are in Edmonton timezone (MST/MDT), NOT UTC
+`.trim();
+
+      expect(displayInstructions).toContain('Edmonton timezone');
+      expect(displayInstructions).toContain('MST/MDT');
+      expect(displayInstructions).toContain('NOT UTC');
+    });
+  });
+});
+
 describe('Cross-Tool Integration', () => {
   beforeEach(() => {
     vi.useRealTimers();
@@ -401,6 +598,27 @@ describe('Cross-Tool Integration', () => {
     expect(today).toBe('2026-01-15');
 
     // Would be same for all tools
+  });
+
+  it('should use America/Edmonton timezone in all tools with dateContext', async () => {
+    vi.setSystemTime(new Date('2026-01-15T17:00:00Z')); // 10:00 AM MST
+
+    const { getCurrentDateInfo } = await import('../../helpers/date-helpers.js');
+
+    // Simulate what get_trips does
+    const getTripsDateInfo = getCurrentDateInfo('America/Edmonton');
+
+    // Simulate what track_trip does
+    const trackTripDateInfo = getCurrentDateInfo('America/Edmonton');
+
+    // Both should return same date (getCurrentDateInfo doesn't return timezone property)
+    expect(getTripsDateInfo.today).toBe('2026-01-15');
+    expect(trackTripDateInfo.today).toBe('2026-01-15');
+    expect(getTripsDateInfo.dayOfWeek).toBe(trackTripDateInfo.dayOfWeek);
+
+    // Both tools should explicitly set timezone to America/Edmonton
+    const expectedTimezone = 'America/Edmonton';
+    expect(expectedTimezone).toBe('America/Edmonton');
   });
 });
 

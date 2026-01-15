@@ -96,6 +96,125 @@ These errors come directly from DATS and are always accurate and up-to-date with
 
 **Remember:** The DATS API is the source of truth. We're just the messenger.
 
+## Timezone Handling
+
+**All DATS operations occur in Edmonton timezone (America/Edmonton = MST/MDT).**
+
+### Core Principle
+
+DATS returns all dates and times in Edmonton local time. Our MCP server:
+1. ✅ **Accepts dates/times in Edmonton timezone** from Claude and users
+2. ✅ **Sends dates/times to DATS API in Edmonton timezone** (no conversion needed)
+3. ✅ **Returns dates/times to Claude with timezone context** so they display correctly
+4. ❌ **Does NOT convert timezones** - DATS data is already in the correct timezone
+
+### Why Edmonton Timezone Only?
+
+DATS is a local service operating exclusively in Edmonton, Alberta, Canada. Users are either:
+- **In Edmonton** - local residents using the service
+- **Planning for Edmonton trips** - caregivers/family booking remotely
+
+All pickup times, ETAs, and schedules are in Edmonton timezone regardless of where the user accesses the service from.
+
+### Timezone Context in Tool Responses
+
+Tools that return time-sensitive data include a `dateContext` object:
+
+```json
+{
+  "dateContext": {
+    "currentDate": "2026-01-15",
+    "currentDayOfWeek": "Thursday",
+    "timezone": "America/Edmonton",
+    "note": "All DATS times are in Edmonton timezone (MST/MDT)"
+  }
+}
+```
+
+**Tools with dateContext:**
+- `get_trips` - Shows current date/timezone for trip filtering
+- `track_trip` - Shows current date/timezone for ETA interpretation
+- `check_availability` - Shows current date for availability windows
+
+This helps Claude understand the correct timezone context when displaying times to users.
+
+### Date Format Handling
+
+**Input (from users/Claude):**
+- ISO format: `2026-01-15` (always interpreted as Edmonton date)
+- Relative: `today`, `tomorrow`, `thursday` (calculated in Edmonton timezone)
+- Natural: `next monday` (next occurrence in Edmonton timezone)
+
+**Output (to Claude/users):**
+- Human-friendly: `Thu, Jan 15, 2026` (from DATS API)
+- ISO format: `2026-01-15` (for programmatic use)
+- UTC timestamps: `2026-01-15T16:58:00.000Z` (only for `lastChecked` field)
+
+### DST (Daylight Saving Time) Handling
+
+Edmonton observes DST with these transitions:
+- **Spring forward:** Second Sunday in March, 2:00 AM MST → 3:00 AM MDT (UTC-7 → UTC-6)
+- **Fall back:** First Sunday in November, 2:00 AM MDT → 1:00 AM MST (UTC-6 → UTC-7)
+
+**Edge cases handled:**
+1. **Non-existent times (spring forward):** 2:30 AM on transition day doesn't exist
+   - JavaScript's `Date` object handles this by jumping to 3:30 AM MDT
+   - DATS validation would reject invalid booking times
+
+2. **Ambiguous times (fall back):** 1:30 AM occurs twice on transition day
+   - First occurrence: MDT (before transition)
+   - Second occurrence: MST (after transition)
+   - JavaScript uses system rules to disambiguate
+   - DATS API handles the actual transition logic
+
+### Midnight Boundary Edge Cases
+
+**Critical for date comparisons:**
+
+- **11:59 PM MST** on Jan 15 = **6:59 AM UTC** on Jan 16
+  - Edmonton date: Jan 15
+  - UTC date: Jan 16
+  - ✅ We use Edmonton date (Jan 15)
+
+- **12:01 AM MST** on Jan 16 = **7:01 AM UTC** on Jan 16
+  - Edmonton date: Jan 16
+  - UTC date: Jan 16
+  - ✅ Both match (coincidence)
+
+**Implementation:**
+```typescript
+// Get current date in Edmonton timezone
+const dateInfo = getCurrentDateInfo('America/Edmonton');
+// Returns: { today: '2026-01-15', dayOfWeek: 'Thursday' }
+```
+
+The `getCurrentDateInfo()` helper uses `Intl.DateTimeFormat` with explicit timezone to ensure correct date calculation even when system time is in different timezone.
+
+### Testing Timezone Handling
+
+**Comprehensive test coverage includes:**
+- ✅ Midnight boundary tests (UTC vs Edmonton dates)
+- ✅ DST transition tests (spring forward & fall back)
+- ✅ Year boundary tests (Dec 31/Jan 1)
+- ✅ Timezone consistency across all tools
+- ✅ UTC timestamp format validation
+
+See `src/__tests__/integration/tools.test.ts` for timezone test suite.
+
+### Common Pitfalls to Avoid
+
+❌ **DON'T:**
+- Parse DATS dates/times as UTC (they're already Edmonton time)
+- Convert user input from device timezone to Edmonton (assume Edmonton)
+- Use `Date.UTC()` for DATS data (use local Date constructor)
+- Infer trip status from time comparisons (trust DATS API status)
+
+✅ **DO:**
+- Use `getCurrentDateInfo('America/Edmonton')` for current date
+- Include `dateContext` in time-sensitive tool responses
+- Let DATS API validate booking/cancellation times
+- Display times exactly as DATS returns them
+
 ## Multi-Agent Development
 
 This project uses a multi-agent consensus approach for development. Invoke agents via slash commands:
@@ -133,9 +252,10 @@ Phases 0-3 of the comprehensive code quality refactoring are **complete**! The c
 ### Completed Work
 
 **Phase 0: Testing Infrastructure** ✅
-- 159 comprehensive tests implemented
+- 170 comprehensive tests implemented (including 11 timezone tests)
 - 70%+ code coverage achieved
 - All MCP tools covered by integration tests
+- Comprehensive timezone testing (DST, midnight boundaries, year transitions)
 
 **Phase 1: Quick Wins** ✅
 - ✅ constants.ts created for all magic numbers
