@@ -215,6 +215,95 @@ See `src/__tests__/integration/tools.test.ts` for timezone test suite.
 - Let DATS API validate booking/cancellation times
 - Display times exactly as DATS returns them
 
+## Design Decisions
+
+This section documents key architectural and implementation decisions made during development. These decisions were made based on PM recommendations and align with the Passthrough Principle and accessibility requirements.
+
+### Decision 1: Client-Side Time Validation
+
+**Question:** Should we validate booking and cancellation times client-side before calling the DATS API?
+
+**PM Recommendation:** Remove all client-side time validation to follow the Passthrough Principle.
+
+**Decision:** No client-side time validation for booking or cancellation
+
+**Implementation:**
+- ✅ Removed `validateBookingWindow()` from book_trip tool (commit 5275b5c)
+- ✅ Removed `validateCancellation()` from cancel_trip tool (commit 5275b5c)
+- ✅ Trust DATS API for all time-based decisions
+
+**Rationale:**
+1. **Single Source of Truth**: DATS API is authoritative for business rules
+2. **No Timezone Bugs**: Client-side validation caused timezone handling issues
+3. **Always Accurate**: DATS rules can change without requiring client updates
+4. **Better Error Messages**: DATS provides specific, accurate error messages
+
+**What This Means:**
+- book_trip sends requests directly to DATS, which validates booking windows
+- cancel_trip sends requests directly to DATS, which enforces 2-hour notice rule
+- Users see DATS error messages, which are always current and accurate
+
+### Decision 2: Timezone for Date Calculations
+
+**Question:** What timezone should the Claude iOS app use for date calculations?
+
+**PM Recommendation:** Always use America/Edmonton (MST/MDT) since DATS only operates in Edmonton.
+
+**Decision:** Always use America/Edmonton timezone regardless of user's device timezone
+
+**Implementation:**
+- ✅ All tools use `timezone = 'America/Edmonton'`
+- ✅ `getCurrentDateInfo()` always uses America/Edmonton
+- ✅ `dateContext` explicitly shows `timezone: "America/Edmonton"`
+- ✅ Documented in Timezone Handling section
+
+**Rationale:**
+1. **Service Area**: DATS only operates in Edmonton
+2. **API Expectation**: DATS API expects Edmonton local time
+3. **User Clarity**: All users (even traveling) see consistent Edmonton time
+4. **No Conversion Needed**: DATS data is already in Edmonton timezone
+
+**What This Means:**
+- User in Vancouver sees Edmonton time (MST/MDT)
+- User in Toronto sees Edmonton time (MST/MDT)
+- No confusing timezone conversions or offsets
+- dateContext always shows current Edmonton date/time
+
+### Decision 3: Time Display Format (12-hour vs 24-hour)
+
+**Question:** Should we display times in 12-hour format (7:50 AM) or 24-hour format (07:50)?
+
+**PM Recommendation:** Use 12-hour format for accessibility, matching DATS portal.
+
+**Decision:** Display exactly what DATS API returns (which is 12-hour format)
+
+**Implementation:**
+- ✅ Following Passthrough Principle - no time format conversion
+- ✅ DATS API returns 12-hour format (e.g., "7:50 AM")
+- ✅ We display times exactly as received from DATS
+- ✅ Documented in Passthrough Principle section
+
+**Rationale:**
+1. **Passthrough Principle**: Don't modify DATS data
+2. **Accessibility**: 12-hour format is more familiar for users with cognitive disabilities
+3. **Consistency**: Matches DATS portal and confirmation emails
+4. **No Conversion Bugs**: Eliminates potential formatting errors
+
+**What This Means:**
+- Times shown to users: "7:50 AM" (not "07:50" or "0750")
+- Pickup windows: "7:50 AM - 8:20 AM"
+- No AM/PM ambiguity or conversion issues
+
+---
+
+**Why Document These Decisions?**
+
+These decisions were implicitly made through implementation choices but never formally documented. Recording them here:
+1. Prevents re-litigating already-resolved questions
+2. Provides context for future developers
+3. Explains "why we chose X over Y"
+4. Aligns with Passthrough Principle and accessibility goals
+
 ## Multi-Agent Development
 
 This project uses a multi-agent consensus approach for development. Invoke agents via slash commands:
