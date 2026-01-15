@@ -1,12 +1,14 @@
 /**
  * Booking Window Validation
  *
- * DATS Business Rules:
- * - Advance booking: Up to 3 days ahead, cutoff at noon day before
- * - Same-day booking: 2-hour minimum notice, not guaranteed
- * - Cancellation: 2-hour minimum notice required
- * - Pickup window: 30 minutes (vehicle waits 5 minutes max)
+ * DATS Business Rules (see ../constants.ts for values):
+ * - Advance booking: Up to ADVANCE_BOOKING_MAX_DAYS days ahead, cutoff at noon day before
+ * - Same-day booking: SAME_DAY_MIN_HOURS minimum notice, not guaranteed
+ * - Cancellation: CANCELLATION_MIN_HOURS minimum notice required
+ * - Pickup window: PICKUP_WINDOW_MINUTES (vehicle waits VEHICLE_WAIT_MINUTES max)
  */
+
+import { DATS_BUSINESS_RULES, TIME_CONSTANTS } from '../constants.js';
 
 export interface BookingValidationResult {
   valid: boolean;
@@ -50,15 +52,15 @@ export function validateBookingWindow(
     };
   }
 
-  const minutesUntilPickup = (pickup.getTime() - now.getTime()) / (1000 * 60);
-  const hoursUntilPickup = minutesUntilPickup / 60;
-  const daysUntilPickup = hoursUntilPickup / 24;
+  const minutesUntilPickup = (pickup.getTime() - now.getTime()) / TIME_CONSTANTS.MILLISECONDS_PER_MINUTE;
+  const hoursUntilPickup = minutesUntilPickup / TIME_CONSTANTS.MINUTES_PER_HOUR;
+  const daysUntilPickup = hoursUntilPickup / TIME_CONSTANTS.HOURS_PER_DAY;
 
-  // Check if too far in advance (more than 3 days)
-  if (daysUntilPickup > 3) {
+  // Check if too far in advance
+  if (daysUntilPickup > DATS_BUSINESS_RULES.ADVANCE_BOOKING_MAX_DAYS) {
     return {
       valid: false,
-      error: `DATS only allows booking up to 3 days in advance. Your requested date is ${Math.floor(daysUntilPickup)} days away.`,
+      error: `DATS only allows booking up to ${DATS_BUSINESS_RULES.ADVANCE_BOOKING_MAX_DAYS} days in advance. Your requested date is ${Math.floor(daysUntilPickup)} days away.`,
     };
   }
 
@@ -66,11 +68,11 @@ export function validateBookingWindow(
   const isSameDay = isSameDayBooking(now, pickup);
 
   if (isSameDay) {
-    // Same-day: 2-hour minimum notice required
-    if (hoursUntilPickup < 2) {
+    // Same-day: minimum notice required
+    if (hoursUntilPickup < DATS_BUSINESS_RULES.SAME_DAY_MIN_HOURS) {
       return {
         valid: false,
-        error: `Same-day bookings need at least 2 hours notice. Your pickup is only ${Math.floor(minutesUntilPickup)} minutes away.`,
+        error: `Same-day bookings need at least ${DATS_BUSINESS_RULES.SAME_DAY_MIN_HOURS} hours notice. Your pickup is only ${Math.floor(minutesUntilPickup)} minutes away.`,
       };
     }
 
@@ -92,11 +94,11 @@ export function validateBookingWindow(
 
     // If it's for tomorrow and we're past noon today, it becomes same-day rules
     if (daysUntilPickup < 1.5) {
-      // Check 2-hour rule for what is effectively same-day
-      if (hoursUntilPickup < 2) {
+      // Check minimum notice for what is effectively same-day
+      if (hoursUntilPickup < DATS_BUSINESS_RULES.SAME_DAY_MIN_HOURS) {
         return {
           valid: false,
-          error: `The noon cutoff has passed for booking ${dayName}. Same-day rules apply, and you need at least 2 hours notice.`,
+          error: `The noon cutoff has passed for booking ${dayName}. Same-day rules apply, and you need at least ${DATS_BUSINESS_RULES.SAME_DAY_MIN_HOURS} hours notice.`,
         };
       }
       return {
@@ -132,7 +134,7 @@ export function validateCancellation(
     };
   }
 
-  const minutesUntilTrip = (tripDateTime.getTime() - now.getTime()) / (1000 * 60);
+  const minutesUntilTrip = (tripDateTime.getTime() - now.getTime()) / TIME_CONSTANTS.MILLISECONDS_PER_MINUTE;
 
   if (minutesUntilTrip < 0) {
     return {
@@ -142,20 +144,22 @@ export function validateCancellation(
     };
   }
 
-  if (minutesUntilTrip < 120) {
-    // Less than 2 hours notice
+  const minNoticeMinutes = DATS_BUSINESS_RULES.CANCELLATION_MIN_HOURS * TIME_CONSTANTS.MINUTES_PER_HOUR;
+
+  if (minutesUntilTrip < minNoticeMinutes) {
+    // Less than minimum notice required
     return {
       valid: false,
-      error: `DATS requires 2 hours notice to cancel. Your trip starts in ${Math.floor(minutesUntilTrip)} minutes. Please call DATS directly at 780-986-6010 for late cancellations.`,
+      error: `DATS requires ${DATS_BUSINESS_RULES.CANCELLATION_MIN_HOURS} hours notice to cancel. Your trip starts in ${Math.floor(minutesUntilTrip)} minutes. Please call DATS directly at 780-986-6010 for late cancellations.`,
       minutesUntilTrip: Math.floor(minutesUntilTrip),
     };
   }
 
-  if (minutesUntilTrip < 180) {
-    // Between 2-3 hours - valid but warn
+  if (minutesUntilTrip < minNoticeMinutes + TIME_CONSTANTS.MINUTES_PER_HOUR) {
+    // Close to minimum notice - valid but warn
     return {
       valid: true,
-      warning: `Your trip is in ${Math.floor(minutesUntilTrip / 60)} hours. Cancellation is allowed, but please cancel early when possible.`,
+      warning: `Your trip is in ${Math.floor(minutesUntilTrip / TIME_CONSTANTS.MINUTES_PER_HOUR)} hours. Cancellation is allowed, but you're cutting it close to the ${DATS_BUSINESS_RULES.CANCELLATION_MIN_HOURS}-hour minimum.`,
       minutesUntilTrip: Math.floor(minutesUntilTrip),
     };
   }
@@ -281,7 +285,7 @@ function isSameDayBooking(now: Date, pickup: Date): boolean {
 function getNoonCutoffForDate(pickupDate: Date): Date {
   const cutoff = new Date(pickupDate);
   cutoff.setUTCDate(cutoff.getUTCDate() - 1);
-  cutoff.setUTCHours(12, 0, 0, 0);
+  cutoff.setUTCHours(DATS_BUSINESS_RULES.NOON_CUTOFF_HOUR, 0, 0, 0);
   return cutoff;
 }
 
@@ -289,11 +293,11 @@ function getNoonCutoffForDate(pickupDate: Date): Date {
  * Format a time duration in a human-friendly way
  */
 export function formatDuration(minutes: number): string {
-  if (minutes < 60) {
+  if (minutes < TIME_CONSTANTS.MINUTES_PER_HOUR) {
     return `${minutes} minutes`;
   }
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
+  const hours = Math.floor(minutes / TIME_CONSTANTS.MINUTES_PER_HOUR);
+  const remainingMinutes = minutes % TIME_CONSTANTS.MINUTES_PER_HOUR;
   if (remainingMinutes === 0) {
     return hours === 1 ? '1 hour' : `${hours} hours`;
   }

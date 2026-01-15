@@ -41,6 +41,7 @@ import {
   formatSavedLocations,
   PLAIN_LANGUAGE_GUIDELINES,
 } from './utils/plain-language.js';
+import { MONTH_NAMES, DAY_NAMES, API_CONSTANTS, PADDING } from './constants.js';
 
 // ============= TRANSPORT MODE CONFIGURATION =============
 
@@ -55,7 +56,7 @@ const HTTP_HOST = process.env.HOST || '0.0.0.0';
  * Parse a date string that can be either YYYY-MM-DD or a relative date like "Thursday"
  * Uses the specified timezone for calculations (defaults to America/Edmonton for DATS users)
  */
-function parseFlexibleDate(dateStr: string, timezone: string = 'America/Edmonton'): string {
+function parseFlexibleDate(dateStr: string, timezone: string = API_CONSTANTS.DEFAULT_TIMEZONE): string {
   // If already in YYYY-MM-DD format, return as-is
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     return dateStr;
@@ -91,8 +92,7 @@ function parseFlexibleDate(dateStr: string, timezone: string = 'America/Edmonton
   }
 
   // Handle day names (find next occurrence)
-  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  const dayIndex = dayNames.indexOf(input);
+  const dayIndex = (DAY_NAMES as readonly string[]).indexOf(input);
   if (dayIndex !== -1) {
     // Calculate days until the target day
     let daysUntil = dayIndex - currentDayOfWeek;
@@ -106,7 +106,7 @@ function parseFlexibleDate(dateStr: string, timezone: string = 'America/Edmonton
   // Handle "next <day>"
   const nextDayMatch = input.match(/^next\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$/);
   if (nextDayMatch) {
-    const targetDay = dayNames.indexOf(nextDayMatch[1]);
+    const targetDay = (DAY_NAMES as readonly string[]).indexOf(nextDayMatch[1]);
     let daysUntil = targetDay - currentDayOfWeek;
     if (daysUntil <= 0) {
       daysUntil += 7;
@@ -121,8 +121,8 @@ function parseFlexibleDate(dateStr: string, timezone: string = 'America/Edmonton
 
 function formatDateYMD(date: Date): string {
   const y = date.getUTCFullYear();
-  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(date.getUTCDate()).padStart(2, '0');
+  const m = String(date.getUTCMonth() + 1).padStart(PADDING.DATE_COMPONENT, PADDING.PAD_CHAR);
+  const d = String(date.getUTCDate()).padStart(PADDING.DATE_COMPONENT, PADDING.PAD_CHAR);
   return `${y}-${m}-${d}`;
 }
 
@@ -137,17 +137,12 @@ function normalizeTripDate(dateStr: string): string {
   }
 
   // Handle "Tue, Jan 13, 2026" format
-  const monthNames: Record<string, string> = {
-    jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
-    jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
-  };
-
   // Try to parse "Day, Mon DD, YYYY" format
   const match = dateStr.match(/([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/);
   if (match) {
     const monthStr = match[1].toLowerCase().substring(0, 3);
-    const month = monthNames[monthStr];
-    const day = match[2].padStart(2, '0');
+    const month = MONTH_NAMES[monthStr];
+    const day = match[2].padStart(PADDING.DATE_COMPONENT, PADDING.PAD_CHAR);
     const year = match[3];
 
     if (month) {
@@ -162,7 +157,7 @@ function normalizeTripDate(dateStr: string): string {
 /**
  * Get current date info for the response (helps Claude understand context)
  */
-function getCurrentDateInfo(timezone: string = 'America/Edmonton'): { today: string; dayOfWeek: string } {
+function getCurrentDateInfo(timezone: string = API_CONSTANTS.DEFAULT_TIMEZONE): { today: string; dayOfWeek: string } {
   const now = new Date();
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
