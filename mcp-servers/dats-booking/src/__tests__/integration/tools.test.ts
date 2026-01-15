@@ -91,18 +91,16 @@ describe('book_trip tool workflow', () => {
     it('should require pickup address', () => {
       // Simulating tool parameter validation
       const pickupAddress = '';
-      const destinationAddress = '123 Main St';
 
       expect(pickupAddress).toBe('');
-      // Tool would reject this
+      // Tool would reject this (needs non-empty pickup address)
     });
 
     it('should require destination address', () => {
-      const pickupAddress = '123 Main St';
       const destinationAddress = '';
 
       expect(destinationAddress).toBe('');
-      // Tool would reject this
+      // Tool would reject this (needs non-empty destination address)
     });
 
     it('should accept valid addresses', () => {
@@ -186,10 +184,9 @@ describe('book_trip tool workflow', () => {
 
     it('should fail early on missing required fields', () => {
       const pickupAddress = '';
-      const destinationAddress = '456 Oak Ave';
 
       expect(pickupAddress).toBeFalsy();
-      // Tool validation would fail before API call
+      // Tool validation would fail before API call (missing pickup address)
     });
   });
 });
