@@ -13,18 +13,10 @@
 
 import { CosmosClient, Container, Database } from '@azure/cosmos';
 import { DefaultAzureCredential } from '@azure/identity';
-import {
-  createCipheriv,
-  createDecipheriv,
-  randomBytes,
-  scryptSync,
-} from 'crypto';
 import { logger } from '../utils/logger.js';
+import { encrypt, decrypt, deriveKey } from './encryption.js';
+import { SECURITY_CONSTANTS } from '../constants.js';
 
-const ALGORITHM = 'aes-256-gcm';
-const KEY_LENGTH = 32;
-const IV_LENGTH = 16;
-const SALT = 'cosmos-session-salt';
 const SESSION_TTL_SECONDS = 24 * 60 * 60; // 24 hours
 
 export interface StoredSession {
@@ -66,7 +58,7 @@ export class CosmosSessionStore {
         'COSMOS_ENCRYPTION_KEY or DATS_ENCRYPTION_KEY environment variable required'
       );
     }
-    this.encryptionKey = scryptSync(keySource, SALT, KEY_LENGTH);
+    this.encryptionKey = deriveKey(keySource, SECURITY_CONSTANTS.ENCRYPTION_SALT);
   }
 
   /**
@@ -101,54 +93,12 @@ export class CosmosSessionStore {
   }
 
   /**
-   * Encrypt session cookie before storage
-   */
-  private encrypt(plaintext: string): {
-    encrypted: string;
-    iv: string;
-    authTag: string;
-  } {
-    const iv = randomBytes(IV_LENGTH);
-    const cipher = createCipheriv(ALGORITHM, this.encryptionKey, iv);
-    const encrypted = Buffer.concat([
-      cipher.update(plaintext, 'utf8'),
-      cipher.final(),
-    ]);
-    const authTag = cipher.getAuthTag();
-
-    return {
-      encrypted: encrypted.toString('base64'),
-      iv: iv.toString('base64'),
-      authTag: authTag.toString('base64'),
-    };
-  }
-
-  /**
-   * Decrypt session cookie after retrieval
-   */
-  private decrypt(encrypted: string, iv: string, authTag: string): string {
-    const decipher = createDecipheriv(
-      ALGORITHM,
-      this.encryptionKey,
-      Buffer.from(iv, 'base64')
-    );
-    decipher.setAuthTag(Buffer.from(authTag, 'base64'));
-
-    const decrypted = Buffer.concat([
-      decipher.update(Buffer.from(encrypted, 'base64')),
-      decipher.final(),
-    ]);
-
-    return decrypted.toString('utf8');
-  }
-
-  /**
    * Store a new session
    */
   async store(sessionId: string, session: StoredSession): Promise<void> {
     await this.initialize();
 
-    const { encrypted, iv, authTag } = this.encrypt(session.sessionCookie);
+    const { encrypted, iv, authTag } = encrypt(session.sessionCookie, this.encryptionKey);
 
     const document: CosmosSessionDocument = {
       id: sessionId,
@@ -181,10 +131,11 @@ export class CosmosSessionStore {
       }
 
       // Decrypt the session cookie
-      const sessionCookie = this.decrypt(
+      const sessionCookie = decrypt(
         resource.encryptedCookie,
         resource.iv,
-        resource.authTag
+        resource.authTag,
+        this.encryptionKey
       );
 
       return {
@@ -296,7 +247,7 @@ export class CosmosSessionStore {
     sessionId: string,
     session: StoredSession
   ): Promise<void> {
-    const { encrypted, iv, authTag } = this.encrypt(session.sessionCookie);
+    const { encrypted, iv, authTag } = encrypt(session.sessionCookie, this.encryptionKey);
 
     await this.container!.item(sessionId, sessionId).patch([
       { op: 'replace', path: '/encryptedCookie', value: encrypted },
