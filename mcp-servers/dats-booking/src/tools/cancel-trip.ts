@@ -2,7 +2,7 @@
  * cancel_trip Tool
  *
  * Cancels an existing DATS booking.
- * Validates 2-hour minimum notice requirement.
+ * DATS API validates cancellation requirements (e.g., 2-hour minimum notice).
  *
  * SECURITY: Requires valid session from connect_account.
  */
@@ -15,7 +15,6 @@ import { DATSApi } from '../api/dats-api.js';
 import { ErrorCategory } from '../types.js';
 import { wrapError, createErrorResponse } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
-import { validateCancellation } from '../utils/booking-validation.js';
 import { formatCancellationConfirmation } from '../utils/plain-language.js';
 import type { ToolRegistration } from './types.js';
 
@@ -31,7 +30,7 @@ export function createCancelTripTool(deps: CancelTripDependencies): ToolRegistra
     register(server: McpServer) {
       server.tool(
         'cancel_trip',
-        `Cancel an existing DATS booking. Requires 2-hour minimum notice. IMPORTANT: Before calling this tool, always confirm with the user by summarizing the trip details (date, time, pickup, destination) and explicitly asking "Are you sure you want to cancel this trip?" Only proceed after user confirms. You can use either the numeric booking ID or the alphanumeric confirmation number.
+        `Cancel an existing DATS booking. IMPORTANT: Before calling this tool, always confirm with the user by summarizing the trip details (date, time, pickup, destination) and explicitly asking "Are you sure you want to cancel this trip?" Only proceed after user confirms. You can use either the numeric booking ID or the alphanumeric confirmation number. DATS API will validate cancellation requirements (e.g., 2-hour minimum notice) and return an error if the trip cannot be cancelled.
 
 REMOTE MODE: Include session_id from connect_account/complete_connection.`,
         {
@@ -81,29 +80,14 @@ REMOTE MODE: Include session_id from connect_account/complete_connection.`,
             const bookingId = matchingTrip.bookingId;
             logger.info(`Found trip: ${bookingId} on ${matchingTrip.date}`);
 
-            // Validate 2-hour cancellation notice requirement
-            const cancellationValidation = validateCancellation(
-              matchingTrip.date,
-              matchingTrip.pickupWindow.start
-            );
-
-            if (!cancellationValidation.valid) {
-              return createErrorResponse({
-                category: ErrorCategory.BUSINESS_RULE_VIOLATION,
-                message: cancellationValidation.error || 'Cannot cancel this trip due to DATS policies.',
-                recoverable: false,
-              });
-            }
-
+            // Trust DATS API to determine if trip can be cancelled
+            // DATS will return proper error if trip cannot be cancelled (e.g., < 2-hour notice)
             const result = await api.cancelTrip(session.clientId, bookingId);
 
             // Generate plain language confirmation for the user
             const userMessage = formatCancellationConfirmation(result.success, result.message);
 
-            // Include warning in response if present (e.g., cutting it close to 2-hour window)
-            const responseData = cancellationValidation.warning
-              ? { ...result, warning: cancellationValidation.warning, userMessage }
-              : { ...result, userMessage };
+            const responseData = { ...result, userMessage };
 
             return {
               content: [

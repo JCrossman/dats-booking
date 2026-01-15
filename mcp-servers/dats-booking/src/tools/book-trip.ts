@@ -15,7 +15,6 @@ import { DATSApi } from '../api/dats-api.js';
 import { ErrorCategory, type MobilityDevice } from '../types.js';
 import { wrapError, createErrorResponse } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
-import { validateBookingWindow } from '../utils/booking-validation.js';
 import { formatBookingConfirmation, PLAIN_LANGUAGE_GUIDELINES } from '../utils/plain-language.js';
 import { parseFlexibleDate } from '../helpers/date-helpers.js';
 import type { ToolRegistration } from './types.js';
@@ -134,17 +133,8 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
               logger.info(`Date parsing: "${params.pickup_date}" -> "${parsedPickupDate}" (timezone: ${timezone})`);
             }
 
-            // Validate booking window against DATS business rules
-            const validation = validateBookingWindow(parsedPickupDate, params.pickup_time);
-
-            if (!validation.valid) {
-              return createErrorResponse({
-                category: ErrorCategory.BUSINESS_RULE_VIOLATION,
-                message: validation.error || 'Booking does not meet DATS requirements.',
-                recoverable: true,
-              });
-            }
-
+            // Trust DATS API to validate booking window
+            // DATS will return proper error if booking doesn't meet requirements
             logger.info('Using session for trip booking');
             const api = new DATSApi({ sessionCookie: session.sessionCookie });
 
@@ -175,10 +165,7 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
             // Generate plain language confirmation for the user
             const userMessage = formatBookingConfirmation(result);
 
-            // Include validation warning in response if present (e.g., same-day booking notice)
-            const responseData = validation.warning
-              ? { ...result, warning: validation.warning, userMessage }
-              : { ...result, userMessage };
+            const responseData = { ...result, userMessage };
 
             return {
               content: [

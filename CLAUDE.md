@@ -66,6 +66,28 @@ When you add business logic or inference:
 3. **Trust issues** - Users expect data to match what DATS shows
 4. **Scope creep** - The MCP server is not the source of truth
 
+### Passthrough Principle Enforcement (2026-01-15)
+
+**Bug Fixed:** Previously, the code validated booking/cancellation times client-side before calling DATS API. This caused a critical bug where trips were incorrectly marked as "already passed" due to timezone handling issues.
+
+**What Was Removed:**
+- `validateBookingWindow()` in book-trip tool - removed time-based validation
+- `validateCancellation()` in cancel-trip tool - removed trip status inference
+- `src/utils/validation.ts` - deleted entire dead code file
+
+**Current Behavior:**
+- ✅ book_trip: Sends request to DATS API, displays DATS error if booking is invalid
+- ✅ cancel_trip: Sends request to DATS API, displays DATS error if cancellation is invalid
+- ✅ All validation handled by DATS API (source of truth)
+- ✅ No client-side time comparisons or status inference
+
+**Example DATS Errors (now passed through):**
+- "Booking is outside the 3-day advance window"
+- "Cancellation requires 2-hour minimum notice"
+- "Trip has already been completed"
+
+These errors come directly from DATS and are always accurate and up-to-date with their business rules.
+
 ### If Asked to Add Logic
 
 **If a request seems to contradict this principle, STOP and ask:**
