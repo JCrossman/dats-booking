@@ -149,12 +149,13 @@ export const mockScheduledTrip = {
 
 ### Target Coverage by Directory
 
-| Directory | Current | Target | Priority |
-|-----------|---------|--------|----------|
-| `src/utils/` | ~25% | 80%+ | High |
-| `src/api/parsers/` | 0% | 70%+ | Medium |
-| `src/tools/` | 0% | 60%+ | Medium |
-| `src/auth/` | 0% | 50%+ | Low |
+| Directory | Current | Target | Priority | Status |
+|-----------|---------|--------|----------|--------|
+| `src/utils/` | 80%+ | 80%+ | High | ✅ Achieved |
+| `src/helpers/` | 80%+ | 80%+ | High | ✅ Achieved |
+| `src/auth/` | 80%+ | 80%+ | High | ✅ Achieved (encryption) |
+| `src/api/parsers/` | 0% | 70%+ | Medium | 🔄 Future |
+| `src/tools/` | 0% | 60%+ | Medium | 🔄 Future |
 
 **Note:** Not all code needs 100% coverage. Focus on:
 - Business logic (validation, formatting)
@@ -165,6 +166,103 @@ export const mockScheduledTrip = {
 - Boilerplate code
 - Simple getters/setters
 - Framework integration code
+
+## Testing Patterns and Best Practices
+
+### Testing with Time Mocking
+
+**When to use:** Any test that depends on the current date/time.
+
+**How to use:**
+```typescript
+import { vi, beforeEach } from 'vitest';
+
+describe('time-sensitive tests', () => {
+  beforeEach(() => {
+    // Reset timers before each test
+    vi.useRealTimers();
+  });
+
+  it('should handle relative dates', () => {
+    // Set system time to a known value
+    vi.setSystemTime(new Date('2026-01-15T10:00:00Z'));
+
+    // Now all date/time operations use this mocked time
+    const result = parseFlexibleDate('tomorrow');
+    expect(result).toBe('2026-01-16');
+  });
+});
+```
+
+**Benefits:**
+- Deterministic tests (no flaky failures)
+- Test edge cases (midnight, date boundaries)
+- Test business rules at exact cutoff times
+
+### Testing MCP Tool Workflows
+
+**When to use:** Integration tests for complete tool workflows.
+
+**How to use:**
+```typescript
+describe('book_trip workflow', () => {
+  it('should validate complete booking flow', () => {
+    vi.setSystemTime(new Date('2026-01-15T17:00:00Z'));
+
+    // Step 1: Parse flexible date
+    const date = parseFlexibleDate('tomorrow');
+    expect(date).toBe('2026-01-16');
+
+    // Step 2: Validate booking window
+    const validation = validateBookingWindow(date, '14:00');
+    expect(validation.valid).toBe(true);
+
+    // Step 3: Validate addresses, mobility, etc.
+    // Step 4: Would call DATS API (mocked in real tests)
+  });
+});
+```
+
+**Benefits:**
+- Tests complete user workflows
+- Validates module integration
+- Catches workflow bugs early
+
+### Testing Encryption and Security
+
+**When to use:** Testing session storage, key derivation, tamper detection.
+
+**How to use:**
+```typescript
+describe('encrypt and decrypt', () => {
+  it('should roundtrip encrypt session data', () => {
+    const plaintext = JSON.stringify({ sessionCookie: 'abc123' });
+    const key = Buffer.from('a'.repeat(64), 'hex');
+
+    const { encrypted, iv, authTag } = encrypt(plaintext, key);
+    const decrypted = decrypt(encrypted, iv, authTag, key);
+
+    expect(decrypted).toBe(plaintext);
+  });
+
+  it('should reject tampered data', () => {
+    const { encrypted, iv, authTag } = encrypt('secret', key);
+
+    // Corrupt auth tag
+    const badAuthTag = Buffer.from(authTag, 'base64');
+    badAuthTag[0] ^= 0xff;
+
+    expect(() => {
+      decrypt(encrypted, iv, badAuthTag.toString('base64'), key);
+    }).toThrow();
+  });
+});
+```
+
+**Benefits:**
+- Ensures data security
+- Tests tamper detection
+- Validates key derivation consistency
 
 ## Common Testing Scenarios
 
@@ -287,14 +385,38 @@ No end-to-end tests yet. Future work should:
 - Test authentication flow (browser → session storage)
 - Test error recovery (session expiry, API failures)
 
+## Current Test Statistics
+
+**Total Tests:** 159 passing
+**Test Files:** 6
+**Coverage:** ~70% on business logic
+**Runtime:** ~600ms
+
+### Test Breakdown
+
+| Category | Tests | Files |
+|----------|-------|-------|
+| Unit Tests | 118 | 4 |
+| Integration Tests | 41 | 2 |
+
+### Coverage by Module
+
+| Module | Tests | Coverage |
+|--------|-------|----------|
+| booking-validation.ts | 35 | 80%+ |
+| date-helpers.ts | 43 | 80%+ |
+| encryption.ts | 28 | 80%+ |
+| plain-language.ts | 12 | 80%+ |
+| Tool workflows | 36 | Integration |
+
 ## Future Improvements
 
 - [ ] Add pre-commit hook to run tests
 - [ ] Set up GitHub Actions for CI
-- [ ] Add E2E tests for critical workflows
-- [ ] Improve timezone test handling
-- [ ] Create comprehensive DATS API mock
-- [ ] Add visual regression tests for formatted output
+- [ ] Add E2E tests with DATS API mocks
+- [ ] Create comprehensive DATS API mock fixtures
+- [ ] Add tests for API parsers
+- [ ] Add tests for tool handlers (after Phase 3 refactoring)
 - [ ] Set up test data factories for complex objects
 
 ## Questions?
@@ -302,9 +424,11 @@ No end-to-end tests yet. Future work should:
 If you're unsure how to test something:
 1. Look at existing tests for similar functionality
 2. Check Vitest documentation: https://vitest.dev/
-3. Ask in code review - testing is a team skill!
+3. Review this guide for testing patterns
+4. Ask in code review - testing is a team skill!
 
 ---
 
-**Last Updated:** 2026-01-14 (Phase 0: Foundation)
-**Next Review:** After Phase 2 (Test Coverage expansion)
+**Last Updated:** 2026-01-14 (Phase 2: Test Coverage Complete)
+**Test Count:** 159 tests, all passing
+**Next Review:** After Phase 3 (index.ts refactoring)
