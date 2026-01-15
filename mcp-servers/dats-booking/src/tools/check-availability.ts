@@ -16,7 +16,7 @@ import { ErrorCategory } from '../types.js';
 import { wrapError, createErrorResponse } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import { formatAvailabilityForUser, PLAIN_LANGUAGE_GUIDELINES } from '../utils/plain-language.js';
-import { parseFlexibleDate } from '../helpers/date-helpers.js';
+import { parseFlexibleDate, getCurrentDateInfo } from '../helpers/date-helpers.js';
 import type { ToolRegistration } from './types.js';
 
 export interface CheckAvailabilityDependencies {
@@ -101,6 +101,15 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
             // Generate plain language summary (use parsed date for display)
             const userMessage = formatAvailabilityForUser(availableDates, timeWindow, parsedDate || date);
 
+            // Add timezone context to help Claude understand current date
+            const dateInfo = getCurrentDateInfo(timezone);
+            const dateContext = {
+              currentDate: dateInfo.today,
+              currentDayOfWeek: dateInfo.dayOfWeek,
+              timezone,
+              note: 'All DATS times are in Edmonton timezone (MST/MDT)',
+            };
+
             const result = {
               success: true,
               availableDates,
@@ -109,6 +118,7 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
                 ...(parsedDate && parsedDate !== date ? { resolvedDate: parsedDate } : {}),
                 timeWindow,
               } : {}),
+              dateContext,
               userMessage,
             };
 

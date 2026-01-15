@@ -134,7 +134,7 @@ Tools that return time-sensitive data include a `dateContext` object:
 **Tools with dateContext:**
 - `get_trips` - Shows current date/timezone for trip filtering
 - `track_trip` - Shows current date/timezone for ETA interpretation
-- `check_availability` - Shows current date for availability windows
+- `check_availability` - Shows current date/timezone for availability windows
 
 This helps Claude understand the correct timezone context when displaying times to users.
 
