@@ -14,6 +14,7 @@ import type { CosmosSessionStore } from '../auth/cosmos-session-store.js';
 import { DATSApi } from '../api/dats-api.js';
 import { ErrorCategory } from '../types.js';
 import { wrapError, createErrorResponse } from '../utils/errors.js';
+import { getCurrentDateInfo } from '../helpers/date-helpers.js';
 import type { ToolRegistration } from './types.js';
 
 export interface TrackTripDependencies {
@@ -76,11 +77,21 @@ Returns when available:
             const result = await api.trackTrip(session.clientId, booking_id);
 
             if (!result.success) {
+              // Add timezone context even for unsuccessful responses
+              const timezone = 'America/Edmonton';
+              const dateInfo = getCurrentDateInfo(timezone);
+              const dateContext = {
+                currentDate: dateInfo.today,
+                currentDayOfWeek: dateInfo.dayOfWeek,
+                timezone,
+                note: 'All DATS times are in Edmonton timezone (MST/MDT)',
+              };
+
               return {
                 content: [
                   {
                     type: 'text',
-                    text: JSON.stringify(result, null, 2),
+                    text: JSON.stringify({ ...result, dateContext }, null, 2),
                   },
                 ],
               };
@@ -130,6 +141,16 @@ Returns when available:
 
             const userMessage = lines.join('\n');
 
+            // Add timezone context to help Claude display times correctly
+            const timezone = 'America/Edmonton';
+            const dateInfo = getCurrentDateInfo(timezone);
+            const dateContext = {
+              currentDate: dateInfo.today,
+              currentDayOfWeek: dateInfo.dayOfWeek,
+              timezone,
+              note: 'All DATS times are in Edmonton timezone (MST/MDT). The lastChecked timestamp is in UTC ISO format.',
+            };
+
             // Add display instructions for Claude
             const displayInstructions = `
 DISPLAY THIS TRACKING INFO CLEARLY:
@@ -137,13 +158,14 @@ DISPLAY THIS TRACKING INFO CLEARLY:
 - Include ALL vehicle and driver details
 - Use simple text format (not tables) for mobile readability
 - If vehicle has arrived, emphasize that fact
+- IMPORTANT: All trip times are in Edmonton timezone (MST/MDT), NOT UTC
 `.trim();
 
             return {
               content: [
                 {
                   type: 'text',
-                  text: JSON.stringify({ ...result, userMessage, displayInstructions }, null, 2),
+                  text: JSON.stringify({ ...result, userMessage, dateContext, displayInstructions }, null, 2),
                 },
               ],
             };
