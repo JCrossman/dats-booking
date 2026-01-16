@@ -79,7 +79,7 @@ Credentials are **never** sent to Claude or Anthropic. Instead:
 |------|-------------|
 | `connect_account` | Open secure login page to connect DATS account |
 | `disconnect_account` | Log out and clear session |
-| `get_trips` | Retrieve upcoming booked trips with intelligent status display |
+| `get_trips` | Retrieve booked trips with status (Scheduled/Performed/Cancelled) and provider info |
 | `track_trip` | Real-time tracking: vehicle location, ETA, driver info (within 60 min of pickup) |
 | `book_trip` | Create a new DATS booking |
 | `cancel_trip` | Cancel an existing booking |
@@ -87,6 +87,12 @@ Credentials are **never** sent to Claude or Anthropic. Instead:
 | `get_announcements` | Get DATS system announcements |
 | `get_profile` | Get user profile and saved locations |
 | `get_info` | Get DATS general info, fares, privacy policy |
+
+### Trip Display
+
+Trips are displayed with: Date, Time, From, To, Status, Provider, Confirmation
+- **Status**: Shows actual trip status (Scheduled, Performed, Cancelled, No Show, etc.)
+- **Provider**: Shows transport provider (DATS, PRESTIGE, etc.)
 
 ## Architecture
 

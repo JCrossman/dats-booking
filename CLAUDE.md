@@ -516,14 +516,39 @@ The `get_trips` tool supports filtering options:
 
 When displaying trips, format as a markdown table:
 ```
-| Date | Time | From | To | Status | Confirmation |
-|------|------|------|-----|--------|--------------|
-| Tue, Jan 13, 2026 | 2:30 PM-3:00 PM | McNally High School | 9713 160 St NW | Scheduled | 18789349 |
+| Date | Time | From | To | Status | Provider | Confirmation |
+|------|------|------|-----|--------|----------|--------------|
+| Tue, Jan 13, 2026 | 2:30 PM-3:00 PM | McNally High School | 9713 160 St NW | Performed | PRESTIGE | 18789349 |
 ```
 - Use the `date` field exactly as provided (includes day of week)
 - Use title case for addresses (not ALL CAPS)
 - Show the full address from pickupAddress/destinationAddress fields
-- Use the `statusLabel` field for status display
+- Use the `statusLabel` field for status display (e.g., "Scheduled", "Performed", "Cancelled")
+- Use the `providerName` field for provider (e.g., "PRESTIGE", "DATS"). Show "DATS" if not specified
+
+### Status and Provider Extraction (Fixed 2026-01-15)
+
+**Critical Implementation Detail:** Trip status and provider are extracted from nested XML elements, not top-level fields.
+
+**XML Structure:**
+```xml
+<PassBooking>
+  <SchedStatusF>Scheduled</SchedStatusF>  <!-- ❌ DON'T USE - shows wrong status -->
+  <PickUpLeg>
+    <EventsInfo>
+      <SchedStatusF>Performed</SchedStatusF>  <!-- ✅ USE THIS - correct status -->
+    </EventsInfo>
+    <EventsProviderInfo>  <!-- Sibling of EventsInfo -->
+      <ProviderName>PRESTIGE</ProviderName>  <!-- ✅ USE THIS -->
+    </EventsProviderInfo>
+  </PickUpLeg>
+</PassBooking>
+```
+
+**Why This Matters:**
+- Top-level `SchedStatusF` shows booking status when created (always "Scheduled")
+- `EventsInfo.SchedStatusF` shows actual trip execution status ("Performed", "No Show", etc.)
+- Provider info may be in `PickUpLeg` or at `PassBooking` level (code checks both with fallback)
 
 ### Real-Time Trip Tracking
 
@@ -664,10 +689,11 @@ Addresses are geocoded via OpenStreetMap Nominatim API, then sent to DATS in ZZ 
 
 ### Response Formatting
 When displaying trips, use markdown tables for screen reader compatibility:
-- Include columns: Date, Time, From, To, Status, Confirmation
+- Include columns: Date, Time, From, To, Status, Provider, Confirmation
 - Use the `date` field exactly as provided (already includes day of week)
 - Use title case for addresses (not ALL CAPS from API)
 - Use `statusLabel` field for status (e.g., "Scheduled", "Performed")
+- Use `providerName` field for provider (e.g., "PRESTIGE", "DATS")
 
 ### Cancellation Flow
 Always confirm with user before cancelling:

@@ -6,6 +6,67 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed - 2026-01-15
+
+#### Status Extraction Bug Fix
+
+**Problem:** Completed trips showed "Scheduled" instead of "Performed" status.
+
+**Root Cause:** The code was extracting `SchedStatusF` from the top-level `PassBooking` element, which always shows "Scheduled" (the status when the trip was created). The correct status comes from `EventsInfo.SchedStatusF` within `PickUpLeg`.
+
+**XML Structure Discovery:**
+```xml
+<PassBooking>
+  <SchedStatusF>Scheduled</SchedStatusF>  <!-- ❌ WRONG - booking creation status -->
+  <PickUpLeg>
+    <EventsInfo>
+      <SchedStatusF>Performed</SchedStatusF>  <!-- ✅ CORRECT - actual trip status -->
+    </EventsInfo>
+  </PickUpLeg>
+</PassBooking>
+```
+
+**Solution:**
+- Fixed `src/api/dats-api.ts` (lines 1168-1179) to extract status from `EventsInfo.SchedStatusF`
+- Added fallback to top-level status if EventsInfo is missing
+
+**Commits:**
+- Code fix was already in repo but Azure Container App was running old revision from 2026-01-13
+- Deployed new revision `status-fix-v2-1768534254` to use latest image
+
+---
+
+#### Provider Name Extraction Fix
+
+**Problem:** Provider name (e.g., "PRESTIGE") was not displaying in trip listings.
+
+**Root Cause:** Code was looking for `EventsProviderInfo` inside `EventsInfo`, but it's actually a sibling element within `PickUpLeg`. Additionally, some trips have provider info at the `PassBooking` level instead.
+
+**XML Structure:**
+```xml
+<PickUpLeg>
+  <EventsInfo>...</EventsInfo>
+  <EventsProviderInfo>  <!-- Sibling, NOT nested inside EventsInfo -->
+    <ProviderName>PRESTIGE</ProviderName>
+  </EventsProviderInfo>
+</PickUpLeg>
+```
+
+**Solution:**
+- Fixed extraction to look in `pickupXml` (PickUpLeg) instead of `eventsInfoXml`
+- Added fallback to check full `xml` (PassBooking level) if not found in PickUpLeg
+- Added Provider column to trip display format
+
+**Files Modified:**
+- `src/api/dats-api.ts` - Provider extraction with fallback
+- `src/utils/plain-language.ts` - Added Provider column to display guidelines
+
+**Commits:**
+- `89c28e1` - Fix provider extraction + add Provider column to trip display
+- `34aa7dd` - Add fallback for EventsProviderInfo at PassBooking level
+
+---
+
 ### Fixed - 2026-01-14
 
 #### Comprehensive Timezone Bug Fixes

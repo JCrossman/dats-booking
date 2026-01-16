@@ -1,8 +1,15 @@
 # Technical Architecture Document: DATS Accessible Booking Assistant
 
-**Version:** 1.0  
-**Status:** Draft  
+**Version:** 1.0
+**Status:** Draft
 **Last Updated:** January 2026
+
+> **Note:** This document describes the original architecture design. The actual implementation differs:
+> - **Planned:** Playwright browser automation for DATS portal
+> - **Implemented:** Direct SOAP API calls to DATS (Trapeze PASS system)
+>
+> The SOAP API approach provides ~750ms response times vs ~30 seconds for browser automation.
+> See `CLAUDE.md` for current implementation details.
 
 ---
 

@@ -104,6 +104,17 @@ Opens a secure browser page for DATS login. Credentials are entered in the brows
 
 Log out and clear your session from this computer.
 
+### get_trips
+
+Retrieve your booked DATS trips.
+
+**Features:**
+- Shows actual trip status (Scheduled, Performed, Cancelled, No Show, etc.)
+- Shows transport provider (DATS, PRESTIGE, etc.)
+- Filters active trips by default (use `include_all: true` for all trips)
+
+**Output format:** Date, Time, From, To, Status, Provider, Confirmation
+
 ### book_trip
 
 Create a new DATS trip booking.
