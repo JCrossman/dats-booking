@@ -56,14 +56,23 @@ REMOTE MODE: Include session_id from connect_account/complete_connection.`,
             const api = new DATSApi({ sessionCookie: session.sessionCookie });
 
             // Get both client info and contact info
-            const [clientInfo, contactInfo, savedLocations] = await Promise.all([
+            const [clientInfo, contactInfo, mergedLocations] = await Promise.all([
               api.getClientInfo(session.clientId),
               api.getContactInfo(session.clientId),
-              api.getSavedLocations(session.clientId),
+              api.getClientLocationsMerged(session.clientId),
             ]);
 
+            // Map merged locations to simple format for formatSavedLocations
+            const savedLocations = mergedLocations.map(loc => ({
+              name: loc.addrName || loc.addrDescr,
+              address: `${loc.streetNo} ${loc.onStreet}`,
+              city: loc.city,
+              state: loc.state,
+              zipCode: loc.zipCode,
+            }));
+
             // Format saved locations as a markdown table
-            const savedLocationsMessage = formatSavedLocations(savedLocations || []);
+            const savedLocationsMessage = formatSavedLocations(savedLocations);
 
             // Build user-friendly message about data availability
             const hasContactInfo = contactInfo && (

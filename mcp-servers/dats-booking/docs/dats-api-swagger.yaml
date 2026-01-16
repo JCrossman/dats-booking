@@ -1,0 +1,536 @@
+openapi: 3.0.0
+info:
+  title: DATS SOAP API
+  description: |
+    Edmonton DATS (Disabled Adult Transit Service) SOAP API Documentation
+
+    **System:** Trapeze PASS
+    **Base URL:** https://datsonlinebooking.edmonton.ca
+
+    This API uses SOAP/XML for all operations. Authentication is via session cookie obtained from login.
+
+    ## Authentication Flow
+    1. POST to `/PassInfoServer` with `PassValidatePassword` operation
+    2. Extract session cookie from response headers
+    3. Include cookie in all subsequent requests
+
+    ## Endpoints
+    - `/PassInfoServer` - Main operations (booking, trips, profile)
+    - `/PassInfoServerAsync` - Async operations (real-time tracking)
+    - `/Remarks` - System announcements
+
+    ## Date/Time Formats
+    - Dates: YYYYMMDD (e.g., 20260115)
+    - Times: Seconds since midnight (e.g., 23400 = 6:30 AM)
+    - Day of week: 1=Sunday, 7=Saturday
+  version: 1.0.0
+  contact:
+    name: Jeremy Crossman
+    email: jeremycrossmanb@gmail.com
+
+servers:
+  - url: https://datsonlinebooking.edmonton.ca
+    description: DATS Production Server
+
+tags:
+  - name: Authentication
+    description: Login and session management
+  - name: Trips
+    description: Trip booking and retrieval
+  - name: Locations
+    description: Saved and frequent locations
+  - name: Profile
+    description: Client profile and contacts
+  - name: Availability
+    description: Booking availability windows
+  - name: Tracking
+    description: Real-time trip tracking
+  - name: Announcements
+    description: System announcements
+
+paths:
+  /PassInfoServer:
+    post:
+      summary: DATS Main SOAP Endpoint
+      description: |
+        Main endpoint for all DATS operations. Operation is determined by XML body content.
+
+        **Supported Operations:**
+        - PassValidatePassword - Authenticate
+        - PassGetClientTrips - Get trip list
+        - PassGetClientInfo - Get client profile
+        - PassGetClientContactInfo - Get contact info
+        - PassGetRegisteredAddress - Get registered addresses
+        - PassGetClientLocationsMerged - Get saved + frequent locations
+        - PassGetMostFrequentClientTrips - Get frequently used trip pairs
+        - PassBookingDaysWindow - Get available booking dates
+        - PassBookingTimesWindow - Get available time slots
+        - PassGetDefaultBooking - Get booking defaults and options
+        - PassCreateTrip - Create draft trip
+        - PassScheduleTrip - Get time slots for draft
+        - PassSaveSolution - Confirm booking
+        - PassCancelTrip - Cancel trip
+        - PassCheckBookingAccess - Check booking permissions
+        - PassCheckClientFeatureAccess - Check feature access
+        - PassGetTNCProviders - Get TNC providers
+      operationId: passInfoServer
+      tags:
+        - Authentication
+        - Trips
+        - Locations
+        - Profile
+        - Availability
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          text/xml:
+            schema:
+              type: string
+            examples:
+              PassValidatePassword:
+                summary: Authenticate with client ID and passcode
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+                  <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+                    <SOAP-ENV:Body>
+                      <PassValidatePassword>
+                        <ClientCode>46642</ClientCode>
+                        <Password>yourPasscode</Password>
+                      </PassValidatePassword>
+                    </SOAP-ENV:Body>
+                  </SOAP-ENV:Envelope>
+
+              PassGetClientTrips:
+                summary: Get list of trips with date range and status filter
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+                  <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+                    <SOAP-ENV:Body>
+                      <PassGetClientTrips>
+                        <OutputVersion>2</OutputVersion>
+                        <ClientId>46642</ClientId>
+                        <FromDate>20260113</FromDate>
+                        <ToDate>20260120</ToDate>
+                        <Status>S,U,A,Pn</Status>
+                      </PassGetClientTrips>
+                    </SOAP-ENV:Body>
+                  </SOAP-ENV:Envelope>
+
+              PassGetClientInfo:
+                summary: Get comprehensive client profile
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+                  <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+                    <SOAP-ENV:Body>
+                      <PassGetClientInfo>
+                        <ClientId>46642</ClientId>
+                      </PassGetClientInfo>
+                    </SOAP-ENV:Body>
+                  </SOAP-ENV:Envelope>
+
+              PassGetClientContactInfo:
+                summary: Get client contact information
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+                  <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+                    <SOAP-ENV:Body>
+                      <PassGetClientContactInfo>
+                        <ClientId>46642</ClientId>
+                      </PassGetClientContactInfo>
+                    </SOAP-ENV:Body>
+                  </SOAP-ENV:Envelope>
+
+              PassGetRegisteredAddress:
+                summary: Get registered addresses
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+                  <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+                    <SOAP-ENV:Body>
+                      <PassGetRegisteredAddress>
+                        <RowsetFormat>1</RowsetFormat>
+                        <ClientId>46642</ClientId>
+                      </PassGetRegisteredAddress>
+                    </SOAP-ENV:Body>
+                  </SOAP-ENV:Envelope>
+
+              PassGetClientLocationsMerged:
+                summary: Get merged list of registered + frequent locations (NEW!)
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+                  <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+                    <SOAP-ENV:Body>
+                      <PassGetClientLocationsMerged>
+                        <ClientId>46642</ClientId>
+                      </PassGetClientLocationsMerged>
+                    </SOAP-ENV:Body>
+                  </SOAP-ENV:Envelope>
+
+              PassGetMostFrequentClientTrips:
+                summary: Get frequently used trip pairs (NEW!)
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+                  <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+                    <SOAP-ENV:Body>
+                      <PassGetMostFrequentClientTrips>
+                        <OutputVersion>2</OutputVersion>
+                        <FromDate>20251116</FromDate>
+                        <ClientId>46642</ClientId>
+                      </PassGetMostFrequentClientTrips>
+                    </SOAP-ENV:Body>
+                  </SOAP-ENV:Envelope>
+
+              PassBookingDaysWindow:
+                summary: Get available booking days (NEW!)
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+                  <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+                    <SOAP-ENV:Body>
+                      <PassBookingDaysWindow>
+                        <RequestedTimeType>pickup</RequestedTimeType>
+                        <CalendarDay>1</CalendarDay>
+                      </PassBookingDaysWindow>
+                    </SOAP-ENV:Body>
+                  </SOAP-ENV:Envelope>
+
+              PassBookingTimesWindow:
+                summary: Get available time slots for route (NEW!)
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+                  <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+                    <SOAP-ENV:Body>
+                      <PassBookingTimesWindow>
+                        <CalendarDay>1</CalendarDay>
+                        <Date>20260117</Date>
+                        <FirstBookingTime>0</FirstBookingTime>
+                        <RequestedTimeType>pickup</RequestedTimeType>
+                        <Origin>
+                          <Lat>53548634</Lat>
+                          <Lon>-113459140</Lon>
+                        </Origin>
+                        <Destination>
+                          <Lat>53543853</Lat>
+                          <Lon>-113597433</Lon>
+                        </Destination>
+                      </PassBookingTimesWindow>
+                    </SOAP-ENV:Body>
+                  </SOAP-ENV:Envelope>
+
+              PassGetDefaultBooking:
+                summary: Get default booking settings and available options (NEW!)
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+                  <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+                    <SOAP-ENV:Body>
+                      <PassGetDefaultBooking>
+                        <Date>20260115</Date>
+                        <ClientId>46642</ClientId>
+                      </PassGetDefaultBooking>
+                    </SOAP-ENV:Body>
+                  </SOAP-ENV:Envelope>
+
+              PassCheckBookingAccess:
+                summary: Check if client can book trips
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+                  <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+                    <SOAP-ENV:Body>
+                      <PassCheckBookingAccess>
+                        <ClientId>46642</ClientId>
+                      </PassCheckBookingAccess>
+                    </SOAP-ENV:Body>
+                  </SOAP-ENV:Envelope>
+
+              PassCheckClientFeatureAccess:
+                summary: Check client feature access permissions
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+                  <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+                    <SOAP-ENV:Body>
+                      <PassCheckClientFeatureAccess>
+                        <CommunicationMethod>WEB</CommunicationMethod>
+                        <ClientId>46642</ClientId>
+                      </PassCheckClientFeatureAccess>
+                    </SOAP-ENV:Body>
+                  </SOAP-ENV:Envelope>
+
+              PassGetTNCProviders:
+                summary: Get transportation network company providers
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+                  <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+                    <SOAP-ENV:Body>
+                      <PassGetTNCProviders>
+                        <ClientId>46642</ClientId>
+                      </PassGetTNCProviders>
+                    </SOAP-ENV:Body>
+                  </SOAP-ENV:Envelope>
+
+      responses:
+        '200':
+          description: SOAP Response (XML)
+          content:
+            text/xml:
+              schema:
+                type: string
+              examples:
+                PassGetClientTripsResponse:
+                  summary: Trip list response
+                  value: |
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <SOAP-ENV:Envelope xmlns:SOAP-ENV='http://schemas.xmlsoap.org/soap/envelope/'>
+                      <SOAP-ENV:Body>
+                        <PassGetClientTripsResponse>
+                          <PassGetClientTripsResult>
+                            <Trip>
+                              <ConfirmationNumber>18789349</ConfirmationNumber>
+                              <StatusCode>S</StatusCode>
+                              <StatusLabel>Scheduled</StatusLabel>
+                              <BookingDate>20260113</BookingDate>
+                              <PickupWindow>
+                                <Start>83400</Start>
+                                <End>85200</End>
+                              </PickupWindow>
+                              <PickupAddress>
+                                <StreetNo>8440</StreetNo>
+                                <OnStreet>105 AVENUE NW</OnStreet>
+                                <City>EDMONTON</City>
+                              </PickupAddress>
+                              <DestinationAddress>
+                                <StreetNo>9713</StreetNo>
+                                <OnStreet>160 STREET NW</OnStreet>
+                                <City>EDMONTON</City>
+                              </DestinationAddress>
+                            </Trip>
+                          </PassGetClientTripsResult>
+                        </PassGetClientTripsResponse>
+                      </SOAP-ENV:Body>
+                    </SOAP-ENV:Envelope>
+
+                PassGetClientLocationsMergedResponse:
+                  summary: Saved locations response (NEW!)
+                  value: |
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <SOAP-ENV:Envelope xmlns:SOAP-ENV='http://schemas.xmlsoap.org/soap/envelope/'>
+                      <SOAP-ENV:Body>
+                        <PassGetClientLocationsMergedResponse>
+                          <Locations>
+                            <Location>
+                              <AddressMode>R</AddressMode>
+                              <AddrType>CH</AddrType>
+                              <AddrDescr>Client Home</AddrDescr>
+                              <StreetNo>9713</StreetNo>
+                              <OnStreet>160 STREET NW</OnStreet>
+                              <City>EDMONTON</City>
+                              <Lon>-113596711</Lon>
+                              <Lat>53535258</Lat>
+                              <Source>Both</Source>
+                              <Comments>FRONT</Comments>
+                            </Location>
+                            <Location>
+                              <AddressMode>LL</AddressMode>
+                              <AddrType>LO</AddrType>
+                              <AddrName>MCNALLY SENIOR HIGH SCHOOL</AddrName>
+                              <StreetNo>8440</StreetNo>
+                              <OnStreet>105 AVENUE NW</OnStreet>
+                              <City>EDMONTON</City>
+                              <Source>Frequent</Source>
+                            </Location>
+                          </Locations>
+                        </PassGetClientLocationsMergedResponse>
+                      </SOAP-ENV:Body>
+                    </SOAP-ENV:Envelope>
+
+  /PassInfoServerAsync:
+    post:
+      summary: DATS Async SOAP Endpoint
+      description: |
+        Async endpoint for real-time operations.
+
+        **Supported Operations:**
+        - PassPullForImminentArrivals - Real-time trip tracking
+      operationId: passInfoServerAsync
+      tags:
+        - Tracking
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          text/xml:
+            schema:
+              type: string
+            examples:
+              PassPullForImminentArrivals:
+                summary: Get real-time tracking for imminent trips
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+                  <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+                    <SOAP-ENV:Body>
+                      <PassPullForImminentArrivals>
+                        <duration>60</duration>
+                        <ClientId>46642</ClientId>
+                      </PassPullForImminentArrivals>
+                    </SOAP-ENV:Body>
+                  </SOAP-ENV:Envelope>
+
+      responses:
+        '200':
+          description: SOAP Response (XML)
+          content:
+            text/xml:
+              schema:
+                type: string
+
+  /Remarks:
+    post:
+      summary: DATS Announcements Endpoint
+      description: |
+        Get system announcements and remarks.
+
+        **Supported Operations:**
+        - GetActivePassRemarks - Get active system announcements
+      operationId: remarks
+      tags:
+        - Announcements
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          text/xml:
+            schema:
+              type: string
+            examples:
+              GetActivePassRemarks:
+                summary: Get active system announcements
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+                  <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+                    <SOAP-ENV:Body>
+                      <GetActivePassRemarks>
+                        <LanguageName>en</LanguageName>
+                      </GetActivePassRemarks>
+                    </SOAP-ENV:Body>
+                  </SOAP-ENV:Envelope>
+
+      responses:
+        '200':
+          description: SOAP Response (XML)
+          content:
+            text/xml:
+              schema:
+                type: string
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: ASP.NET_SessionId
+      description: Session cookie obtained from PassValidatePassword
+
+  schemas:
+    TripStatus:
+      type: string
+      enum:
+        - S   # Scheduled
+        - U   # Unscheduled
+        - A   # Arrived
+        - Pn  # Pending
+        - Pf  # Performed
+        - CA  # Cancelled
+        - NS  # No Show
+        - NM  # Missed Trip
+        - R   # Refused
+      description: |
+        Trip status codes:
+        - S: Scheduled - Trip booked and scheduled successfully
+        - U: Unscheduled - Trip booked but not scheduled yet
+        - A: Arrived - Vehicle has arrived at pickup location
+        - Pn: Pending - Needs to be created from recurring template
+        - Pf: Performed - Trip has been completed
+        - CA: Cancelled - Trip has been cancelled
+        - NS: No Show - User did not show up at pickup time
+        - NM: Missed Trip - Vehicle arrived late, did not transport
+        - R: Refused - User refused the proposed booking
+
+    MobilityAid:
+      type: string
+      enum:
+        - AM  # Ambulatory - no spec
+        - WC  # Wheelchair
+        - SC  # Scooter
+        - EW  # Electric wheelchair
+        - XW  # Walker Mobility Aid
+        - TW  # Transport Chairs
+        - OW  # Over-WC (oversized wheelchair)
+        - OS  # Over-SC (oversized scooter)
+        - OA  # Over-AM (oversized ambulatory)
+        - CO  # COVID Temp Escort
+      description: Space type / mobility aid codes
+
+    AddressMode:
+      type: string
+      enum:
+        - R   # Registered address
+        - LL  # Lat/Lon geocoded
+        - CM  # Client Mailing
+        - CH  # Client Home
+      description: Address mode classification
+
+    AddressType:
+      type: string
+      enum:
+        - CH  # Client Home
+        - CM  # Client Mailing
+        - AD  # Generic Address (geocoded)
+        - LO  # Named Location (school, facility)
+        - CE  # Emergency Contact address
+      description: Address type classification
+
+    BookingPurpose:
+      type: object
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+        description:
+          type: string
+          enum:
+            - Work
+            - Education
+            - Program
+            - Medical
+            - Medical - Dialysis
+            - Personal
+            - Shopping
+            - Refused to Answer
+
+externalDocs:
+  description: DATS MCP Server Implementation
+  url: https://github.com/jeremycrossman/dats-booking
+
+x-examples:
+  - name: Complete Booking Flow
+    description: |
+      1. Authenticate: PassValidatePassword
+      2. Check availability: PassBookingDaysWindow + PassBookingTimesWindow
+      3. Create draft: PassCreateTrip
+      4. Get time slots: PassScheduleTrip
+      5. Confirm booking: PassSaveSolution
+
+  - name: Get Frequent Trips
+    description: |
+      1. Authenticate
+      2. Get frequent trips: PassGetMostFrequentClientTrips
+      3. Get saved locations: PassGetClientLocationsMerged
+      4. Book frequent trip using saved locations
+
+  - name: Real-Time Tracking
+    description: |
+      1. Authenticate
+      2. Get imminent trips: PassGetClientTrips (today + active statuses)
+      3. Track trip: PassPullForImminentArrivals (within 60 min of pickup)

@@ -62,6 +62,7 @@ export interface BookTripInput {
   pickupComments?: string;
   dropoffComments?: string;
   additionalPassenger?: AdditionalPassenger;
+  purpose?: 'work' | 'education' | 'program' | 'medical' | 'dialysis' | 'personal' | 'shopping' | 'refused';
 }
 
 export interface PickupWindow {
@@ -188,6 +189,125 @@ export interface TrackTripOutput {
   runName?: string;
   lastChecked: string;
   error?: ToolError;
+}
+
+// ============= LOCATION TYPES =============
+
+export interface SavedLocation {
+  addressMode: 'R' | 'LL'; // R = Registered, LL = Lat/Lon
+  addrType: 'CH' | 'CM' | 'AD' | 'LO'; // Client Home, Client Mailing, Address, Location
+  addrDescr: string; // "Client Home", "Client Mailing", etc.
+  addrName?: string; // Named location (e.g., "McNally High School")
+  addrNumber?: number; // Registered address ID
+  legId?: number; // Frequent address ID
+  streetNo: string;
+  onStreet: string;
+  unit?: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  lon: number; // Microdegrees (divide by 1000000 for actual coordinates)
+  lat: number; // Microdegrees (divide by 1000000 for actual coordinates)
+  source: 'Both' | 'Registered' | 'Frequent';
+  comments?: string; // Pickup instructions
+  phone?: string;
+  atStreet?: string;
+}
+
+export interface FrequentTripLeg {
+  addressMode: string;
+  addrName?: string;
+  streetNo: string;
+  onStreet: string;
+  unit?: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  lon: number;
+  lat: number;
+  extra?: string;
+}
+
+export interface FrequentTrip {
+  bookingId: string;
+  useCount: number;
+  mobilityAids: string;
+  pickup: FrequentTripLeg;
+  dropoff: FrequentTripLeg;
+}
+
+// ============= AVAILABILITY TYPES =============
+
+export interface AvailableDate {
+  date: string; // YYYYMMDD
+  dayOfWeek: number; // 1=Sunday, 7=Saturday
+  rawDate: string;
+}
+
+export interface BookingDaysWindow {
+  maxDaysAdvance: number;
+  minDaysAdvance: number;
+  sameDayAllowed: boolean;
+  availableDates: AvailableDate[];
+  extraDayAdded?: string;
+}
+
+export interface TimeSlot {
+  time: number; // Pickup time (seconds since midnight)
+  lastBookingTime: number; // Latest dropoff time (seconds since midnight)
+  index: number;
+  previousDate?: number;
+}
+
+export interface BookingTimesWindow {
+  date: string; // YYYYMMDD
+  currentTime: number; // Seconds since midnight
+  firstBookingTime: number; // Seconds since midnight
+  lastBookingTime: number; // Seconds since midnight
+  timeInterval: number; // Seconds between slots (e.g., 600 = 10 min)
+  threshold: number;
+  timeSlots: TimeSlot[];
+}
+
+// ============= BOOKING OPTIONS TYPES =============
+
+export interface PassengerTypeInfo {
+  abbreviation: string;
+  description: string;
+  defaultSpaceType: string;
+  fareTypeId?: number;
+  reqdAsAddPass?: number;
+}
+
+export interface SpaceTypeInfo {
+  abbreviation: string;
+  description: string;
+}
+
+export interface FareTypeInfo {
+  fareType: number;
+  abbreviation: string;
+  description: string;
+}
+
+export interface BookingPurpose {
+  bookingPurposeId: number;
+  abbreviation: string;
+  description: string;
+  code: string;
+}
+
+export interface DefaultBooking {
+  passengerTypes: PassengerTypeInfo[];
+  spaceTypes: SpaceTypeInfo[];
+  fareTypes: FareTypeInfo[];
+  purposes: BookingPurpose[];
+  defaultPassBooking?: {
+    clientId: string;
+    bookingType: string;
+    companionMode: string;
+    // ... other fields
+  };
 }
 
 // ============= AUDIT TYPES =============

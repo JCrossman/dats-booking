@@ -183,16 +183,17 @@ export class DATSApi {
   }
 
   /**
-   * Get client's saved locations
+   * Get client's merged locations (registered + frequent addresses)
+   * NEW: Discovered from HAR analysis - PassGetClientLocationsMerged
    */
-  async getSavedLocations(clientId: string): Promise<SavedLocation[]> {
+  async getClientLocationsMerged(clientId: string): Promise<import('../types.js').SavedLocation[]> {
     const soap = this.buildSoapRequest('PassGetClientLocationsMerged', {
       ClientId: clientId,
     });
 
     const response = await this.callApi(soap);
-    logger.debug(`getSavedLocations raw response: ${response.substring(0, 500)}`);
-    return this.parseSavedLocations(response);
+    logger.debug(`getClientLocationsMerged raw response: ${response.substring(0, 500)}`);
+    return this.parseClientLocationsMerged(response);
   }
 
   /**
@@ -229,42 +230,79 @@ export class DATSApi {
   }
 
   /**
-   * Get frequently used trip patterns
+   * Get most frequently used trip pairs for quick rebooking
+   * NEW: Discovered from HAR analysis - PassGetMostFrequentClientTrips
    */
-  async getFrequentTrips(clientId: string): Promise<Trip[]> {
+  async getMostFrequentClientTrips(clientId: string, fromDate: string): Promise<import('../types.js').FrequentTrip[]> {
     const soap = this.buildSoapRequest('PassGetMostFrequentClientTrips', {
+      OutputVersion: '2',
+      FromDate: fromDate,
       ClientId: clientId,
     });
 
     const response = await this.callApi(soap);
-    return this.parseTrips(response);
+    return this.parseMostFrequentClientTrips(response);
   }
 
   // ==================== BOOKING ====================
 
   /**
-   * Get available booking dates
+   * Get available booking dates (3-day advance booking window)
+   * NEW: Updated from HAR analysis with proper parameters
    */
-  async getBookingDaysWindow(clientId: string): Promise<string[]> {
+  async getBookingDaysWindow(requestedTimeType: 'pickup' | 'dropoff' = 'pickup'): Promise<import('../types.js').BookingDaysWindow> {
     const soap = this.buildSoapRequest('PassBookingDaysWindow', {
-      ClientId: clientId,
+      RequestedTimeType: requestedTimeType,
+      CalendarDay: '1',
     });
 
     const response = await this.callApi(soap);
-    return this.parseBookingDays(response);
+    return this.parseBookingDaysWindow(response);
   }
 
   /**
-   * Get available booking times for a date
+   * Get available time slots for specific route and date
+   * NEW: Updated from HAR analysis with route coordinates
    */
-  async getBookingTimesWindow(clientId: string, date: string): Promise<{ earliest: string; latest: string }> {
+  async getBookingTimesWindow(
+    date: string,
+    pickupLat: number,
+    pickupLon: number,
+    dropoffLat: number,
+    dropoffLon: number,
+    requestedTimeType: 'pickup' | 'dropoff' = 'pickup'
+  ): Promise<import('../types.js').BookingTimesWindow> {
     const soap = this.buildSoapRequest('PassBookingTimesWindow', {
-      ClientId: clientId,
+      CalendarDay: '1',
       Date: date,
+      FirstBookingTime: '0',
+      RequestedTimeType: requestedTimeType,
+      Origin: {
+        Lat: pickupLat.toString(),
+        Lon: pickupLon.toString(),
+      },
+      Destination: {
+        Lat: dropoffLat.toString(),
+        Lon: dropoffLon.toString(),
+      },
     });
 
     const response = await this.callApi(soap);
-    return this.parseBookingTimes(response);
+    return this.parseBookingTimesWindow(response);
+  }
+
+  /**
+   * Get default booking settings and all available options
+   * NEW: Discovered from HAR analysis - PassGetDefaultBooking
+   */
+  async getDefaultBooking(clientId: string, date: string): Promise<import('../types.js').DefaultBooking> {
+    const soap = this.buildSoapRequest('PassGetDefaultBooking', {
+      Date: date,
+      ClientId: clientId,
+    });
+
+    const response = await this.callApi(soap);
+    return this.parseDefaultBooking(response);
   }
 
   /**
@@ -375,6 +413,19 @@ export class DATSApi {
                          details.mobilityDevice === 'scooter' ? 'SC' :
                          details.mobilityDevice === 'walker' ? 'WA' : 'DL';
 
+    // Map user-friendly purpose to DATS purpose ID
+    const purposeMap: Record<string, number> = {
+      'work': 18,
+      'education': 19,
+      'program': 6,
+      'medical': 7,
+      'dialysis': 8,
+      'personal': 13,
+      'shopping': 14,
+      'refused': 17,
+    };
+    const purposeId = details.purpose ? purposeMap[details.purpose] : undefined;
+
     // Build additional passengers XML if specified
     // Note: HAR analysis shows CompanionMode stays 'S' even with passengers
     // Structure: <PassBookingPassengers><PassBookingPassenger>...</PassBookingPassenger></PassBookingPassengers>
@@ -416,7 +467,7 @@ export class DATSApi {
       <WeekTemplate></WeekTemplate>
       <BookingType>C</BookingType>
       <ClientEligCondId></ClientEligCondId>
-      <BookingPurposeId></BookingPurposeId>
+      <BookingPurposeId>${purposeId || ''}</BookingPurposeId>
       <FundingSourceId></FundingSourceId>
       <ClientTypeCode>CLI</ClientTypeCode>
       <CompanionMode tcftype='10'>S</CompanionMode>
@@ -976,24 +1027,39 @@ export class DATSApi {
     };
   }
 
-  private parseSavedLocations(xml: string): SavedLocation[] {
-    const locations: SavedLocation[] = [];
+  private parseClientLocationsMerged(xml: string): import('../types.js').SavedLocation[] {
+    const locations: import('../types.js').SavedLocation[] = [];
     const locationRegex = /<Location[^>]*>([\s\S]*?)<\/Location>/g;
     let match;
 
     while ((match = locationRegex.exec(xml)) !== null) {
       const locXml = match[1];
+      const addrNumber = this.extractXml(locXml, 'AddrNumber');
+      const legId = this.extractXml(locXml, 'LegId');
+
       locations.push({
-        locationId: this.extractXml(locXml, 'LocationId'),
-        name: this.extractXml(locXml, 'AddrName') || this.extractXml(locXml, 'SiteName'),
-        address: `${this.extractXml(locXml, 'StreetNo')} ${this.extractXml(locXml, 'OnStreet')}`,
-        city: this.extractXml(locXml, 'City'),
-        state: this.extractXml(locXml, 'State'),
-        zipCode: this.extractXml(locXml, 'ZipCode'),
+        addressMode: (this.extractXml(locXml, 'AddressMode') || 'LL') as 'R' | 'LL',
+        addrType: (this.extractXml(locXml, 'AddrType') || 'AD') as 'CH' | 'CM' | 'AD' | 'LO',
+        addrDescr: this.extractXml(locXml, 'AddrDescr') || 'Address',
+        addrName: this.extractXml(locXml, 'AddrName') || undefined,
+        addrNumber: addrNumber ? parseInt(addrNumber, 10) : undefined,
+        legId: legId ? parseInt(legId, 10) : undefined,
+        streetNo: this.extractXml(locXml, 'StreetNo') || '',
+        onStreet: this.extractXml(locXml, 'OnStreet') || '',
+        unit: this.extractXml(locXml, 'Unit') || undefined,
+        city: this.extractXml(locXml, 'City') || '',
+        state: this.extractXml(locXml, 'State') || '',
+        zipCode: this.extractXml(locXml, 'ZipCode') || '',
+        lon: parseInt(this.extractXml(locXml, 'Lon') || '0', 10),
+        lat: parseInt(this.extractXml(locXml, 'Lat') || '0', 10),
+        source: (this.extractXml(locXml, 'Source') || 'Frequent') as 'Both' | 'Registered' | 'Frequent',
+        comments: this.extractXml(locXml, 'Comments') || undefined,
+        phone: this.extractXml(locXml, 'Phone') || undefined,
+        atStreet: this.extractXml(locXml, 'AtStreet') || undefined,
       });
     }
 
-    logger.debug(`parseSavedLocations found ${locations.length} locations`);
+    logger.debug(`parseClientLocationsMerged found ${locations.length} locations`);
     return locations;
   }
 
@@ -1011,6 +1077,64 @@ export class DATSApi {
     }
 
     return aids;
+  }
+
+  private parseMostFrequentClientTrips(xml: string): import('../types.js').FrequentTrip[] {
+    const trips: import('../types.js').FrequentTrip[] = [];
+    const tripRegex = /<FrequentTrip[^>]*>([\s\S]*?)<\/FrequentTrip>/g;
+    let match;
+
+    while ((match = tripRegex.exec(xml)) !== null) {
+      const tripXml = match[1];
+
+      // Parse pickup leg (EndPoint="0")
+      const pickupLegRegex = /<BookingLeg[^>]*>([\s\S]*?)<EndPoint>0<\/EndPoint>[\s\S]*?<\/BookingLeg>/;
+      const pickupMatch = pickupLegRegex.exec(tripXml);
+
+      // Parse dropoff leg (EndPoint="1")
+      const dropoffLegRegex = /<BookingLeg[^>]*>([\s\S]*?)<EndPoint>1<\/EndPoint>[\s\S]*?<\/BookingLeg>/;
+      const dropoffMatch = dropoffLegRegex.exec(tripXml);
+
+      if (pickupMatch && dropoffMatch) {
+        const pickupXml = pickupMatch[1];
+        const dropoffXml = dropoffMatch[1];
+
+        trips.push({
+          bookingId: this.extractXml(tripXml, 'BookingId') || '',
+          useCount: parseInt(this.extractXml(tripXml, 'UseCount') || '0', 10),
+          mobilityAids: this.extractXml(tripXml, 'MobAids') || '',
+          pickup: {
+            addressMode: this.extractXml(pickupXml, 'AddressMode') || '',
+            addrName: this.extractXml(pickupXml, 'AddrName') || undefined,
+            streetNo: this.extractXml(pickupXml, 'StreetNo') || '',
+            onStreet: this.extractXml(pickupXml, 'OnStreet') || '',
+            unit: this.extractXml(pickupXml, 'Unit') || undefined,
+            city: this.extractXml(pickupXml, 'City') || '',
+            state: this.extractXml(pickupXml, 'State') || '',
+            zipCode: this.extractXml(pickupXml, 'ZipCode') || '',
+            lon: parseInt(this.extractXml(pickupXml, 'Lon') || '0', 10),
+            lat: parseInt(this.extractXml(pickupXml, 'Lat') || '0', 10),
+            extra: this.extractXml(pickupXml, 'Extra') || undefined,
+          },
+          dropoff: {
+            addressMode: this.extractXml(dropoffXml, 'AddressMode') || '',
+            addrName: this.extractXml(dropoffXml, 'AddrName') || undefined,
+            streetNo: this.extractXml(dropoffXml, 'StreetNo') || '',
+            onStreet: this.extractXml(dropoffXml, 'OnStreet') || '',
+            unit: this.extractXml(dropoffXml, 'Unit') || undefined,
+            city: this.extractXml(dropoffXml, 'City') || '',
+            state: this.extractXml(dropoffXml, 'State') || '',
+            zipCode: this.extractXml(dropoffXml, 'ZipCode') || '',
+            lon: parseInt(this.extractXml(dropoffXml, 'Lon') || '0', 10),
+            lat: parseInt(this.extractXml(dropoffXml, 'Lat') || '0', 10),
+            extra: this.extractXml(dropoffXml, 'Extra') || undefined,
+          },
+        });
+      }
+    }
+
+    logger.debug(`parseMostFrequentClientTrips found ${trips.length} frequent trips`);
+    return trips;
   }
 
   private parseTrips(xml: string): Trip[] {
@@ -1207,17 +1331,57 @@ export class DATSApi {
     return parts.join(', ') || 'Unknown address';
   }
 
-  private parseBookingDays(xml: string): string[] {
-    return this.extractAllXml(xml, 'Date').map(d => this.formatDateDisplay(d));
-  }
+  private parseBookingDaysWindow(xml: string): import('../types.js').BookingDaysWindow {
+    const availableDates: import('../types.js').AvailableDate[] = [];
+    const dateRegex = /<AvailableCasualBookingDay[^>]*>([\s\S]*?)<\/AvailableCasualBookingDay>/g;
+    let match;
 
-  private parseBookingTimes(xml: string): { earliest: string; latest: string } {
-    const earliest = parseInt(this.extractXml(xml, 'EarliestTime'), 10);
-    const latest = parseInt(this.extractXml(xml, 'LatestTime'), 10);
+    while ((match = dateRegex.exec(xml)) !== null) {
+      const dateXml = match[1];
+      availableDates.push({
+        date: this.extractXml(dateXml, 'Date') || '',
+        dayOfWeek: parseInt(this.extractXml(dateXml, 'DayOfWeek') || '0', 10),
+        rawDate: this.extractXml(dateXml, 'RawDate') || '',
+      });
+    }
+
+    const maxDays = this.extractXml(xml, 'CasualBookingMaxDaysAdvance');
+    const minDays = this.extractXml(xml, 'CasualBookingMinDaysAdvance');
+    const sameDayElement = this.extractXml(xml, 'CasualAllowSameDayBooking');
 
     return {
-      earliest: earliest > 0 ? this.secondsToTime(earliest) : '6:00 AM',
-      latest: latest > 0 ? this.secondsToTime(latest) : '11:00 PM',
+      maxDaysAdvance: maxDays ? parseInt(maxDays, 10) : 3,
+      minDaysAdvance: minDays ? parseInt(minDays, 10) : 0,
+      sameDayAllowed: sameDayElement !== undefined && sameDayElement !== '',
+      availableDates,
+    };
+  }
+
+  private parseBookingTimesWindow(xml: string): import('../types.js').BookingTimesWindow {
+    const timeSlots: import('../types.js').TimeSlot[] = [];
+    const timeRegex = /<PassBookingTime[^>]*>([\s\S]*?)<\/PassBookingTime>/g;
+    let match;
+
+    while ((match = timeRegex.exec(xml)) !== null) {
+      const timeXml = match[1];
+      const previousDate = this.extractXml(timeXml, 'PreviousDate');
+
+      timeSlots.push({
+        time: parseInt(this.extractXml(timeXml, 'Time') || '0', 10),
+        lastBookingTime: parseInt(this.extractXml(timeXml, 'LastBookingTime') || '0', 10),
+        index: parseInt(this.extractXml(timeXml, 'Index') || '0', 10),
+        previousDate: previousDate ? parseInt(previousDate, 10) : undefined,
+      });
+    }
+
+    return {
+      date: this.extractXml(xml, 'Date') || '',
+      currentTime: parseInt(this.extractXml(xml, 'CurrentTime') || '0', 10),
+      firstBookingTime: parseInt(this.extractXml(xml, 'FirstBookingTime') || '0', 10),
+      lastBookingTime: parseInt(this.extractXml(xml, 'LastBookingTime') || '0', 10),
+      timeInterval: parseInt(this.extractXml(xml, 'TimeInterval') || '600', 10),
+      threshold: parseInt(this.extractXml(xml, 'Threshold') || '0', 10),
+      timeSlots,
     };
   }
 
@@ -1235,6 +1399,79 @@ export class DATSApi {
     return {
       success: false,
       message: errorMsg,
+    };
+  }
+
+  private parseDefaultBooking(xml: string): import('../types.js').DefaultBooking {
+    // Parse passenger types
+    const passengerTypes: import('../types.js').PassengerTypeInfo[] = [];
+    const passengerTypeRegex = /<PassPassengerType[^>]*>([\s\S]*?)<\/PassPassengerType>/g;
+    let match;
+
+    while ((match = passengerTypeRegex.exec(xml)) !== null) {
+      const ptXml = match[1];
+      const fareTypeId = this.extractXml(ptXml, 'FareTypeId');
+      const reqdAsAddPass = this.extractXml(ptXml, 'ReqdAsAddPass');
+
+      passengerTypes.push({
+        abbreviation: this.extractXml(ptXml, 'Abbreviation') || '',
+        description: this.extractXml(ptXml, 'Description') || '',
+        defaultSpaceType: this.extractXml(ptXml, 'DefaultSpaceType') || '',
+        fareTypeId: fareTypeId ? parseInt(fareTypeId, 10) : undefined,
+        reqdAsAddPass: reqdAsAddPass ? parseInt(reqdAsAddPass, 10) : undefined,
+      });
+    }
+
+    // Parse space types (mobility aids)
+    const spaceTypes: import('../types.js').SpaceTypeInfo[] = [];
+    const spaceTypeRegex = /<PassSpaceType[^>]*>([\s\S]*?)<\/PassSpaceType>/g;
+
+    while ((match = spaceTypeRegex.exec(xml)) !== null) {
+      const stXml = match[1];
+      spaceTypes.push({
+        abbreviation: this.extractXml(stXml, 'Abbreviation') || '',
+        description: this.extractXml(stXml, 'Description') || '',
+      });
+    }
+
+    // Parse fare types
+    const fareTypes: import('../types.js').FareTypeInfo[] = [];
+    const fareTypeRegex = /<PassFareType[^>]*>([\s\S]*?)<\/PassFareType>/g;
+
+    while ((match = fareTypeRegex.exec(xml)) !== null) {
+      const ftXml = match[1];
+      fareTypes.push({
+        fareType: parseInt(this.extractXml(ftXml, 'FareType') || '0', 10),
+        abbreviation: this.extractXml(ftXml, 'Abbreviation') || '',
+        description: this.extractXml(ftXml, 'Description') || '',
+      });
+    }
+
+    // Parse booking purposes
+    const purposes: import('../types.js').BookingPurpose[] = [];
+    const purposeRegex = /<PassBookingPurpose[^>]*>([\s\S]*?)<\/PassBookingPurpose>/g;
+
+    while ((match = purposeRegex.exec(xml)) !== null) {
+      const purpXml = match[1];
+      purposes.push({
+        bookingPurposeId: parseInt(this.extractXml(purpXml, 'BookingPurposeId') || '0', 10),
+        abbreviation: this.extractXml(purpXml, 'Abbreviation') || '',
+        description: this.extractXml(purpXml, 'Description') || '',
+        code: this.extractXml(purpXml, 'Code') || this.extractXml(purpXml, 'Abbreviation') || '',
+      });
+    }
+
+    logger.debug(
+      `parseDefaultBooking found ${passengerTypes.length} passenger types, ` +
+        `${spaceTypes.length} space types, ${fareTypes.length} fare types, ` +
+        `${purposes.length} purposes`
+    );
+
+    return {
+      passengerTypes,
+      spaceTypes,
+      fareTypes,
+      purposes,
     };
   }
 

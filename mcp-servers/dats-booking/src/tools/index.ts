@@ -19,6 +19,9 @@ import { createGetProfileTool } from './get-profile.js';
 import { createGetInfoTool } from './get-info.js';
 import { createDisconnectAccountTool } from './disconnect-account.js';
 import { createCompleteConnectionTool } from './complete-connection.js';
+import { createGetSavedLocationsTool } from './get-saved-locations.js';
+import { createGetFrequentTripsTool } from './get-frequent-trips.js';
+import { createGetBookingOptionsTool } from './get-booking-options.js';
 
 export interface ToolDependencies {
   sessionManager: SessionManager;
@@ -50,4 +53,7 @@ export function registerAllTools(server: McpServer, deps: ToolDependencies): voi
   createGetAnnouncementsTool(deps).register(server);
   createGetProfileTool(deps).register(server);
   createGetInfoTool().register(server);
+  createGetSavedLocationsTool(deps).register(server);
+  createGetFrequentTripsTool(deps).register(server);
+  createGetBookingOptionsTool(deps).register(server);
 }

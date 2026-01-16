@@ -110,6 +110,10 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
             .max(3)
             .optional()
             .describe('Number of additional passengers (1-3)'),
+          purpose: z
+            .enum(['work', 'education', 'program', 'medical', 'dialysis', 'personal', 'shopping', 'refused'])
+            .optional()
+            .describe('Trip purpose (optional). Used for DATS analytics. Options: work, education, program, medical, dialysis, personal, shopping, refused.'),
         },
         async (params) => {
           try {
@@ -156,6 +160,7 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
                     count: params.additional_passenger_count,
                   }
                 : undefined,
+              purpose: params.purpose,
             };
 
             // Use the correct 3-step booking flow

@@ -462,11 +462,14 @@ The MCP server supports two transport modes:
 | `connect_account` | Opens secure browser page for DATS login (credentials never touch Claude). In remote mode, starts background polling automatically. |
 | `complete_connection` | Complete authentication (remote mode only). Rarely needed - background polling handles this automatically. |
 | `disconnect_account` | Log out and clear session from this computer |
-| `book_trip` | Create a new DATS booking with full options |
+| `book_trip` | Create a new DATS booking with full options (including optional trip purpose) |
 | `get_trips` | Retrieve trips with status filtering (active trips by default) |
 | `track_trip` | Real-time tracking: vehicle location, ETA, driver info (within 60 min of pickup) |
-| `check_availability` | Check available dates and time windows for booking |
+| `check_availability` | Check exact time slot availability for specific routes (10-minute intervals) |
 | `cancel_trip` | Cancel booking (requires user confirmation first) |
+| `get_saved_locations` | Get user's saved locations (registered addresses + frequent destinations) |
+| `get_frequent_trips` | Get most frequently used trip pairs for quick rebooking |
+| `get_booking_options` | Get all available booking options (mobility aids, fare types, purposes) |
 | `get_announcements` | Get DATS system announcements |
 | `get_profile` | Get user profile, contacts, saved locations |
 | `get_info` | Get general info, fares, privacy policy, service description |
@@ -567,6 +570,71 @@ The `book_trip` tool supports:
 - **Callbacks**: pickup phone, dropoff phone
 - **Comments**: pickup instructions, dropoff instructions
 - **Passengers**: escort, PCA (personal care attendant), or guest
+- **Purpose** (optional): work, education, program, medical, dialysis, personal, shopping, refused
+
+### Saved Locations & Frequent Trips
+
+**`get_saved_locations` tool** returns merged list of:
+- **Registered addresses**: Home, mailing addresses with pickup instructions and phone numbers
+- **Frequent destinations**: Addresses from past trips with names (e.g., "McNally High School")
+- **Source indicators**: "Registered", "Frequent", or "Both"
+
+Each location includes:
+- Full address with lat/lon coordinates
+- Pickup instructions (if registered)
+- Contact phone (if registered)
+- Address name for named locations
+
+**Use cases:**
+- "What are my saved locations?"
+- Address autocomplete with user's history
+- Smart defaults based on usage patterns
+
+**`get_frequent_trips` tool** returns most-used trip pairs:
+- Sorted by usage count (most used first)
+- Full addresses with names when available
+- Mobility aids used on these trips
+
+**Use cases:**
+- "Book my usual trip to McNally High School"
+- Smart suggestions: "You often go here on Mondays"
+- One-tap rebooking: "Same as last Monday"
+
+### Booking Options Tool
+
+**`get_booking_options` tool** returns current DATS-supported values:
+- **Mobility devices**: All available space types with descriptions (wheelchair, scooter, walker, electric wheelchair, etc.)
+- **Passenger types**: Client, escort, PCA, child under 6, etc.
+- **Fare types**: Tickets, cash, ARC card, passes, etc.
+- **Trip purposes**: Work, medical, shopping, education, dialysis, personal, program, etc.
+
+**Use cases:**
+- Show dropdown options to user
+- Validate user input against current DATS values
+- Display descriptions (e.g., "Electric wheelchair" not just "EW")
+
+### Enhanced Time Slot Availability
+
+**`check_availability` tool** now provides exact time slots:
+- Available booking dates (up to 3 days in advance)
+- Exact 10-minute time intervals for specific routes
+- Pickup time and latest dropoff time for each slot
+- Trip duration calculations
+
+**With addresses provided:**
+- Shows all 101 time slots per date (6:00 AM - 11:00 PM)
+- Each slot shows pickup time, latest dropoff, and duration
+- Route-specific availability based on geocoded coordinates
+
+**Without addresses:**
+- Shows available dates and booking window rules
+- Max/min days advance
+- Same-day booking allowed status
+
+**Use cases:**
+- "What times are available Friday for pickup at home to McNally High School?"
+- "Can I book for 7 AM tomorrow?"
+- Show exact time slots in booking UI
 
 ## DATS API Details
 
