@@ -4,6 +4,46 @@ This document tracks planned features and improvements. Items are derived from [
 
 ---
 
+## ✅ Production Release (v1.0.0) - 2026-01-16
+
+### Infrastructure & Deployment
+- [x] **CI/CD Pipeline** - GitHub Actions automated deployment
+  - Automated testing on push
+  - Docker image build (linux/amd64)
+  - Push to Azure Container Registry
+  - Deploy to Container Apps
+  - Health verification
+  - ~2-3 minute deployment time
+- [x] **Application Insights** - Production monitoring
+  - Connected to Log Analytics Workspace
+  - 30-day log retention
+  - Audit logging verified (no PII)
+- [x] **POPA Compliance (Alberta)** - Full implementation
+  - Explicit consent flow (remote mode)
+  - Privacy policy deployed (WCAG 2.2 AA)
+  - Enhanced audit logging (hashed session IDs)
+  - Data deletion rights
+  - All 6 NFR-2.x requirements met
+- [x] **Environment Configuration** - Production-ready
+  - `DATS_AUTH_URL` fixed (Static Web App)
+  - `LOG_LEVEL=info` for production
+  - Application Insights connection string
+  - All health probes configured
+
+### Development Workflow
+- [x] **Automated Deployments** - Zero-touch production releases
+- [x] **Documentation** - Complete operations manual
+  - `DEPLOYMENT-COMPLETE.md` - Operations guide
+  - `CONTRIBUTING.md` - Development workflow
+  - `AZURE-ASSESSMENT.md` - Infrastructure details
+  - `POPA-COMPLIANCE.md` - Privacy law compliance
+- [x] **GitHub Copilot Migration** - From Claude Code
+  - Renamed CLAUDE.md → COPILOT.md
+  - Updated AGENTS.md for natural language invocation
+  - Created `.github/copilot-instructions.md`
+
+---
+
 ## Completed (v1.1.0)
 
 - [x] **Remote MCP Server** (HTTP/SSE transport for Claude Mobile/Web)
@@ -93,14 +133,22 @@ This document tracks planned features and improvements. Items are derived from [
 
 ## Next Up (P1 Priority)
 
+**Note:** All new features must follow the established CI/CD workflow:
+1. Develop locally with tests
+2. Update documentation (CHANGELOG.md, STATUS.md)
+3. Push to `main` → Automatic deployment
+4. Maintain POPA compliance (see CONTRIBUTING.md)
+
 | PRD Ref | Feature | Description |
 |---------|---------|-------------|
 | FR-3.1-3.4 | Calendar Integration | Sync DATS bookings with Microsoft Outlook via Graph API (OAuth 2.1 + PKCE) |
 | FR-3.3 | Conflict Detection | Check calendar before suggesting booking times |
 | FR-2.4 | Trip Modification | Support "change to 2pm" style modifications |
-| NFR-2.4 | Audit Logging | Log access and modifications (no PII) for POPA compliance |
-| NFR-2.7 | Data Deletion | Capability to delete user data within 30 days (POPA) |
-| NFR-2.6 | Consent Collection | Explicit consent prompt before storing session |
+
+**Completed P1 Items (2026-01-16):**
+- ~~NFR-2.4~~ ✅ Audit Logging (implemented with hashed session IDs)
+- ~~NFR-2.7~~ ✅ Data Deletion (24hr TTL + manual delete)
+- ~~NFR-2.6~~ ✅ Consent Collection (explicit consent in remote mode)
 
 ---
 

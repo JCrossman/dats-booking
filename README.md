@@ -188,15 +188,39 @@ Note: Encryption keys are auto-generated. No environment variables required.
 
 ## For Developers
 
-**🚧 Code Quality Refactoring In Progress**
+**✅ Production Deployment: Fully Automated CI/CD**
 
-If you're contributing to this project, please note we're currently in Phase 1 of a 4-phase code quality refactoring plan. See `REFACTORING_PLAN.md` for details.
+This project uses GitHub Actions for automated testing and deployment. All code changes pushed to `main` are automatically deployed to Azure.
 
-**Quick Start for Contributors:**
-- Read `CLAUDE.md` for development guidance
-- Check `REFACTORING_PLAN.md` for current refactoring status
-- Run `npm test` before committing
-- Follow the multi-agent review process for significant changes
+**Development Workflow:**
+1. Make changes in `mcp-servers/dats-booking/`
+2. Run tests locally: `npm test`
+3. Push to `main` → **Automatic deployment** (~2-3 minutes)
+4. Monitor: `gh run list --workflow="deploy-to-azure.yml"`
+
+**Key Documentation:**
+- `CONTRIBUTING.md` - **START HERE** - Development workflow & standards
+- `COPILOT.md` - Development guidance & architecture
+- `DEPLOYMENT-COMPLETE.md` - Operations manual & monitoring
+- `POPA-COMPLIANCE.md` - Privacy law requirements
+
+**Infrastructure:**
+- **CI/CD:** GitHub Actions (`.github/workflows/deploy-to-azure.yml`)
+- **Hosting:** Azure Container Apps (Canada Central)
+- **Monitoring:** Application Insights (`dats-mcp-prod-insights`)
+- **Status:** ✅ Production Ready (deployed 2026-01-16)
+
+**Quick Commands:**
+```bash
+# Run tests
+cd mcp-servers/dats-booking && npm test
+
+# Deploy (automatic on push)
+git push origin main
+
+# View logs
+az containerapp logs show --name dats-mcp-app --resource-group dats-mcp-rg --tail 100
+```
 
 ## License
 

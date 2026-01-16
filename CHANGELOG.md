@@ -4,6 +4,73 @@ All notable changes to the DATS Booking MCP Server will be documented in this fi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.0] - 2026-01-16 - Production Release
+
+### 🚀 Production Deployment Complete
+
+**Major milestone: Fully automated CI/CD pipeline and production infrastructure deployed.**
+
+#### Added
+
+**CI/CD Pipeline (GitHub Actions)**
+- `.github/workflows/deploy-to-azure.yml` - Automated deployment workflow
+  - Runs tests on every push to main
+  - Builds Docker images for linux/amd64 platform
+  - Pushes to Azure Container Registry
+  - Deploys to Azure Container Apps
+  - Verifies deployment health
+  - Total deployment time: ~2-3 minutes
+- Azure Service Principal configured with Contributor role
+- GitHub Secrets configured:
+  - `AZURE_CREDENTIALS` - Azure authentication
+  - `AZURE_STATIC_WEB_APPS_API_TOKEN` - Static site deployment
+
+**Monitoring Infrastructure**
+- Application Insights resource: `dats-mcp-prod-insights`
+- Connected to Log Analytics Workspace
+- 30-day log retention
+- Audit logging verification (no PII)
+- Health probes configured (liveness + readiness at `/health`)
+
+**Documentation**
+- `DEPLOYMENT-COMPLETE.md` - Complete operations manual
+- `AZURE-ASSESSMENT.md` - Infrastructure analysis and findings
+- `AZURE-DEPLOYMENT-BEST-PRACTICES.md` - CI/CD patterns
+- `IMPLEMENTATION-SUMMARY.md` - What was delivered
+- Migrated from Claude Code to GitHub Copilot
+  - Renamed `CLAUDE.md` → `COPILOT.md`
+  - Updated `AGENTS.md` for Copilot CLI
+  - Created `.github/copilot-instructions.md`
+  - Removed `.claude/` directory
+
+#### Changed
+
+**Infrastructure Updates (Azure)**
+- Fixed `DATS_AUTH_URL` → Now points to Static Web App (green-sky-0e461ed10.1.azurestaticapps.net)
+- Changed `LOG_LEVEL=debug` → `LOG_LEVEL=info` for production
+- Added `APPLICATIONINSIGHTS_CONNECTION_STRING` environment variable
+- Updated `azure/dats-mcp/main.bicep` - Added Application Insights resource
+- Docker images now built for correct platform (linux/amd64)
+
+**Deployment Process**
+- Before: Manual deployments via Azure CLI
+- After: Push to `main` branch = automatic deployment
+- Zero-touch deployments with health verification
+
+#### Fixed
+
+**Critical Environment Variable Issues**
+- `DATS_AUTH_URL` was pointing to Container App instead of Static Web App (OAuth callback failure)
+- `LOG_LEVEL=debug` caused performance issues in production
+- Missing Application Insights connection
+
+**Deployment Pipeline Issues**
+- Docker images were multi-arch (causing deployment failures)
+- Service Principal JSON had warnings in output
+- Workflow had lint step without eslint configured
+
+---
+
 ## [Unreleased]
 
 ### Added - 2026-01-16
