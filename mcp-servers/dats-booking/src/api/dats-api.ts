@@ -988,7 +988,8 @@ export class DATSApi {
    * Extract XML value
    */
   private extractXml(xml: string, tag: string): string {
-    const match = xml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`));
+    // Note: [^>]* allows for XML attributes like <Tag attr="value">
+    const match = xml.match(new RegExp(`<${tag}[^>]*>([^<]*)</${tag}>`));
     return match ? match[1].trim() : '';
   }
 
