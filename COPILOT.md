@@ -1,6 +1,6 @@
-# CLAUDE.md
+# COPILOT.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to GitHub Copilot and AI assistants when working with code in this repository.
 
 ## Project Overview
 
@@ -30,6 +30,22 @@ MCP-based accessible booking assistant for Edmonton's Disabled Adult Transit Ser
 - Cosmos DB, Storage, and other data services must use Private Endpoints
 - Public network access to data services must be disabled
 - Use Network Security Groups (NSGs) to restrict traffic between subnets
+
+## Privacy & POPA Compliance
+
+**Alberta Protection of Privacy Act (POPA) compliance implemented.**
+
+### Key Requirements
+
+1. **Consent (NFR-2.6)** ✅ - Remote mode: Privacy notice shown before storing session
+2. **Audit Logging (NFR-2.4)** ✅ - No PII, hashed session IDs
+3. **Data Deletion (NFR-2.7)** ✅ - Immediate via `disconnect_account` + 24hr TTL
+4. **Data Residency (NFR-2.3)** ✅ - Azure Canada Central only
+5. **Encryption (NFR-2.1)** ✅ - AES-256-GCM at rest
+
+**What's Stored (Remote Mode):** Encrypted session cookie, client ID, timestamp  
+**What's NOT Stored:** Passwords, trip details, PII, health info  
+**Full Documentation:** See `POPA-COMPLIANCE.md`
 
 ## ⚠️ Passthrough Principle - READ THIS FIRST
 

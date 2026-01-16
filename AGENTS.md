@@ -1,34 +1,35 @@
 # Multi-Agent Development Framework: Agent Definitions
 
-**Version:** 1.0
+**Version:** 1.1
 **Project:** DATS Accessible Booking Assistant
-**Status:** IMPLEMENTED
+**Status:** ACTIVE
 
 ---
 
 ## Quick Reference
 
-All agents are implemented as slash commands in `.claude/commands/`. Restart Claude Code after checkout to enable.
+Invoke agents by asking your AI assistant (GitHub Copilot, Claude, etc.) to adopt a specific persona:
 
-| Command | Agent |
-|---------|-------|
-| `/project:pm-review` | Product Manager |
-| `/project:architect-review` | Architect |
-| `/project:implement` | Developer |
-| `/project:security-review` | Security & Privacy |
-| `/project:accessibility-review` | Accessibility Specialist |
-| `/project:code-quality-review` | Code Quality Reviewer |
-| `/project:qa-review` | QA/Tester |
-| `/project:devops-review` | DevOps/Infrastructure |
-| `/project:ux-writing-review` | UX Writer |
-| `/project:legal-review` | Legal/Compliance |
-| `/project:multi-agent-review` | Full Workflow |
+| Agent | How to Invoke |
+|-------|---------------|
+| Product Manager | *"Act as the PM agent and review this feature"* |
+| Architect | *"Act as the Architect agent and review this design"* |
+| Developer | *"Act as the Developer agent and implement this"* |
+| Security & Privacy | *"Act as the Security agent and review this code"* |
+| Accessibility Specialist | *"Act as the Accessibility agent and review this UI"* |
+| Code Quality Reviewer | *"Act as the Code Quality agent and review this PR"* |
+| QA/Tester | *"Act as the QA agent and identify test cases"* |
+| DevOps/Infrastructure | *"Act as the DevOps agent and review this pipeline"* |
+| UX Writer | *"Act as the UX Writer agent and review this copy"* |
+| Legal/Compliance | *"Act as the Legal agent and review this for POPA compliance"* |
+
+**Multi-agent review:** *"Run a multi-agent review using PM, Security, and Accessibility perspectives"*
 
 ---
 
 ## Overview
 
-This document defines 10 specialized agents for the multi-agent consensus development approach. Each agent has a specific role, expertise domain, and review criteria. Agents are invoked via custom slash commands in Claude Code.
+This document defines 10 specialized agents for the multi-agent consensus development approach. Each agent has a specific role, expertise domain, and review criteria. Agents are invoked by asking your AI assistant to adopt the persona described below.
 
 ### Agent Orchestration Workflow
 

@@ -194,6 +194,17 @@ export interface TrackTripOutput {
   error?: ToolError;
 }
 
+// ============= AUDIT LOGGING TYPES =============
+
+export interface AuditLogEntry {
+  action: string; // Action type (e.g., 'session_accessed', 'trip_booked')
+  result: 'success' | 'failure'; // Operation result
+  sessionIdHash?: string; // Hashed session ID (no raw IDs)
+  errorCode?: string; // Error code if failure
+  privacyPolicyVersion?: string; // For consent tracking
+  timestamp?: string; // ISO 8601 timestamp (auto-added by logger)
+}
+
 // ============= LOCATION TYPES =============
 
 export interface SavedLocation {
@@ -325,9 +336,4 @@ export type AuditAction =
   | 'login_success'
   | 'login_failure';
 
-export interface AuditLogEntry {
-  timestamp: string;
-  action: AuditAction;
-  result: 'success' | 'failure';
-  errorCode?: string;
-}
+// Duplicate AuditLogEntry removed - see line 199-206

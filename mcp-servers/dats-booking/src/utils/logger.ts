@@ -63,11 +63,18 @@ class Logger {
   /**
    * Audit log for security-relevant events
    * Contains no PII - only action types and results
+   * POPA COMPLIANCE: Logs session access, consent, and deletion events
    */
   audit(entry: AuditLogEntry): void {
-    const message = `AUDIT: ${entry.action} - ${entry.result}${
-      entry.errorCode ? ` (${entry.errorCode})` : ''
-    }`;
+    // Add timestamp if not present
+    const enrichedEntry = {
+      ...entry,
+      timestamp: entry.timestamp || new Date().toISOString(),
+    };
+    
+    const message = `AUDIT: ${enrichedEntry.action} - ${enrichedEntry.result}${
+      enrichedEntry.errorCode ? ` (${enrichedEntry.errorCode})` : ''
+    }${enrichedEntry.sessionIdHash ? ` [session: ${enrichedEntry.sessionIdHash}]` : ''}`;
     console.error(this.formatMessage('info', message));
   }
 }

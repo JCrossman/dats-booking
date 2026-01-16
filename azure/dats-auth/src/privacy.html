@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy Policy - DATS Booking Assistant</title>
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        line-height: 1.6;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+      }
+      
+      .privacy-container {
+        background: white;
+        border-radius: 16px;
+        padding: 40px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      }
+      
+      h1 {
+        color: #667eea;
+        margin-top: 0;
+        font-size: 2.5em;
+      }
+      
+      h2 {
+        color: #764ba2;
+        margin-top: 30px;
+        border-bottom: 2px solid #f0f0f0;
+        padding-bottom: 10px;
+      }
+      
+      h3 {
+        color: #667eea;
+        margin-top: 20px;
+      }
+      
+      .highlight {
+        background: #fffbea;
+        border-left: 4px solid #ffc107;
+        padding: 15px;
+        margin: 20px 0;
+        border-radius: 4px;
+      }
+      
+      .good-news {
+        background: #e8f5e9;
+        border-left: 4px solid #4caf50;
+        padding: 15px;
+        margin: 20px 0;
+        border-radius: 4px;
+      }
+      
+      ul, ol {
+        padding-left: 20px;
+      }
+      
+      li {
+        margin: 10px 0;
+      }
+      
+      .last-updated {
+        font-style: italic;
+        color: #666;
+        font-size: 0.9em;
+        margin-top: 40px;
+        padding-top: 20px;
+        border-top: 1px solid #ddd;
+      }
+      
+      a {
+        color: #667eea;
+        text-decoration: none;
+      }
+      
+      a:hover {
+        text-decoration: underline;
+      }
+      
+      code {
+        background: #f5f5f5;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: 'Courier New', monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="privacy-container">
+      <h1>🔒 Privacy Policy</h1>
+      <p><strong>DATS Accessible Booking Assistant</strong></p>
+
+      <div class="highlight">
+        <strong>TL;DR:</strong> We temporarily store an encrypted session cookie (not your password) in Azure Canada for 24 hours. You can delete it anytime with the <code>disconnect_account</code> command.
+      </div>
+
+      <h2>What Data We Collect</h2>
+      
+      <h3>When Using Remote Mode (Claude Mobile/Web)</h3>
+      <p>When you connect your DATS account through Claude mobile or web, we store:</p>
+      <ul>
+        <li><strong>Encrypted DATS session cookie</strong> - Allows us to make API calls to DATS on your behalf</li>
+        <li><strong>DATS client ID</strong> - Your DATS account identifier (e.g., "12345")</li>
+        <li><strong>Session timestamp</strong> - When your session was created</li>
+      </ul>
+
+      <div class="good-news">
+        <strong>✅ What we DON'T collect:</strong>
+        <ul>
+          <li>Your DATS username or passcode (entered directly in your browser, never sent to us)</li>
+          <li>Trip details (addresses, times, destinations - fetched in real-time from DATS)</li>
+          <li>Personal health information</li>
+          <li>Names, phone numbers, or other identifying information</li>
+          <li>Browsing history or device information</li>
+        </ul>
+      </div>
+
+      <h3>When Using Local Mode (Claude Desktop)</h3>
+      <p>When using Claude Desktop, all session data stays on your computer. Nothing is sent to our servers.</p>
+
+      <h2>How We Store Your Data</h2>
+      
+      <h3>Encryption</h3>
+      <ul>
+        <li><strong>Algorithm:</strong> AES-256-GCM (industry standard, same as banks)</li>
+        <li><strong>At rest:</strong> Session cookies encrypted before storage in Cosmos DB</li>
+        <li><strong>In transit:</strong> All connections use TLS 1.2+</li>
+      </ul>
+
+      <h3>Data Residency</h3>
+      <ul>
+        <li><strong>Location:</strong> Azure Canada Central (Toronto region)</li>
+        <li><strong>Compliance:</strong> Protection of Privacy Act (Alberta)</li>
+        <li><strong>Cross-border:</strong> Data never leaves Canada</li>
+      </ul>
+
+      <h3>Automatic Deletion</h3>
+      <ul>
+        <li><strong>Time-to-Live (TTL):</strong> 24 hours</li>
+        <li><strong>Mechanism:</strong> Cosmos DB automatic cleanup</li>
+        <li><strong>No backups:</strong> Once deleted, sessions are permanently gone</li>
+      </ul>
+
+      <h2>Why We Store This Data</h2>
+      <p>Session cookies enable:</p>
+      <ol>
+        <li><strong>Booking trips</strong> through Claude mobile/web without re-entering credentials</li>
+        <li><strong>Viewing your trips</strong> across multiple conversations</li>
+        <li><strong>Real-time tracking</strong> of your DATS vehicles</li>
+      </ol>
+      
+      <p><strong>Legal basis:</strong> Your explicit consent (POPA Section 7)</p>
+
+      <h2>Your Rights Under POPA</h2>
+      
+      <h3>1. Right to Access</h3>
+      <p>You can request a copy of the data we store about you. Email: <a href="mailto:privacy@dats-booking.ca">privacy@dats-booking.ca</a></p>
+      
+      <h3>2. Right to Delete</h3>
+      <p>Delete your session anytime:</p>
+      <ul>
+        <li><strong>Immediately:</strong> Use <code>disconnect_account</code> command</li>
+        <li><strong>Automatically:</strong> Wait 24 hours for TTL expiration</li>
+      </ul>
+      
+      <h3>3. Right to Withdraw Consent</h3>
+      <p>Disconnect your account to withdraw consent. You'll need to re-consent if you want to use the service again.</p>
+      
+      <h3>4. Right to Correct</h3>
+      <p>Session data is temporary and read-only. For corrections to your DATS account info, contact DATS directly.</p>
+
+      <h2>Audit Logging</h2>
+      <p>We log security-relevant events for accountability:</p>
+      <ul>
+        <li>Consent given/withdrawn</li>
+        <li>Session created/deleted</li>
+        <li>Authentication attempts</li>
+      </ul>
+      
+      <div class="highlight">
+        <strong>⚠️ No Personal Information in Logs:</strong> Audit logs contain only hashed session IDs, timestamps, and action types. No names, addresses, or trip details.
+      </div>
+
+      <h2>Third-Party Services</h2>
+      
+      <h3>Azure (Microsoft)</h3>
+      <ul>
+        <li><strong>Purpose:</strong> Cloud hosting (Container Apps, Cosmos DB)</li>
+        <li><strong>Data shared:</strong> Encrypted sessions only</li>
+        <li><strong>Location:</strong> Canada Central</li>
+        <li><strong>Privacy policy:</strong> <a href="https://privacy.microsoft.com" target="_blank">privacy.microsoft.com</a></li>
+      </ul>
+      
+      <h3>DATS (City of Edmonton)</h3>
+      <ul>
+        <li><strong>Purpose:</strong> Booking, trip management</li>
+        <li><strong>Data shared:</strong> Your credentials (entered directly, not via us)</li>
+        <li><strong>Privacy policy:</strong> <a href="https://www.edmonton.ca/privacy" target="_blank">edmonton.ca/privacy</a></li>
+      </ul>
+      
+      <div class="good-news">
+        <strong>✅ We do NOT share your data with:</strong>
+        <ul>
+          <li>Anthropic (Claude) - they never see your DATS credentials or session cookies</li>
+          <li>Analytics companies</li>
+          <li>Advertisers</li>
+          <li>Data brokers</li>
+        </ul>
+      </div>
+
+      <h2>Data Breach Notification</h2>
+      <p>In the unlikely event of a data breach:</p>
+      <ol>
+        <li>We will notify affected users within 72 hours (POPA requirement)</li>
+        <li>We will notify the Alberta Privacy Commissioner</li>
+        <li>We will provide details of what was compromised and mitigation steps</li>
+      </ol>
+      
+      <p><strong>Contact for breach reports:</strong> <a href="mailto:security@dats-booking.ca">security@dats-booking.ca</a></p>
+
+      <h2>Children's Privacy</h2>
+      <p>This service is designed for adults who are eligible for DATS services. We do not knowingly collect data from individuals under 18.</p>
+
+      <h2>Changes to This Policy</h2>
+      <p>We may update this privacy policy to reflect changes in our practices or legal requirements. We will notify users of material changes through the service.</p>
+      
+      <p><strong>Version:</strong> 1.0<br>
+      <strong>Effective Date:</strong> January 16, 2026</p>
+
+      <h2>Contact Us</h2>
+      <p>Questions, concerns, or requests:</p>
+      <ul>
+        <li><strong>Email:</strong> <a href="mailto:privacy@dats-booking.ca">privacy@dats-booking.ca</a></li>
+        <li><strong>POPA requests:</strong> <a href="mailto:popa@dats-booking.ca">popa@dats-booking.ca</a></li>
+        <li><strong>Security issues:</strong> <a href="mailto:security@dats-booking.ca">security@dats-booking.ca</a></li>
+      </ul>
+
+      <h2>Legal Framework</h2>
+      <p>This service complies with:</p>
+      <ul>
+        <li><strong>Protection of Privacy Act (Alberta)</strong> - Provincial privacy law</li>
+        <li><strong>Freedom of Information and Protection of Privacy Act (FOIP)</strong> - Public sector transparency</li>
+        <li><strong>Canadian Anti-Spam Legislation (CASL)</strong> - Electronic communications</li>
+      </ul>
+
+      <div class="last-updated">
+        <p><strong>Last Updated:</strong> January 16, 2026</p>
+        <p><strong>Document ID:</strong> PRIVACY-POLICY-v1.0</p>
+        <p><a href="/">← Back to Login</a></p>
+      </div>
+    </div>
+  </body>
+</html>

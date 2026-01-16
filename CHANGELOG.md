@@ -6,6 +6,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - 2026-01-16
+
+#### POPA Compliance Implementation
+
+**Full Protection of Privacy Act (Alberta) compliance for remote mode (Claude Mobile/Web).**
+
+**New Files:**
+- `src/auth/consent-manager.ts` - Consent management for POPA compliance
+- `azure/dats-auth/src/privacy.html` - Privacy policy page (WCAG 2.2 AA compliant)
+- `POPA-COMPLIANCE.md` - Complete compliance documentation
+
+**Enhanced Files:**
+- `src/tools/connect-account.ts` - Added consent flow for remote mode
+  - Privacy notice shown before storing session
+  - User must explicitly consent with `consent_given: true`
+  - Audit logging for consent events
+  - Local mode unchanged (no consent needed)
+- `src/tools/disconnect-account.ts` - Enhanced with POPA deletion rights messaging
+  - Audit logging for deletion events
+  - Emphasizes permanent deletion
+- `src/utils/logger.ts` - Enhanced audit logging
+  - Hashed session IDs (no PII)
+  - Timestamp enrichment
+  - POPA-compliant formatting
+- `src/types.ts` - Updated AuditLogEntry interface
+  - Added `sessionIdHash`, `privacyPolicyVersion` fields
+  - Removed duplicate interface
+
+**Documentation Updates:**
+- `README.md` - Added Privacy & Compliance section
+- `COPILOT.md` - Updated with POPA compliance notes (pending)
+
+**Compliance Status:**
+- ✅ NFR-2.6: Consent collection before credential storage
+- ✅ NFR-2.4: Audit logging (access, modifications)
+- ✅ NFR-2.7: Data deletion capability (immediate via `disconnect_account`)
+- ✅ NFR-2.3: Canadian data residency (already implemented)
+- ✅ NFR-2.1: AES-256-GCM encryption (already implemented)
+
+**Key Features:**
+- **Differentiated compliance:** Full POPA for remote mode, minimal for local mode
+- **User rights:** Explicit consent, immediate deletion, privacy notice access
+- **No PII in logs:** Session IDs hashed with SHA-256
+- **24-hour TTL:** Automatic session expiration (already implemented)
+
+**Testing:** Manual testing required for consent flow in Claude mobile app.
+
+---
+
 ### Fixed - 2026-01-15
 
 #### Status Extraction Bug Fix

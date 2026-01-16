@@ -43,10 +43,34 @@ Note: Encryption keys are auto-generated and stored locally. No environment vari
 Credentials are **never** sent to Claude or Anthropic. Instead:
 
 1. User asks to connect their DATS account
-2. Browser opens to a secure Azure-hosted login page
-3. User enters credentials directly in the browser
-4. Azure authenticates with DATS and returns a session cookie
-5. Session cookie is stored locally (encrypted) for API calls
+2. **Remote mode (Claude Mobile/Web):** User is shown a privacy notice and must consent before proceeding (POPA compliance)
+3. Browser opens to a secure Azure-hosted login page
+4. User enters credentials directly in the browser
+5. Azure authenticates with DATS and returns a session cookie
+6. Session cookie is stored (locally for Desktop, encrypted in Azure Canada for Mobile/Web)
+7. **Data retention:** 24-hour automatic deletion, or immediate deletion via `disconnect_account`
+
+### Privacy & Compliance
+
+**POPA Compliance (Alberta):**
+- ✅ Explicit consent required before storing sessions (remote mode)
+- ✅ Data stored in Azure Canada Central (Canadian residency)
+- ✅ AES-256-GCM encryption at rest
+- ✅ 24-hour automatic deletion (TTL)
+- ✅ User right to delete data anytime (`disconnect_account`)
+- ✅ Audit logging (no PII)
+- ✅ Privacy policy: [View Policy](https://dats-mcp-auth.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/privacy)
+
+**What We Store (Remote Mode Only):**
+- Encrypted DATS session cookie (enables booking)
+- DATS client ID (technical identifier)
+- Session timestamp
+
+**What We DON'T Store:**
+- Your DATS username/password (entered in browser, never transmitted)
+- Trip details (fetched in real-time from DATS)
+- Personal health information
+- Names, addresses, phone numbers
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐

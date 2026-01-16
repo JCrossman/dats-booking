@@ -28,6 +28,17 @@ param location string = 'canadacentral'
 @description('Container image to deploy')
 param containerImage string = 'ghcr.io/your-org/dats-mcp:latest'
 
+@description('Container Registry Server')
+param containerRegistryServer string = ''
+
+@description('Container Registry Username')
+@secure()
+param containerRegistryUsername string = ''
+
+@description('Container Registry Password')
+@secure()
+param containerRegistryPassword string = ''
+
 @secure()
 @description('Encryption key for Cosmos DB session data')
 param cosmosEncryptionKey string
@@ -64,6 +75,22 @@ resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
       name: 'PerGB2018'
     }
     retentionInDays: 30
+  }
+}
+
+// ============= APPLICATION INSIGHTS =============
+
+resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
+  name: '${resourcePrefix}-insights'
+  location: location
+  tags: tags
+  kind: 'web'
+  properties: {
+    Application_Type: 'web'
+    WorkspaceResourceId: logAnalytics.id
+    RetentionInDays: 30
+    publicNetworkAccessForIngestion: 'Enabled'
+    publicNetworkAccessForQuery: 'Enabled'
   }
 }
 
@@ -197,8 +224,18 @@ resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
           name: 'cosmos-encryption-key'
           value: cosmosEncryptionKey
         }
+        {
+          name: 'container-registry-password'
+          value: containerRegistryPassword
+        }
       ]
-      registries: []
+      registries: !empty(containerRegistryServer) ? [
+        {
+          server: containerRegistryServer
+          username: containerRegistryUsername
+          passwordSecretRef: 'container-registry-password'
+        }
+      ] : []
     }
     template: {
       containers: [
@@ -218,9 +255,12 @@ resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
             { name: 'COSMOS_CONTAINER', value: cosmosContainer.name }
             { name: 'COSMOS_ENCRYPTION_KEY', secretRef: 'cosmos-encryption-key' }
             { name: 'AZURE_CLIENT_ID', value: managedIdentity.properties.clientId }
-            // Auth URL must be explicit - CONTAINER_APP_HOSTNAME returns revision-specific hostname
-            { name: 'DATS_AUTH_URL', value: 'https://${resourcePrefix}-app.${containerAppEnvironment.properties.defaultDomain}' }
+            // Auth URL points to Static Web App for OAuth callback
+            { name: 'DATS_AUTH_URL', value: 'https://green-sky-0e461ed10.1.azurestaticapps.net' }
             { name: 'LOG_LEVEL', value: environment == 'prod' ? 'info' : 'debug' }
+            // Application Insights
+            { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
+            { name: 'APPINSIGHTS_INSTRUMENTATIONKEY', value: appInsights.properties.InstrumentationKey }
           ]
           probes: [
             {

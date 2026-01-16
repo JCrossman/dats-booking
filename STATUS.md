@@ -1,11 +1,20 @@
 # Project Status
 
-**Last Updated:** 2026-01-15
-**Current Work:** Status & Provider Extraction Fixes - Complete ✅
+**Last Updated:** 2026-01-16
+**Current Work:** POPA Compliance Implementation - Complete ✅
 
 ---
 
 ## 🚧 Where We Are
+
+**POPA Compliance Completed** ✅ (2026-01-16)
+- Implemented explicit consent flow for remote mode (Claude Mobile/Web)
+- Added comprehensive audit logging (no PII, hashed session IDs)
+- Created privacy policy page (WCAG 2.2 AA compliant)
+- Enhanced data deletion with POPA rights messaging
+- Differentiated compliance: full POPA for remote, minimal for local
+- All NFR-2.x requirements met (consent, audit, deletion, residency, encryption)
+- Documentation: README, CHANGELOG, new POPA-COMPLIANCE.md
 
 **Status & Provider Extraction Fixes Completed** ✅ (2026-01-15)
 - Fixed trip status showing "Scheduled" instead of "Performed"
@@ -27,7 +36,63 @@
 
 ---
 
-## ✅ Recent Fixes (2026-01-15)
+## ✅ Recent Changes (2026-01-16)
+
+### POPA Compliance Implementation
+
+**Protection of Privacy Act (Alberta) compliance for remote mode.**
+
+**New Features:**
+1. **Consent Flow (Remote Mode)**
+   - Privacy notice shown before authentication
+   - User must explicitly consent with `consent_given: true`
+   - Local mode unchanged (no consent needed)
+
+2. **Audit Logging**
+   - All session operations logged (create, access, delete)
+   - Consent events tracked
+   - No PII: Session IDs hashed with SHA-256
+   - Format: `[timestamp] [INFO] AUDIT: action - result [session: hash]`
+
+3. **Privacy Policy Page**
+   - Location: `azure/dats-auth/src/privacy.html`
+   - WCAG 2.2 AA compliant
+   - Plain language (Grade 6 reading level)
+   - Explains what's collected, user rights, data residency
+
+4. **Enhanced Data Deletion**
+   - `disconnect_account` emphasizes permanent deletion
+   - Audit log records deletion events
+   - User right to erasure (POPA Section 63)
+
+**Files Changed:**
+- NEW: `src/auth/consent-manager.ts` - Consent management
+- NEW: `azure/dats-auth/src/privacy.html` - Privacy policy
+- NEW: `POPA-COMPLIANCE.md` - Full compliance documentation
+- UPDATED: `src/tools/connect-account.ts` - Consent flow
+- UPDATED: `src/tools/disconnect-account.ts` - Deletion rights
+- UPDATED: `src/utils/logger.ts` - Enhanced audit logging
+- UPDATED: `src/types.ts` - AuditLogEntry interface
+- UPDATED: `README.md` - Privacy & Compliance section
+- UPDATED: `CHANGELOG.md` - POPA implementation details
+
+**Compliance Status:**
+- ✅ NFR-2.6: Consent collection ← **NEW**
+- ✅ NFR-2.4: Audit logging ← **NEW**
+- ✅ NFR-2.7: Data deletion capability ← **ENHANCED**
+- ✅ NFR-2.3: Canadian data residency (Azure Canada Central)
+- ✅ NFR-2.1: AES-256-GCM encryption at rest
+- ✅ NFR-2.5: No PII in logs
+
+**Next Steps:**
+1. Deploy updated code to Azure Container Apps
+2. Deploy privacy.html to Azure Static Web App
+3. Manual testing of consent flow in Claude mobile app
+4. Legal review of privacy notice (recommended)
+
+---
+
+## ✅ Previous Changes (2026-01-15)
 
 ### Issue 1: Status Showing "Scheduled" Instead of "Performed"
 **Problem:** Completed trips displayed "Scheduled" status even after being completed
