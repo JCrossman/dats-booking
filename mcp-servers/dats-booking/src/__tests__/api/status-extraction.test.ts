@@ -27,11 +27,11 @@ const COMPLETED_TRIP_XML = `
     <EventsInfo>
       <SchedStatus>P</SchedStatus>
       <SchedStatusF>Performed</SchedStatusF>
-      <EventsProviderInfo>
-        <ProviderName>PRESTIGE</ProviderName>
-        <Description>PRESTIGE TRANSPORTATION</Description>
-      </EventsProviderInfo>
     </EventsInfo>
+    <EventsProviderInfo>
+      <ProviderName>PRESTIGE</ProviderName>
+      <Description>PRESTIGE TRANSPORTATION</Description>
+    </EventsProviderInfo>
   </PickUpLeg>
   <DropOffLeg>
     <LegDescrAddrOn>160 STREET NW</LegDescrAddrOn>
@@ -59,11 +59,11 @@ const SCHEDULED_TRIP_XML = `
     <EventsInfo>
       <SchedStatus>S</SchedStatus>
       <SchedStatusF>Scheduled</SchedStatusF>
-      <EventsProviderInfo>
-        <ProviderName>DATS</ProviderName>
-        <Description>DATS TRANSIT</Description>
-      </EventsProviderInfo>
     </EventsInfo>
+    <EventsProviderInfo>
+      <ProviderName>DATS</ProviderName>
+      <Description>DATS TRANSIT</Description>
+    </EventsProviderInfo>
   </PickUpLeg>
   <DropOffLeg>
     <LegDescrAddrOn>105 AVENUE NW</LegDescrAddrOn>
@@ -145,13 +145,11 @@ describe('Status Extraction Fix', () => {
 
   describe('extracting provider info from EventsProviderInfo', () => {
     it('should extract provider name from completed trip', () => {
+      // EventsProviderInfo is a sibling of EventsInfo, both inside PickUpLeg
       const pickupMatch = COMPLETED_TRIP_XML.match(/<PickUpLeg[^>]*>([\s\S]*?)<\/PickUpLeg>/);
       const pickupXml = pickupMatch ? pickupMatch[1] : '';
 
-      const eventsInfoMatch = pickupXml.match(/<EventsInfo[^>]*>([\s\S]*?)<\/EventsInfo>/);
-      const eventsInfoXml = eventsInfoMatch ? eventsInfoMatch[1] : '';
-
-      const providerInfoMatch = eventsInfoXml.match(/<EventsProviderInfo[^>]*>([\s\S]*?)<\/EventsProviderInfo>/);
+      const providerInfoMatch = pickupXml.match(/<EventsProviderInfo[^>]*>([\s\S]*?)<\/EventsProviderInfo>/);
       const providerInfoXml = providerInfoMatch ? providerInfoMatch[1] : '';
 
       const providerName = extractXml(providerInfoXml, 'ProviderName');
@@ -162,13 +160,11 @@ describe('Status Extraction Fix', () => {
     });
 
     it('should extract DATS provider info from scheduled trip', () => {
+      // EventsProviderInfo is a sibling of EventsInfo, both inside PickUpLeg
       const pickupMatch = SCHEDULED_TRIP_XML.match(/<PickUpLeg[^>]*>([\s\S]*?)<\/PickUpLeg>/);
       const pickupXml = pickupMatch ? pickupMatch[1] : '';
 
-      const eventsInfoMatch = pickupXml.match(/<EventsInfo[^>]*>([\s\S]*?)<\/EventsInfo>/);
-      const eventsInfoXml = eventsInfoMatch ? eventsInfoMatch[1] : '';
-
-      const providerInfoMatch = eventsInfoXml.match(/<EventsProviderInfo[^>]*>([\s\S]*?)<\/EventsProviderInfo>/);
+      const providerInfoMatch = pickupXml.match(/<EventsProviderInfo[^>]*>([\s\S]*?)<\/EventsProviderInfo>/);
       const providerInfoXml = providerInfoMatch ? providerInfoMatch[1] : '';
 
       const providerName = extractXml(providerInfoXml, 'ProviderName');

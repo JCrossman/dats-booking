@@ -1179,8 +1179,8 @@ export class DATSApi {
       }
       const status = schedStatusF.toLowerCase();
 
-      // Extract provider info from EventsProviderInfo (within EventsInfo)
-      const providerInfoMatch = eventsInfoXml.match(/<EventsProviderInfo[^>]*>([\s\S]*?)<\/EventsProviderInfo>/);
+      // Extract provider info from EventsProviderInfo (sibling of EventsInfo, within PickUpLeg)
+      const providerInfoMatch = pickupXml.match(/<EventsProviderInfo[^>]*>([\s\S]*?)<\/EventsProviderInfo>/);
       const providerInfoXml = providerInfoMatch ? providerInfoMatch[1] : '';
       const providerName = this.extractXml(providerInfoXml, 'ProviderName') || undefined;
       const providerDescription = this.extractXml(providerInfoXml, 'Description') || undefined;

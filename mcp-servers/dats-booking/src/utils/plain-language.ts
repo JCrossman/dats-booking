@@ -57,7 +57,7 @@ export function formatTripsForUser(trips: Trip[]): string {
     return 'You have no upcoming trips.';
   }
 
-  return `You have ${trips.length} ${trips.length === 1 ? 'trip' : 'trips'}. Display them in a table with columns: Date, Time, From, To, Status, Confirmation.`;
+  return `You have ${trips.length} ${trips.length === 1 ? 'trip' : 'trips'}. Display them in a table with columns: Date, Time, From, To, Status, Provider, Confirmation.`;
 }
 
 /**
@@ -361,14 +361,15 @@ export function formatAvailabilityForUser(
 export const PLAIN_LANGUAGE_GUIDELINES = `
 IMPORTANT - HOW TO DISPLAY TRIPS:
 When displaying trips, YOU MUST format them as a markdown table using the "trips" array data.
-Use these columns: Date, Time, From, To, Status, Confirmation
+Use these columns: Date, Time, From, To, Status, Provider, Confirmation
 
 Example output format:
-| Date | Time | From | To | Status | Confirmation |
-|------|------|------|-----|--------|--------------|
-| Tue, Jan 13, 2026 | 2:30 PM-3:00 PM | McNally High School | 9713 160 St NW | Scheduled | 18789349 |
+| Date | Time | From | To | Status | Provider | Confirmation |
+|------|------|------|-----|--------|----------|--------------|
+| Tue, Jan 13, 2026 | 2:30 PM-3:00 PM | McNally High School | 9713 160 St NW | Performed | PRESTIGE | 18789349 |
 
 For dates: Use the date field exactly as provided (it includes day of week). Do NOT modify or recalculate dates.
 For addresses: Use title case (not ALL CAPS). Show the full address from pickupAddress/destinationAddress fields.
 For status: Use the statusLabel field (e.g., "Scheduled", "Performed", "Cancelled").
+For provider: Use the providerName field if available. Show "DATS" if not specified.
 `.trim();
