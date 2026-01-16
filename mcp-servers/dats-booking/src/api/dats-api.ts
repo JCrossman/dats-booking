@@ -1156,10 +1156,6 @@ export class DATSApi {
       const creationConfNum = this.extractXml(xml, 'CreationConfirmationNumber');
       const date = this.extractXml(xml, 'DateF') || this.extractXml(xml, 'RawDate');
 
-      // Get status from API (SchedStatusF is the primary status field)
-      const schedStatusF = this.extractXml(xml, 'SchedStatusF');
-      const status = schedStatusF.toLowerCase();
-
       // Parse pickup leg
       const pickupMatch = xml.match(/<PickUpLeg[^>]*>([\s\S]*?)<\/PickUpLeg>/);
       const pickupXml = pickupMatch ? pickupMatch[1] : '';
@@ -1167,6 +1163,26 @@ export class DATSApi {
       // Parse dropoff leg
       const dropoffMatch = xml.match(/<DropOffLeg[^>]*>([\s\S]*?)<\/DropOffLeg>/);
       const dropoffXml = dropoffMatch ? dropoffMatch[1] : '';
+
+      // CRITICAL FIX: Get status from EventsInfo within PickUpLeg, NOT from top-level SchedStatusF
+      // The top-level SchedStatusF may show "Scheduled" even for completed trips
+      // The actual trip status is in PickUpLeg.EventsInfo.SchedStatusF (e.g., "Performed")
+      const eventsInfoMatch = pickupXml.match(/<EventsInfo[^>]*>([\s\S]*?)<\/EventsInfo>/);
+      const eventsInfoXml = eventsInfoMatch ? eventsInfoMatch[1] : '';
+
+      // Try to get status from EventsInfo first, fall back to top-level SchedStatusF
+      let schedStatusF = this.extractXml(eventsInfoXml, 'SchedStatusF');
+      if (!schedStatusF) {
+        // Fallback to top-level status (for trips without EventsInfo)
+        schedStatusF = this.extractXml(xml, 'SchedStatusF');
+      }
+      const status = schedStatusF.toLowerCase();
+
+      // Extract provider info from EventsProviderInfo (within EventsInfo)
+      const providerInfoMatch = eventsInfoXml.match(/<EventsProviderInfo[^>]*>([\s\S]*?)<\/EventsProviderInfo>/);
+      const providerInfoXml = providerInfoMatch ? providerInfoMatch[1] : '';
+      const providerName = this.extractXml(providerInfoXml, 'ProviderName') || undefined;
+      const providerDescription = this.extractXml(providerInfoXml, 'Description') || undefined;
 
       // Pickup times
       const schEarly = parseInt(this.extractXml(pickupXml, 'SchEarly'), 10);
@@ -1226,6 +1242,8 @@ export class DATSApi {
         pickupComments,
         dropoffComments,
         fare,
+        providerName,
+        providerDescription,
       };
     } catch {
       return null;

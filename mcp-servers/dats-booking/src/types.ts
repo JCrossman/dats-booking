@@ -131,6 +131,9 @@ export interface Trip {
   pickupComments?: string;
   dropoffComments?: string;
   fare?: string;
+  // Provider information
+  providerName?: string; // Service provider (e.g., "PRESTIGE", "DATS")
+  providerDescription?: string; // Provider description
 }
 
 export interface GetTripsOutput {

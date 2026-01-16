@@ -43,8 +43,10 @@ When user says "Thursday", pass "thursday" directly - the server will calculate 
 
 TRIP DATA INCLUDES:
 - Date, pickup window, pickup/destination addresses (full addresses)
-- Status (Scheduled, Performed, Cancelled, etc.)
+- Status (Scheduled, Performed, Cancelled, etc.) from EventsInfo
+- Provider name and description (e.g., "PRESTIGE", "DATS")
 - Mobility device, passengers, phone numbers, fare
+- Pickup and dropoff comments/instructions
 
 FILTERING OPTIONS:
 - By default: Today's trips (all statuses) + future Scheduled trips only
