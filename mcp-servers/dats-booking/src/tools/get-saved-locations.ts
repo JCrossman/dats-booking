@@ -50,6 +50,23 @@ Each location includes:
 - Contact phone (if registered)
 - Usage information (if frequent)
 
+PRESENTATION INSTRUCTIONS:
+When showing locations to the user, format as a clean numbered list:
+
+**Example:**
+You have 14 saved locations:
+
+1. **Client Home**
+   📍 9713 160 Street NW, Edmonton, AB T5P3C9
+
+2. **McNally Senior High School**
+   📍 8440 105 Avenue NW, Edmonton, AB T6A1B6
+
+3. **Address**
+   📍 8882 170 Street NW, Edmonton, AB T5R4H5
+
+DO NOT show raw pipe-delimited tables or JSON. Use numbered list with bold names and address on new line.
+
 Use this for:
 - Address autocomplete with user's history
 - "Select from your saved locations"
@@ -85,13 +102,14 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
             const locations = await api.getClientLocationsMerged(session.clientId);
 
             // Format locations for user display
-            const formattedLocations = locations.map(loc => {
+            const formattedLocations = locations.map((loc, index) => {
               const address = `${loc.streetNo} ${loc.onStreet}${loc.unit ? ` Unit ${loc.unit}` : ''}`;
               const cityState = `${loc.city}, ${loc.state} ${loc.zipCode}`;
 
               return {
+                number: index + 1,
                 type: loc.source.toLowerCase(),
-                name: loc.addrName || loc.addrDescr,
+                name: loc.addrName || loc.addrDescr || 'Address',
                 address,
                 cityState,
                 fullAddress: `${address}, ${cityState}`,
@@ -105,21 +123,24 @@ ${PLAIN_LANGUAGE_GUIDELINES}`,
               };
             });
 
-            // Create markdown table for display
-            const locationRows = formattedLocations.map(loc => {
-              const pickupInstructions = loc.comments ? `📍 ${loc.comments}` : '';
-              const phone = loc.phone ? `📞 ${loc.phone}` : '';
-              const details = [pickupInstructions, phone].filter(Boolean).join(' • ');
-
-              return `| ${loc.name} | ${loc.fullAddress} | ${loc.source} | ${details || '-'} |`;
+            // Create clean numbered list
+            const locationList = formattedLocations.map(loc => {
+              let entry = `${loc.number}. **${loc.name}**\n   📍 ${loc.fullAddress}`;
+              
+              if (loc.comments) {
+                entry += `\n   💬 ${loc.comments}`;
+              }
+              if (loc.phone) {
+                entry += `\n   📞 ${loc.phone}`;
+              }
+              
+              return entry;
             });
 
             const userMessage =
               locations.length > 0
-                ? `Found ${locations.length} saved location${locations.length === 1 ? '' : 's'}:\n\n` +
-                  `| Name | Address | Source | Details |\n` +
-                  `|------|---------|--------|----------|\n` +
-                  locationRows.join('\n')
+                ? `You have ${locations.length} saved location${locations.length === 1 ? '' : 's'}:\n\n` +
+                  locationList.join('\n\n')
                 : 'No saved locations found in your DATS profile.';
 
             return {

@@ -59,8 +59,24 @@ STATUS CODES:
 - S = Scheduled, U = Unscheduled, A = Arrived, Pn = Pending
 - Pf = Performed, CA = Cancelled, NS = No Show, NM = Missed, R = Refused
 
-The response includes a "userMessage" field with trips formatted as a markdown table.
-You should display this userMessage to the user as-is.
+The response includes structured trip data.
+
+PRESENTATION INSTRUCTIONS:
+Display trips as a clean numbered list with each trip showing:
+- **Date & Time**: Day and pickup window
+- **Route**: From → To (full addresses)
+- **Status**: Clear status (Scheduled, Performed, Cancelled)
+- **Provider**: Company name
+- **Confirmation**: If available
+
+Example format:
+1. **Thursday, Jan 23 • 8:30 AM - 9:00 AM** ✅ Scheduled
+   🚗 DATS
+   📍 From: 9713 160 Street NW, Edmonton
+   📍 To: 8440 105 Avenue NW, Edmonton
+   🎫 Confirmation: #12345
+
+DO NOT show raw JSON or pipe-delimited tables.
 
 **FOR ACTIVE/CURRENT TRIPS:** If a trip is happening NOW or within 60 minutes,
 ALSO use the track_trip tool to get real-time details (vehicle location, driver name, ETA).
