@@ -12,6 +12,7 @@
 
 import type { CosmosSessionStore } from './cosmos-session-store.js';
 import { logger } from '../utils/logger.js';
+import crypto from 'crypto';
 
 export interface ConsentRecord {
   sessionId: string;
@@ -95,7 +96,6 @@ You can withdraw consent at any time by using 'disconnect_account'.`;
    */
   private hashSessionId(sessionId: string): string {
     // Simple hash for audit logs - prevents PII in logs
-    const crypto = require('crypto');
     return crypto.createHash('sha256').update(sessionId).digest('hex').substring(0, 16);
   }
 }

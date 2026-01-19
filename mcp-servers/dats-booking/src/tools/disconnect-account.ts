@@ -16,6 +16,7 @@ import { ErrorCategory } from '../types.js';
 import { wrapError, createErrorResponse } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import type { ToolRegistration } from './types.js';
+import crypto from 'crypto';
 
 export interface DisconnectAccountDependencies {
   sessionManager: SessionManager;
@@ -27,7 +28,6 @@ export interface DisconnectAccountDependencies {
  * Hash session ID for audit logging (prevents PII in logs)
  */
 function hashSessionId(sessionId: string): string {
-  const crypto = require('crypto');
   return crypto.createHash('sha256').update(sessionId).digest('hex').substring(0, 16);
 }
 
