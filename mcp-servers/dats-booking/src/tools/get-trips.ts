@@ -31,7 +31,9 @@ export function createGetTripsTool(deps: GetTripsDependencies): ToolRegistration
     register(server: McpServer) {
       server.tool(
         'get_trips',
-        `Retrieve DATS trips. By default shows today's trips (all statuses) plus future Scheduled trips.
+        `Retrieve DATS trips (bookings/rides). By default shows today's trips (all statuses) plus future Scheduled trips.
+
+NOTE: DATS uses "trips" not "appointments". This tool shows scheduled rides, not medical appointments.
 
 DATE FORMATS ACCEPTED:
 - YYYY-MM-DD (e.g., "2026-01-15")

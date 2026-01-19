@@ -31,6 +31,16 @@ export function createGetProfileTool(deps: GetProfileDependencies): ToolRegistra
         'get_profile',
         `Get your DATS client profile including personal info, contact details, and mobility aids.
 
+PROFILE DATA INCLUDES:
+- Personal information (name, address, phone)
+- Contact details (emergency contacts, multiple phone numbers)
+- Mobility aids and space requirements
+- Saved locations (registered addresses + frequently used places)
+
+NOT AVAILABLE:
+- Communication preferences (use MCP settings)
+- Account statements or billing history (DATS handles separately)
+
 REMOTE MODE: Include session_id from connect_account/complete_connection.`,
         {
           session_id: z

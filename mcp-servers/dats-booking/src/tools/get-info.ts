@@ -15,7 +15,20 @@ export function createGetInfoTool(): ToolRegistration {
     register(server: McpServer) {
       server.tool(
         'get_info',
-        'Get DATS general information including service description, fares, and privacy policy.',
+        `Get DATS general information including service description, fares, and privacy policy.
+
+AVAILABLE INFORMATION:
+- General service information
+- Fare structure
+- Privacy policy
+- Service description
+
+NOT AVAILABLE (out of scope):
+- Account statements or transaction history (DATS handles billing separately)
+- Payment processing (handled by DATS directly, not through this system)
+- Communication preferences (use MCP tool settings, not portal data)
+
+Note: DATS uses "trips" not "appointments". For scheduled trips, use get_trips.`,
         {
           topic: z
             .enum(['general', 'fares', 'privacy', 'service', 'all'])
