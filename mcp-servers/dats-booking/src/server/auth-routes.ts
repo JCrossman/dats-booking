@@ -193,116 +193,132 @@ export function createAuthRouter(): Router {
 
   // POST /api/auth/login
   router.post('/login', async (req: Request, res: Response) => {
-    // Rate limiting
-    const clientIp = (req.headers['x-forwarded-for'] as string) || req.ip || 'unknown';
-    const now = Date.now();
-    const rateLimit = rateLimitMap.get(clientIp);
+    try {
+      // Rate limiting
+      const clientIp = (req.headers['x-forwarded-for'] as string) || req.ip || 'unknown';
+      const now = Date.now();
+      const rateLimit = rateLimitMap.get(clientIp);
 
-    if (rateLimit) {
-      if (now > rateLimit.resetAt) {
-        rateLimitMap.set(clientIp, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-      } else if (rateLimit.count >= RATE_LIMIT_MAX_REQUESTS) {
-        logger.warn(`Rate limit exceeded for IP`);
-        res.status(429).json({
-          success: false,
-          error: 'Too many requests. Please wait a minute and try again.',
-        });
-        return;
+      if (rateLimit) {
+        if (now > rateLimit.resetAt) {
+          rateLimitMap.set(clientIp, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+        } else if (rateLimit.count >= RATE_LIMIT_MAX_REQUESTS) {
+          logger.warn(`Rate limit exceeded for IP`);
+          res.status(429).json({
+            success: false,
+            error: 'Too many requests. Please wait a minute and try again.',
+          });
+          return;
+        } else {
+          rateLimit.count++;
+        }
       } else {
-        rateLimit.count++;
+        rateLimitMap.set(clientIp, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
       }
-    } else {
-      rateLimitMap.set(clientIp, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    }
 
-    const { sessionId, clientId, passcode } = req.body;
+      const { sessionId, clientId, passcode } = req.body;
 
-    // Validate required fields
-    if (!sessionId || !clientId || !passcode) {
-      res.status(400).json({ success: false, error: 'Missing required fields.' });
-      return;
-    }
+      // Validate required fields
+      if (!sessionId || !clientId || !passcode) {
+        res.status(400).json({ success: false, error: 'Missing required fields.' });
+        return;
+      }
 
-    // Validate sessionId format (UUID)
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(sessionId)) {
-      res.status(400).json({ success: false, error: 'Invalid session ID.' });
-      return;
-    }
+      // Validate sessionId format (UUID)
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(sessionId)) {
+        res.status(400).json({ success: false, error: 'Invalid session ID.' });
+        return;
+      }
 
-    // Create pending session
-    pendingSessions.set(sessionId, { status: 'pending', createdAt: Date.now() });
-    logger.info(`Auth attempt for session: ${sessionId.substring(0, 8)}...`);
+      // Create pending session
+      pendingSessions.set(sessionId, { status: 'pending', createdAt: Date.now() });
+      logger.info(`Auth attempt for session: ${sessionId.substring(0, 8)}...`);
 
-    // Authenticate with DATS
-    const result = await loginToDATS(clientId, passcode);
+      // Authenticate with DATS
+      const result = await loginToDATS(clientId, passcode);
 
-    // Update session with result
-    if (result.success) {
-      pendingSessions.set(sessionId, {
-        status: 'success',
-        sessionCookie: result.sessionCookie,
-        clientId: result.clientId,
-        createdAt: Date.now(),
+      // Update session with result
+      if (result.success) {
+        pendingSessions.set(sessionId, {
+          status: 'success',
+          sessionCookie: result.sessionCookie,
+          clientId: result.clientId,
+          createdAt: Date.now(),
+        });
+        logger.info(`Auth success for session: ${sessionId.substring(0, 8)}...`);
+      } else {
+        pendingSessions.set(sessionId, {
+          status: 'failed',
+          error: result.error,
+          createdAt: Date.now(),
+        });
+        logger.info(`Auth failed for session: ${sessionId.substring(0, 8)}...`);
+      }
+
+      res.json({
+        success: result.success,
+        error: result.success ? undefined : result.error,
       });
-      logger.info(`Auth success for session: ${sessionId.substring(0, 8)}...`);
-    } else {
-      pendingSessions.set(sessionId, {
-        status: 'failed',
-        error: result.error,
-        createdAt: Date.now(),
+    } catch (error) {
+      logger.error('Unexpected error in login handler', error as Error);
+      res.status(500).json({
+        success: false,
+        error: 'Something went wrong. Please try again.',
       });
-      logger.info(`Auth failed for session: ${sessionId.substring(0, 8)}...`);
     }
-
-    res.json({
-      success: result.success,
-      error: result.success ? undefined : result.error,
-    });
   });
 
   // GET /api/auth/status/:sessionId
   router.get('/status/:sessionId', (req: Request, res: Response) => {
-    const { sessionId } = req.params;
+    try {
+      const { sessionId } = req.params;
 
-    // Validate sessionId format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(sessionId)) {
-      res.status(400).json({ status: 'error', error: 'Invalid session ID format.' });
-      return;
-    }
+      // Validate sessionId format
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(sessionId)) {
+        res.status(400).json({ status: 'error', error: 'Invalid session ID format.' });
+        return;
+      }
 
-    const session = pendingSessions.get(sessionId);
+      const session = pendingSessions.get(sessionId);
 
-    if (!session) {
-      res.status(404).json({ status: 'not_found', error: 'Session not found or expired.' });
-      return;
-    }
+      if (!session) {
+        res.status(404).json({ status: 'not_found', error: 'Session not found or expired.' });
+        return;
+      }
 
-    // Check if expired
-    if (Date.now() - session.createdAt > SESSION_TTL_MS) {
-      pendingSessions.delete(sessionId);
-      res.status(404).json({ status: 'not_found', error: 'Session expired.' });
-      return;
-    }
-
-    switch (session.status) {
-      case 'pending':
-        res.status(202).json({ status: 'pending' });
-        break;
-      case 'success':
-        // Consume the session (one-time use)
+      // Check if expired
+      if (Date.now() - session.createdAt > SESSION_TTL_MS) {
         pendingSessions.delete(sessionId);
-        res.json({
-          status: 'success',
-          sessionCookie: session.sessionCookie,
-          clientId: session.clientId,
-        });
-        break;
-      case 'failed':
-        pendingSessions.delete(sessionId);
-        res.json({ status: 'failed', error: session.error });
-        break;
+        res.status(404).json({ status: 'not_found', error: 'Session expired.' });
+        return;
+      }
+
+      switch (session.status) {
+        case 'pending':
+          res.status(202).json({ status: 'pending' });
+          break;
+        case 'success':
+          // Consume the session (one-time use)
+          pendingSessions.delete(sessionId);
+          res.json({
+            status: 'success',
+            sessionCookie: session.sessionCookie,
+            clientId: session.clientId,
+          });
+          break;
+        case 'failed':
+          pendingSessions.delete(sessionId);
+          res.json({ status: 'failed', error: session.error });
+          break;
+      }
+    } catch (error) {
+      logger.error('Unexpected error in status handler', error as Error);
+      res.status(500).json({
+        status: 'error',
+        error: 'Something went wrong. Please try again.',
+      });
     }
   });
 
