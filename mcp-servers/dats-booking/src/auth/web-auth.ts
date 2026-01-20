@@ -33,9 +33,9 @@ function resolveAuthBaseUrl(): string {
       const protocol = host.includes('localhost') ? 'http' : 'https';
       return `${protocol}://${host}`;
     }
-    // Fallback to known Container App hostname for dev environment
+    // Fallback to production Container App hostname
     // This ensures auth happens on the same server as API calls (same IP)
-    return 'https://dats-mcp-dev-app.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io';
+    return 'https://dats-mcp-app.whitewater-072cffec.canadacentral.azurecontainerapps.io';
   }
 
   // Default to Azure Static Web App for local/stdio mode
