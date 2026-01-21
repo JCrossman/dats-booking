@@ -8,6 +8,7 @@ import { ErrorCategory, TRIP_STATUSES, type Trip, type TripPassenger, type BookT
 import { buildSoapRequest, callSoapApi, escapeXml } from './utils/soap-builder.js';
 import { extractXml, extractAllXml, extractXmlWithAttributes } from './utils/xml-parser.js';
 import { secondsToTime, timeToSeconds, formatDate, formatDateDisplay } from './utils/formatters.js';
+import { AuthService } from './services/auth-service.js';
 
 export interface DATSApiOptions {
   sessionCookie: string;
@@ -87,9 +88,11 @@ export interface CancelTripResult {
  */
 export class DATSApi {
   private sessionCookie: string;
+  private authService: AuthService;
 
   constructor(options: DATSApiOptions) {
     this.sessionCookie = options.sessionCookie;
+    this.authService = new AuthService({ sessionCookie: this.sessionCookie });
   }
 
   // ==================== AUTHENTICATION ====================
@@ -98,23 +101,14 @@ export class DATSApi {
    * Validate client credentials
    */
   async validatePassword(clientId: string, password: string): Promise<boolean> {
-    const soap = buildSoapRequest('PassValidatePassword', {
-      ClientId: clientId,
-      Password: password,
-    });
-
-    const response = await callSoapApi(soap, this.sessionCookie);
-    return response.includes('RESULTOK') || response.includes('<Valid>1</Valid>');
+    return this.authService.validatePassword(clientId, password);
   }
 
   /**
    * Log out the client
    */
   async logoff(clientId: string): Promise<void> {
-    const soap = buildSoapRequest('PassClientLogoff', {
-      ClientId: clientId,
-    });
-    await callSoapApi(soap, this.sessionCookie);
+    return this.authService.logoff(clientId);
   }
 
   // ==================== CLIENT INFO ====================
