@@ -145,7 +145,7 @@ function handleRemoteConsent(
   return {
     content: [
       {
-        type: 'text',
+        type: 'text' as const,
         text: JSON.stringify(
           {
             consent_required: true,
@@ -209,7 +209,7 @@ function createRemoteAuthResponse(authUrl: string, sessionId: string) {
   return {
     content: [
       {
-        type: 'text',
+        type: 'text' as const,
         text: JSON.stringify(
           {
             success: true,
@@ -298,7 +298,7 @@ async function handleLocalAuth(deps: ConnectAccountDependencies) {
   return {
     content: [
       {
-        type: 'text',
+        type: 'text' as const,
         text: JSON.stringify(
           {
             success: true,
