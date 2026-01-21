@@ -1,19 +1,15 @@
 /**
  * complete_connection Tool
  *
- * Completes connection process after browser authentication (remote mode only).
- * Usually not needed - connect_account now polls automatically in background.
- *
- * SECURITY: Stores session in Cosmos DB after validation.
+ * [DEPRECATED] This tool is no longer used - connect_account handles auth automatically.
+ * Returns error immediately if called.
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { CosmosSessionStore } from '../auth/cosmos-session-store.js';
-import { pollAuthResultRemote } from '../auth/web-auth.js';
 import { ErrorCategory } from '../types.js';
 import { wrapError, createErrorResponse } from '../utils/errors.js';
-import { logger } from '../utils/logger.js';
 import type { ToolRegistration } from './types.js';
 
 export interface CompleteConnectionDependencies {
@@ -21,23 +17,36 @@ export interface CompleteConnectionDependencies {
   isRemoteMode: () => boolean;
 }
 
-export function createCompleteConnectionTool(deps: CompleteConnectionDependencies): ToolRegistration {
+export function createCompleteConnectionTool(_deps: CompleteConnectionDependencies): ToolRegistration {
   return {
     register(server: McpServer) {
       server.tool(
         'complete_connection',
-        `Complete the connection process after authenticating in your browser.
+        `[DEPRECATED] This tool is NO LONGER NEEDED and should NOT be called.
 
-REMOTE MODE ONLY: This tool is usually NOT needed - connect_account now polls automatically in the background.
-Only use this if the automatic polling timed out or you need to manually complete an old session.`,
+In remote mode, connect_account now handles authentication automatically with background polling.
+When the user says "done", just retry their original request with the session_id - don't call this tool.
+
+If you call this tool anyway, it will return an error immediately instead of hanging for 3 minutes.`,
         {
           session_id: z
             .string()
             .uuid()
             .describe('The session_id returned by connect_account'),
         },
-        async ({ session_id }) => {
+        async ({ session_id: _session_id }) => {
           try {
+            // This tool is deprecated - return error immediately
+            return createErrorResponse({
+              category: ErrorCategory.VALIDATION_ERROR,
+              message:
+                'complete_connection is deprecated. When user says "done", just retry their original request with the session_id. ' +
+                'Do NOT call this tool - it causes hangs. Example: get_trips({session_id: "..."})',
+              recoverable: true,
+            });
+
+            // Old implementation below (kept for reference, never reached)
+            /*
             // This tool only makes sense in remote mode, but handle gracefully
             if (!deps.isRemoteMode()) {
               return {
@@ -96,6 +105,7 @@ Only use this if the automatic polling timed out or you need to manually complet
                 },
               ],
             };
+            */
           } catch (error) {
             const datsError = wrapError(error);
             return createErrorResponse(datsError.toToolError());

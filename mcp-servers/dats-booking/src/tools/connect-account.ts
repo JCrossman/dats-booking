@@ -168,8 +168,12 @@ Use this tool when:
                         message:
                           'Open this URL to connect your DATS account. After entering your credentials, just say "done" or "connected" here.',
                         forAssistant:
-                          'Show the user the authUrl link. When they say they are done/connected, IMMEDIATELY retry their original request ' +
-                          'using the session_id. Do NOT ask them to repeat their request - just do what they originally asked.',
+                          'CRITICAL INSTRUCTIONS:\n' +
+                          '1. Display the authUrl link to the user\n' +
+                          '2. When user says "done"/"connected", wait 2-3 seconds for background polling to complete\n' +
+                          '3. Then IMMEDIATELY retry their ORIGINAL request using session_id (e.g., get_trips with session_id)\n' +
+                          '4. Do NOT call complete_connection - it is deprecated and causes hangs\n' +
+                          '5. Do NOT ask user to repeat their request - just execute it automatically',
                       },
                       null,
                       2
