@@ -603,6 +603,34 @@ The `connect_account` tool uses a secure web-based authentication flow:
 - Only temporary session tokens are stored locally
 - Sessions expire when DATS invalidates them (typically daily)
 
+### ⚠️ CRITICAL: Authentication Flow Implementation (2026-01-21)
+
+**Background Polling Pattern:**
+
+In remote mode (Claude Mobile/Web), `connect_account` starts background polling automatically. When the user says "done" or "connected", Claude should **immediately retry the original request** with the `session_id`, NOT call `complete_connection`.
+
+**DO NOT call `complete_connection`:**
+- ❌ It is **DEPRECATED** and causes 3-minute hangs
+- ❌ It polls for authentication result redundantly
+- ❌ Claude should NEVER call this tool
+
+**CORRECT behavior when user says "done":**
+1. Wait 2-3 seconds for background polling to complete
+2. Immediately retry the user's original request with `session_id`
+3. Example: User asked "show my trips" → called `get_trips({session_id: "..."})`
+
+**Why This Matters:**
+- Background polling in `connect_account` stores the session automatically
+- `complete_connection` re-polls the same endpoint, wasting 3 minutes
+- Causes terrible UX (user waits, thinks it's broken)
+- Was fixed 2026-01-21 by deprecating `complete_connection`
+
+**Implementation Notes:**
+- `connect_account` tool returns `forAssistant` instructions to guide Claude
+- Instructions explicitly tell Claude NOT to call `complete_connection`
+- `complete_connection` now returns immediate error if called
+- See `src/tools/complete-connection.ts` and `src/tools/connect-account.ts`
+
 ### Booking Options
 
 The `book_trip` tool supports:

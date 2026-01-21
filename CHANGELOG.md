@@ -4,6 +4,30 @@ All notable changes to the DATS Booking MCP Server will be documented in this fi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.1] - 2026-01-21 - Auth Hang Fix
+
+### Fixed
+
+**Critical: Authentication hang when user says "done" in Claude browser**
+- `complete_connection` tool now **deprecated** and returns immediate error
+  - Was causing 3-minute hangs when called after authentication
+  - Background polling in `connect_account` already handles session storage
+  - Claude was mistakenly calling this tool instead of retrying original request
+- Updated `connect_account` `forAssistant` instructions to be explicit:
+  - Wait 2-3 seconds for background polling to complete
+  - Do NOT call `complete_connection`
+  - Immediately retry original request with `session_id`
+- Fixed user experience: Auth now completes in seconds instead of hanging
+
+### Changed
+
+**Documentation Updates**
+- `COPILOT.md` - Added critical section on authentication flow and `complete_connection` deprecation
+- `README.md` - Added explicit "Deployment" section clarifying Azure infrastructure
+- `ARCHITECTURE.md` - Updated to reflect production status and SOAP API implementation
+- `AVAILABLE-FEATURES.md` - Marked `complete_connection` as deprecated
+- `ROADMAP.md` - Updated tool list with deprecation notice
+
 ## [1.0.0] - 2026-01-16 - Production Release
 
 ### 🚀 Production Deployment Complete

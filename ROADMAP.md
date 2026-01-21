@@ -58,15 +58,15 @@ This document tracks planned features and improvements. Items are derived from [
 - [x] **Background auth polling** - Automatic session storage
   - `connect_account` starts polling immediately when returning auth URL
   - Session stored automatically when user completes authentication
-  - `complete_connection` tool rarely needed (kept for backward compatibility)
+  - ~~`complete_connection`~~ **DEPRECATED 2026-01-21** (causes 3min hangs - do not use)
 - [x] **Auth URL fix** for Container Apps (explicit DATS_AUTH_URL env var)
 
 ## Completed (v1.0.0)
 
 - [x] Direct SOAP API integration (Trapeze PASS)
 - [x] MCP server with 10 tools:
-  - `connect_account` - Secure web-based authentication
-  - `complete_connection` - Complete auth in remote mode
+  - `connect_account` - Secure web-based authentication (with background polling)
+  - ~~`complete_connection`~~ - **DEPRECATED 2026-01-21** (do not use)
   - `disconnect_account` - Log out and clear session
   - `book_trip` - Create DATS bookings
   - `get_trips` - View upcoming trips

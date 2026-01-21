@@ -12,6 +12,26 @@ An MCP (Model Context Protocol) server that enables natural language booking of 
 - **Trip Management**: View upcoming trips, cancel bookings, intelligent status display
 - **Accessibility First**: Designed for AAC devices, switch access, and screen readers
 
+## Deployment
+
+**Production Environment:** Deployed on Azure Container Apps in Canada Central region
+
+- **Container App:** `dats-mcp-app` (https://dats-mcp-app.whitewater-072cffec.canadacentral.azurecontainerapps.io)
+- **Auth Page:** Azure Static Web App (https://green-sky-0e461ed10.1.azurestaticapps.net)
+- **CI/CD:** Automated via GitHub Actions on push to `main` branch
+- **Monitoring:** Azure Application Insights (`dats-mcp-prod-insights`)
+- **Data Storage:** Azure Cosmos DB (encrypted, Canada Central, 24hr TTL)
+
+**Deployment Workflow:**
+1. Push to `main` branch
+2. GitHub Actions runs tests
+3. Builds Docker image
+4. Pushes to Azure Container Registry
+5. Updates Container App
+6. Verifies health endpoint
+
+See `CONTRIBUTING.md` for development workflow and `.github/workflows/deploy-to-azure.yml` for CI/CD configuration.
+
 ## Quick Start
 
 ### Claude Mobile/Web (Recommended)

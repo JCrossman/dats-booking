@@ -124,8 +124,8 @@ When a user asks for:
 - **"Transaction history"** → Inform: "Payment records aren't accessible. DATS bills separately."
 
 **Available tools:**
-- `connect_account` - Login
-- `complete_connection` - Finalize remote auth
+- `connect_account` - Login (includes automatic background polling in remote mode)
+- ~~`complete_connection`~~ - **DEPRECATED** (Do not use - causes hangs)
 - `disconnect_account` - Logout
 - `book_trip` - Schedule new trip
 - `get_trips` - View trips (past/future)
