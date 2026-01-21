@@ -71,173 +71,20 @@ Use this tool when:
         async ({ consent_given }) => {
           try {
             // Check if Azure auth endpoint is available
-            const authAvailable = await isWebAuthAvailable();
-            if (!authAvailable) {
-              return createErrorResponse({
-                category: ErrorCategory.NETWORK_ERROR,
-                message:
-                  'The secure login page is not available. Please check your internet connection and try again.',
-                recoverable: true,
-              });
-            }
+            const availabilityError = await checkAuthAvailability();
+            if (availabilityError) return availabilityError;
 
-            // Remote mode: Check consent first
+            // Remote mode: Check consent first, then authenticate
             if (deps.isRemoteMode()) {
-              // If consent not given, show privacy notice
-              if (!consent_given) {
-                const consentNotice = getConsentManager().getConsentNotice();
-                
-                logger.audit({
-                  action: 'consent_prompt_shown',
-                  result: 'success',
-                });
+              const consentResponse = handleRemoteConsent(consent_given, getConsentManager);
+              if (consentResponse) return consentResponse;
 
-                return {
-                  content: [
-                    {
-                      type: 'text',
-                      text: JSON.stringify(
-                        {
-                          consent_required: true,
-                          privacy_notice: consentNotice,
-                          message:
-                            'To use DATS booking on mobile/web, we need your consent to temporarily store your session in Azure Canada (encrypted, 24-hour expiration).',
-                          next_step:
-                            'Please read the privacy notice above. If you consent, call this tool again with consent_given: true',
-                          forAssistant:
-                            'Show the user the privacy notice. Ask if they consent to the data storage. If they say yes/agree/consent, ' +
-                            'call connect_account again with {consent_given: true}. If they decline, apologize and explain the service requires consent.',
-                        },
-                        null,
-                        2
-                      ),
-                    },
-                  ],
-                };
-              }
-
-              // Consent given - proceed with authentication
-              const authInit = initiateWebAuthRemote();
-
-              logger.audit({
-                action: 'consent_recorded',
-                result: 'success',
-                sessionIdHash: hashSessionId(authInit.sessionId),
-                privacyPolicyVersion: '1.0',
-              });
-
-              // Start background polling - session stored automatically when auth completes
-              pollAuthResultRemote(authInit.sessionId)
-                .then(async (result) => {
-                  if (result.success && result.sessionCookie && result.clientId) {
-                    await deps.getCosmosStore().store(authInit.sessionId, {
-                      sessionCookie: result.sessionCookie,
-                      clientId: result.clientId,
-                      createdAt: new Date().toISOString(),
-                    });
-                    
-                    logger.audit({
-                      action: 'session_stored',
-                      result: 'success',
-                      sessionIdHash: hashSessionId(authInit.sessionId),
-                    });
-                    
-                    logger.info(`Background auth completed: ${authInit.sessionId.substring(0, 8)}...`);
-                  }
-                })
-                .catch((err) => {
-                  logger.error(`Background polling error: ${err}`);
-                  logger.audit({
-                    action: 'session_storage_failed',
-                    result: 'failure',
-                    sessionIdHash: hashSessionId(authInit.sessionId),
-                    errorCode: 'polling_error',
-                  });
-                });
-
-              return {
-                content: [
-                  {
-                    type: 'text',
-                    text: JSON.stringify(
-                      {
-                        success: true,
-                        action: 'open_url',
-                        authUrl: authInit.authUrl,
-                        sessionId: authInit.sessionId,
-                        message:
-                          'Open this URL to connect your DATS account. After entering your credentials, just say "done" or "connected" here.',
-                        forAssistant:
-                          'CRITICAL INSTRUCTIONS:\n' +
-                          '1. Display the authUrl link to the user\n' +
-                          '2. When user says "done"/"connected", call check_connection({session_id: "..."}) FIRST\n' +
-                          '3. After check_connection returns success, IMMEDIATELY retry their ORIGINAL request\n' +
-                          '4. Example: User asked "show my trips" → check_connection → get_trips({session_id})\n' +
-                          '5. Do NOT call complete_connection - it is deprecated and causes hangs\n' +
-                          '6. Do NOT wait arbitrary time - check_connection handles the polling\n' +
-                          '7. Do NOT ask user to repeat their request - just execute it automatically',
-                      },
-                      null,
-                      2
-                    ),
-                  },
-                ],
-              };
+              // Consent given - proceed with remote authentication
+              return handleRemoteAuth(deps);
             }
 
             // Local mode: Open browser and wait for auth (no consent needed)
-            await deps.sessionManager.migrateFromCredentials();
-
-            logger.info('Starting web authentication flow');
-            logger.audit({
-              action: 'local_auth_started',
-              result: 'success',
-            });
-
-            const result = await initiateWebAuth();
-
-            if (!result.success || !result.sessionCookie || !result.clientId) {
-              logger.audit({
-                action: 'local_auth_failed',
-                result: 'failure',
-                errorCode: 'auth_failed',
-              });
-
-              return createErrorResponse({
-                category: ErrorCategory.AUTH_FAILURE,
-                message: result.error || 'Could not connect to your DATS account. Please try again.',
-                recoverable: true,
-              });
-            }
-
-            // Store the session (encrypted)
-            await deps.sessionManager.store({
-              sessionCookie: result.sessionCookie,
-              clientId: result.clientId,
-              createdAt: new Date().toISOString(),
-            });
-
-            logger.audit({
-              action: 'local_session_stored',
-              result: 'success',
-            });
-
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: JSON.stringify(
-                    {
-                      success: true,
-                      message:
-                        'Your DATS account is connected! Your credentials were NOT stored - only a temporary session token. You can now book trips, view upcoming trips, and more. Your session will expire when DATS invalidates it (typically daily).',
-                    },
-                    null,
-                    2
-                  ),
-                },
-              ],
-            };
+            return await handleLocalAuth(deps);
           } catch (error) {
             const datsError = wrapError(error);
             logger.audit({
@@ -258,4 +105,210 @@ Use this tool when:
  */
 function hashSessionId(sessionId: string): string {
   return crypto.createHash('sha256').update(sessionId).digest('hex').substring(0, 16);
+}
+
+/**
+ * Check if authentication endpoint is available
+ */
+async function checkAuthAvailability() {
+  const authAvailable = await isWebAuthAvailable();
+  if (!authAvailable) {
+    return createErrorResponse({
+      category: ErrorCategory.NETWORK_ERROR,
+      message:
+        'The secure login page is not available. Please check your internet connection and try again.',
+      recoverable: true,
+    });
+  }
+  return null;
+}
+
+/**
+ * Handle remote mode consent check and prompt
+ */
+function handleRemoteConsent(
+  consentGiven: boolean | undefined,
+  getConsentManager: () => ConsentManager
+) {
+  if (consentGiven) {
+    return null; // Consent given, proceed
+  }
+
+  // Show privacy notice
+  const consentNotice = getConsentManager().getConsentNotice();
+
+  logger.audit({
+    action: 'consent_prompt_shown',
+    result: 'success',
+  });
+
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify(
+          {
+            consent_required: true,
+            privacy_notice: consentNotice,
+            message:
+              'To use DATS booking on mobile/web, we need your consent to temporarily store your session in Azure Canada (encrypted, 24-hour expiration).',
+            next_step:
+              'Please read the privacy notice above. If you consent, call this tool again with consent_given: true',
+            forAssistant:
+              'Show the user the privacy notice. Ask if they consent to the data storage. If they say yes/agree/consent, ' +
+              'call connect_account again with {consent_given: true}. If they decline, apologize and explain the service requires consent.',
+          },
+          null,
+          2
+        ),
+      },
+    ],
+  };
+}
+
+/**
+ * Create background poller for remote authentication
+ */
+function createBackgroundPoller(
+  sessionId: string,
+  getCosmosStore: () => CosmosSessionStore
+) {
+  pollAuthResultRemote(sessionId)
+    .then(async (result) => {
+      if (result.success && result.sessionCookie && result.clientId) {
+        await getCosmosStore().store(sessionId, {
+          sessionCookie: result.sessionCookie,
+          clientId: result.clientId,
+          createdAt: new Date().toISOString(),
+        });
+
+        logger.audit({
+          action: 'session_stored',
+          result: 'success',
+          sessionIdHash: hashSessionId(sessionId),
+        });
+
+        logger.info(`Background auth completed: ${sessionId.substring(0, 8)}...`);
+      }
+    })
+    .catch((err) => {
+      logger.error(`Background polling error: ${err}`);
+      logger.audit({
+        action: 'session_storage_failed',
+        result: 'failure',
+        sessionIdHash: hashSessionId(sessionId),
+        errorCode: 'polling_error',
+      });
+    });
+}
+
+/**
+ * Create remote authentication response with URL
+ */
+function createRemoteAuthResponse(authUrl: string, sessionId: string) {
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify(
+          {
+            success: true,
+            action: 'open_url',
+            authUrl: authUrl,
+            sessionId: sessionId,
+            message:
+              'Open this URL to connect your DATS account. After entering your credentials, just say "done" or "connected" here.',
+            forAssistant:
+              'CRITICAL INSTRUCTIONS:\n' +
+              '1. Display the authUrl link to the user\n' +
+              '2. When user says "done"/"connected", call check_connection({session_id: "..."}) FIRST\n' +
+              '3. After check_connection returns success, IMMEDIATELY retry their ORIGINAL request\n' +
+              '4. Example: User asked "show my trips" → check_connection → get_trips({session_id})\n' +
+              '5. Do NOT call complete_connection - it is deprecated and causes hangs\n' +
+              '6. Do NOT wait arbitrary time - check_connection handles the polling\n' +
+              '7. Do NOT ask user to repeat their request - just execute it automatically',
+          },
+          null,
+          2
+        ),
+      },
+    ],
+  };
+}
+
+/**
+ * Handle remote mode authentication flow
+ */
+function handleRemoteAuth(deps: ConnectAccountDependencies) {
+  const authInit = initiateWebAuthRemote();
+
+  logger.audit({
+    action: 'consent_recorded',
+    result: 'success',
+    sessionIdHash: hashSessionId(authInit.sessionId),
+    privacyPolicyVersion: '1.0',
+  });
+
+  // Start background polling - session stored automatically when auth completes
+  createBackgroundPoller(authInit.sessionId, deps.getCosmosStore);
+
+  return createRemoteAuthResponse(authInit.authUrl, authInit.sessionId);
+}
+
+/**
+ * Handle local mode authentication flow
+ */
+async function handleLocalAuth(deps: ConnectAccountDependencies) {
+  await deps.sessionManager.migrateFromCredentials();
+
+  logger.info('Starting web authentication flow');
+  logger.audit({
+    action: 'local_auth_started',
+    result: 'success',
+  });
+
+  const result = await initiateWebAuth();
+
+  if (!result.success || !result.sessionCookie || !result.clientId) {
+    logger.audit({
+      action: 'local_auth_failed',
+      result: 'failure',
+      errorCode: 'auth_failed',
+    });
+
+    return createErrorResponse({
+      category: ErrorCategory.AUTH_FAILURE,
+      message: result.error || 'Could not connect to your DATS account. Please try again.',
+      recoverable: true,
+    });
+  }
+
+  // Store the session (encrypted)
+  await deps.sessionManager.store({
+    sessionCookie: result.sessionCookie,
+    clientId: result.clientId,
+    createdAt: new Date().toISOString(),
+  });
+
+  logger.audit({
+    action: 'local_session_stored',
+    result: 'success',
+  });
+
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify(
+          {
+            success: true,
+            message:
+              'Your DATS account is connected! Your credentials were NOT stored - only a temporary session token. You can now book trips, view upcoming trips, and more. Your session will expire when DATS invalidates it (typically daily).',
+          },
+          null,
+          2
+        ),
+      },
+    ],
+  };
 }
