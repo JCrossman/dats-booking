@@ -24,6 +24,8 @@ const PLAIN_LANGUAGE_ERRORS: Record<ErrorCategory, string> = {
     'Something was not right with your request. Please check the details and try again.',
   [ErrorCategory.NETWORK_ERROR]:
     'Could not connect to DATS. Please check your internet and try again.',
+  [ErrorCategory.STORAGE_ERROR]:
+    'Could not save or load your information. Please try again.',
   [ErrorCategory.RATE_LIMITED]:
     'Too many requests. Please wait a moment and try again.',
   [ErrorCategory.SYSTEM_ERROR]:
