@@ -5,9 +5,9 @@
 
 import { logger } from '../utils/logger.js';
 import { ErrorCategory, TRIP_STATUSES, type Trip, type TripPassenger, type BookTripInput, type BookTripOutput, type PickupWindow, type TripStatusCode, type TrackTripOutput, type VehicleInfo, type EventTrackingInfo } from '../types.js';
-
-const PASS_INFO_SERVER_URL = 'https://datsonlinebooking.edmonton.ca/PassInfoServer';
-const PASS_INFO_SERVER_ASYNC_URL = 'https://datsonlinebooking.edmonton.ca/PassInfoServerAsync';
+import { buildSoapRequest, callSoapApi, escapeXml } from './utils/soap-builder.js';
+import { extractXml, extractAllXml, extractXmlWithAttributes } from './utils/xml-parser.js';
+import { secondsToTime, timeToSeconds, formatDate, formatDateDisplay } from './utils/formatters.js';
 
 export interface DATSApiOptions {
   sessionCookie: string;
@@ -98,12 +98,12 @@ export class DATSApi {
    * Validate client credentials
    */
   async validatePassword(clientId: string, password: string): Promise<boolean> {
-    const soap = this.buildSoapRequest('PassValidatePassword', {
+    const soap = buildSoapRequest('PassValidatePassword', {
       ClientId: clientId,
       Password: password,
     });
 
-    const response = await this.callApi(soap);
+    const response = await callSoapApi(soap, this.sessionCookie);
     return response.includes('RESULTOK') || response.includes('<Valid>1</Valid>');
   }
 
@@ -111,10 +111,10 @@ export class DATSApi {
    * Log out the client
    */
   async logoff(clientId: string): Promise<void> {
-    const soap = this.buildSoapRequest('PassClientLogoff', {
+    const soap = buildSoapRequest('PassClientLogoff', {
       ClientId: clientId,
     });
-    await this.callApi(soap);
+    await callSoapApi(soap, this.sessionCookie);
   }
 
   // ==================== CLIENT INFO ====================
@@ -123,11 +123,11 @@ export class DATSApi {
    * Get client profile information
    */
   async getClientInfo(clientId: string): Promise<ClientInfo | null> {
-    const soap = this.buildSoapRequest('PassGetClientInfo', {
+    const soap = buildSoapRequest('PassGetClientInfo', {
       ClientId: clientId,
     });
 
-    const response = await this.callApi(soap);
+    const response = await callSoapApi(soap, this.sessionCookie);
     return this.parseClientInfo(response);
   }
 
@@ -135,11 +135,11 @@ export class DATSApi {
    * Get client contact information including emergency contacts
    */
   async getContactInfo(clientId: string): Promise<ContactInfo | null> {
-    const soap = this.buildSoapRequest('PassGetClientContactInfo', {
+    const soap = buildSoapRequest('PassGetClientContactInfo', {
       ClientId: clientId,
     });
 
-    const response = await this.callApi(soap);
+    const response = await callSoapApi(soap, this.sessionCookie);
     logger.debug(`getContactInfo raw response: ${response.substring(0, 500)}`);
     return this.parseContactInfo(response, clientId);
   }
@@ -187,11 +187,11 @@ export class DATSApi {
    * NEW: Discovered from HAR analysis - PassGetClientLocationsMerged
    */
   async getClientLocationsMerged(clientId: string): Promise<import('../types.js').SavedLocation[]> {
-    const soap = this.buildSoapRequest('PassGetClientLocationsMerged', {
+    const soap = buildSoapRequest('PassGetClientLocationsMerged', {
       ClientId: clientId,
     });
 
-    const response = await this.callApi(soap);
+    const response = await callSoapApi(soap, this.sessionCookie);
     logger.debug(`getClientLocationsMerged raw response: ${response.substring(0, 500)}`);
     return this.parseClientLocationsMerged(response);
   }
@@ -200,9 +200,9 @@ export class DATSApi {
    * Get all available mobility aids
    */
   async getMobilityAids(): Promise<Array<{ code: string; description: string }>> {
-    const soap = this.buildSoapRequest('PassGetAllMobilityAids', {});
+    const soap = buildSoapRequest('PassGetAllMobilityAids', {});
 
-    const response = await this.callApi(soap);
+    const response = await callSoapApi(soap, this.sessionCookie);
     return this.parseMobilityAids(response);
   }
 
@@ -213,19 +213,19 @@ export class DATSApi {
    */
   async getClientTrips(clientId: string, fromDate?: string, toDate?: string): Promise<Trip[]> {
     const today = new Date();
-    const defaultFromDate = this.formatDate(today);
+    const defaultFromDate = formatDate(today);
     const futureDate = new Date(today);
     futureDate.setUTCMonth(futureDate.getUTCMonth() + 2);
-    const defaultToDate = this.formatDate(futureDate);
+    const defaultToDate = formatDate(futureDate);
 
-    const soap = this.buildSoapRequest('PassGetClientTrips', {
+    const soap = buildSoapRequest('PassGetClientTrips', {
       ClientId: clientId,
       FromDate: fromDate || defaultFromDate,
       ToDate: toDate || defaultToDate,
       SchTypeId: '1',
     });
 
-    const response = await this.callApi(soap);
+    const response = await callSoapApi(soap, this.sessionCookie);
     return this.parseTrips(response);
   }
 
@@ -234,13 +234,13 @@ export class DATSApi {
    * NEW: Discovered from HAR analysis - PassGetMostFrequentClientTrips
    */
   async getMostFrequentClientTrips(clientId: string, fromDate: string): Promise<import('../types.js').FrequentTrip[]> {
-    const soap = this.buildSoapRequest('PassGetMostFrequentClientTrips', {
+    const soap = buildSoapRequest('PassGetMostFrequentClientTrips', {
       OutputVersion: '2',
       FromDate: fromDate,
       ClientId: clientId,
     });
 
-    const response = await this.callApi(soap);
+    const response = await callSoapApi(soap, this.sessionCookie);
     return this.parseMostFrequentClientTrips(response);
   }
 
@@ -251,12 +251,12 @@ export class DATSApi {
    * NEW: Updated from HAR analysis with proper parameters
    */
   async getBookingDaysWindow(requestedTimeType: 'pickup' | 'dropoff' = 'pickup'): Promise<import('../types.js').BookingDaysWindow> {
-    const soap = this.buildSoapRequest('PassBookingDaysWindow', {
+    const soap = buildSoapRequest('PassBookingDaysWindow', {
       RequestedTimeType: requestedTimeType,
       CalendarDay: '1',
     });
 
-    const response = await this.callApi(soap);
+    const response = await callSoapApi(soap, this.sessionCookie);
     return this.parseBookingDaysWindow(response);
   }
 
@@ -272,7 +272,7 @@ export class DATSApi {
     dropoffLon: number,
     requestedTimeType: 'pickup' | 'dropoff' = 'pickup'
   ): Promise<import('../types.js').BookingTimesWindow> {
-    const soap = this.buildSoapRequest('PassBookingTimesWindow', {
+    const soap = buildSoapRequest('PassBookingTimesWindow', {
       CalendarDay: '1',
       Date: date,
       FirstBookingTime: '0',
@@ -287,7 +287,7 @@ export class DATSApi {
       },
     });
 
-    const response = await this.callApi(soap);
+    const response = await callSoapApi(soap, this.sessionCookie);
     return this.parseBookingTimesWindow(response);
   }
 
@@ -296,12 +296,12 @@ export class DATSApi {
    * NEW: Discovered from HAR analysis - PassGetDefaultBooking
    */
   async getDefaultBooking(clientId: string, date: string): Promise<import('../types.js').DefaultBooking> {
-    const soap = this.buildSoapRequest('PassGetDefaultBooking', {
+    const soap = buildSoapRequest('PassGetDefaultBooking', {
       Date: date,
       ClientId: clientId,
     });
 
-    const response = await this.callApi(soap);
+    const response = await callSoapApi(soap, this.sessionCookie);
     return this.parseDefaultBooking(response);
   }
 
@@ -382,7 +382,7 @@ export class DATSApi {
     confirmationNumber?: string;
     error?: string;
   }> {
-    const pickupTime = this.timeToSeconds(details.pickupTime);
+    const pickupTime = timeToSeconds(details.pickupTime);
 
     // Geocode the destination address using Nominatim
     const destGeo = await this.geocodeAddress(details.destinationAddress);
@@ -397,12 +397,12 @@ export class DATSApi {
     }
 
     // Format phone numbers for XML (empty string if not provided)
-    const pickupPhone = details.pickupPhone ? this.escapeXml(details.pickupPhone) : '';
-    const dropoffPhone = details.dropoffPhone ? this.escapeXml(details.dropoffPhone) : '';
+    const pickupPhone = details.pickupPhone ? escapeXml(details.pickupPhone) : '';
+    const dropoffPhone = details.dropoffPhone ? escapeXml(details.dropoffPhone) : '';
 
     // Format comments (empty string if not provided)
-    const pickupComments = details.pickupComments ? this.escapeXml(details.pickupComments) : '';
-    const dropoffComments = details.dropoffComments ? this.escapeXml(details.dropoffComments) : '';
+    const pickupComments = details.pickupComments ? escapeXml(details.pickupComments) : '';
+    const dropoffComments = details.dropoffComments ? escapeXml(details.dropoffComments) : '';
 
     // Determine space type based on mobility device
     const spaceType = details.mobilityDevice === 'wheelchair' ? 'WC' :
@@ -514,17 +514,17 @@ export class DATSApi {
   </SOAP-ENV:Body>
 </SOAP-ENV:Envelope>`;
 
-    const response = await this.callApi(soap);
+    const response = await callSoapApi(soap, this.sessionCookie);
 
     // Check for errors
     if (response.includes('<Type>error</Type>')) {
-      const errorMsg = this.extractXml(response, 'Message') || 'Unknown error';
+      const errorMsg = extractXml(response, 'Message') || 'Unknown error';
       logger.error(`PassCreateTrip error: ${errorMsg}`);
       return { error: errorMsg };
     }
 
-    const bookingId = this.extractXml(response, 'BookingId');
-    const confirmationNumber = this.extractXml(response, 'CreationConfirmationNumber');
+    const bookingId = extractXml(response, 'BookingId');
+    const confirmationNumber = extractXml(response, 'CreationConfirmationNumber');
 
     return { bookingId, confirmationNumber };
   }
@@ -619,11 +619,11 @@ export class DATSApi {
   </SOAP-ENV:Body>
 </SOAP-ENV:Envelope>`;
 
-    const response = await this.callApi(soap);
+    const response = await callSoapApi(soap, this.sessionCookie);
 
     // Check for errors
     if (response.includes('<Type>error</Type>')) {
-      const errorMsg = this.extractXml(response, 'Message') || 'Unknown error';
+      const errorMsg = extractXml(response, 'Message') || 'Unknown error';
       logger.error(`PassScheduleTrip error: ${errorMsg}`);
       throw new Error(`DATS API error: ${errorMsg}`);
     }
@@ -636,24 +636,24 @@ export class DATSApi {
       pickupWindow: PickupWindow;
     }> = [];
 
-    const scheduleId = this.extractXml(response, 'ScheduleId');
-    const solutionSetNumber = this.extractXml(response, 'SolutionSetNumber');
+    const scheduleId = extractXml(response, 'ScheduleId');
+    const solutionSetNumber = extractXml(response, 'SolutionSetNumber');
 
     const solutionRegex = /<PassTripSolution>([\s\S]*?)<\/PassTripSolution>/g;
     let match;
 
     while ((match = solutionRegex.exec(response)) !== null) {
       const solXml = match[1];
-      const earlyTime = parseInt(this.extractXml(solXml, 'EarlyTime'), 10);
-      const lateTime = parseInt(this.extractXml(solXml, 'LateTime'), 10);
+      const earlyTime = parseInt(extractXml(solXml, 'EarlyTime'), 10);
+      const lateTime = parseInt(extractXml(solXml, 'LateTime'), 10);
 
       solutions.push({
-        solutionNumber: this.extractXml(solXml, 'SolutionNumber'),
+        solutionNumber: extractXml(solXml, 'SolutionNumber'),
         solutionSetNumber,
         scheduleId,
         pickupWindow: {
-          start: this.secondsToTime(earlyTime),
-          end: this.secondsToTime(lateTime),
+          start: secondsToTime(earlyTime),
+          end: secondsToTime(lateTime),
         },
       });
     }
@@ -683,11 +683,11 @@ export class DATSApi {
   </SOAP-ENV:Body>
 </SOAP-ENV:Envelope>`;
 
-    const response = await this.callApi(soap);
+    const response = await callSoapApi(soap, this.sessionCookie);
 
     // Check for errors
     if (response.includes('<Type>error</Type>')) {
-      const errorMsg = this.extractXml(response, 'Message') || 'Unknown error';
+      const errorMsg = extractXml(response, 'Message') || 'Unknown error';
       logger.error(`PassSaveSolution error: ${errorMsg}`);
       return { success: false, error: errorMsg };
     }
@@ -704,13 +704,13 @@ export class DATSApi {
    * Cancel a trip
    */
   async cancelTrip(clientId: string, bookingId: string, reason?: string): Promise<CancelTripResult> {
-    const soap = this.buildSoapRequest('PassCancelTrip', {
+    const soap = buildSoapRequest('PassCancelTrip', {
       ClientId: clientId,
       BookingId: bookingId,
       CancellationReason: reason || '',
     });
 
-    const response = await this.callApi(soap);
+    const response = await callSoapApi(soap, this.sessionCookie);
     return this.parseCancelTripResponse(response);
   }
 
@@ -731,7 +731,7 @@ export class DATSApi {
   </SOAP-ENV:Body>
 </SOAP-ENV:Envelope>`;
 
-    const response = await this.callApi(soap, true); // Use async endpoint
+    const response = await callSoapApi(soap, this.sessionCookie, true); // Use async endpoint
     return this.parseTrackTripResponse(response, bookingId);
   }
 
@@ -761,7 +761,7 @@ export class DATSApi {
 
     while ((match = bookingRegex.exec(xml)) !== null) {
       const bXml = match[1];
-      const foundBookingId = this.extractXml(bXml, 'BookingId');
+      const foundBookingId = extractXml(bXml, 'BookingId');
 
       // If a specific booking was requested, find it
       if (requestedBookingId) {
@@ -791,7 +791,7 @@ export class DATSApi {
       };
     }
 
-    const bookingId = this.extractXml(bookingXml, 'BookingId');
+    const bookingId = extractXml(bookingXml, 'BookingId');
 
     // Parse pickup event
     const pickupMatch = bookingXml.match(/<Pickup[^>]*>([\s\S]*?)<\/Pickup>/);
@@ -807,15 +807,15 @@ export class DATSApi {
 
     // Get provider and run info from events
     const eventMatch = bookingXml.match(/<Event>([\s\S]*?)<\/Event>/);
-    const provider = eventMatch ? this.extractXml(eventMatch[1], 'ProviderName') : undefined;
-    const runName = eventMatch ? this.extractXml(eventMatch[1], 'RunName') : undefined;
+    const provider = eventMatch ? extractXml(eventMatch[1], 'ProviderName') : undefined;
+    const runName = eventMatch ? extractXml(eventMatch[1], 'RunName') : undefined;
 
     // Get address info from Events (more complete than Pickup/Dropoff)
     const eventsRegex = /<Event>([\s\S]*?)<\/Event>/g;
     let eventIdx = 0;
     while ((match = eventsRegex.exec(bookingXml)) !== null) {
       const eventXml = match[1];
-      const activity = this.extractXml(eventXml, 'Activity');
+      const activity = extractXml(eventXml, 'Activity');
       if (activity === 'PU' && !pickup.address) {
         pickup.address = this.formatEventAddress(eventXml);
       } else if (activity === 'DO' && !dropoff.address) {
@@ -824,8 +824,8 @@ export class DATSApi {
       eventIdx++;
     }
 
-    const lastCheckTime = this.extractXml(xml, 'lastCheckTime');
-    const lastChecked = lastCheckTime ? this.secondsToTime(Math.floor(parseInt(lastCheckTime, 10) / 1000)) : new Date().toISOString();
+    const lastCheckTime = extractXml(xml, 'lastCheckTime');
+    const lastChecked = lastCheckTime ? secondsToTime(Math.floor(parseInt(lastCheckTime, 10) / 1000)) : new Date().toISOString();
 
     return {
       success: true,
@@ -843,13 +843,13 @@ export class DATSApi {
    * Parse event tracking info from XML
    */
   private parseEventInfo(xml: string, _activity: 'PU' | 'DO'): EventTrackingInfo {
-    const estTime = parseInt(this.extractXml(xml, 'EstTime'), 10);
-    const eta = parseInt(this.extractXml(xml, 'ETA'), 10);
-    const lat = parseInt(this.extractXml(xml, 'Lat'), 10) / 1000000;
-    const lon = parseInt(this.extractXml(xml, 'Lon'), 10) / 1000000;
-    const actualArrive = parseInt(this.extractXml(xml, 'ActualArriveTime'), 10);
-    const actualDepart = parseInt(this.extractXml(xml, 'ActualDepartTime'), 10);
-    const isImminent = this.extractXml(xml, 'ImminentEvent') === '1';
+    const estTime = parseInt(extractXml(xml, 'EstTime'), 10);
+    const eta = parseInt(extractXml(xml, 'ETA'), 10);
+    const lat = parseInt(extractXml(xml, 'Lat'), 10) / 1000000;
+    const lon = parseInt(extractXml(xml, 'Lon'), 10) / 1000000;
+    const actualArrive = parseInt(extractXml(xml, 'ActualArriveTime'), 10);
+    const actualDepart = parseInt(extractXml(xml, 'ActualDepartTime'), 10);
+    const isImminent = extractXml(xml, 'ImminentEvent') === '1';
 
     // Determine status
     let status: 'scheduled' | 'arrived' | 'departed' | 'completed' = 'scheduled';
@@ -860,12 +860,12 @@ export class DATSApi {
     }
 
     return {
-      estimatedTime: estTime > 0 ? this.secondsToTime(estTime) : '',
-      eta: eta > 0 ? this.secondsToTime(eta) : '',
+      estimatedTime: estTime > 0 ? secondsToTime(estTime) : '',
+      eta: eta > 0 ? secondsToTime(eta) : '',
       location: { lat, lon },
       address: '', // Will be filled from Events section
-      actualArriveTime: actualArrive > 0 ? this.secondsToTime(actualArrive) : undefined,
-      actualDepartTime: actualDepart > 0 ? this.secondsToTime(actualDepart) : undefined,
+      actualArriveTime: actualArrive > 0 ? secondsToTime(actualArrive) : undefined,
+      actualDepartTime: actualDepart > 0 ? secondsToTime(actualDepart) : undefined,
       isImminent,
       status,
     };
@@ -875,20 +875,20 @@ export class DATSApi {
    * Parse vehicle info from XML
    */
   private parseVehicleInfo(xml: string): VehicleInfo {
-    const lat = parseInt(this.extractXml(xml, 'Lat'), 10) / 1000000;
-    const lon = parseInt(this.extractXml(xml, 'Lon'), 10) / 1000000;
-    const avlUpdateTime = parseInt(this.extractXml(xml, 'AVLUpdateTime'), 10);
+    const lat = parseInt(extractXml(xml, 'Lat'), 10) / 1000000;
+    const lon = parseInt(extractXml(xml, 'Lon'), 10) / 1000000;
+    const avlUpdateTime = parseInt(extractXml(xml, 'AVLUpdateTime'), 10);
 
     return {
-      vehicleNumber: this.extractXml(xml, 'VehicleNumber'),
-      make: this.extractXml(xml, 'Make'),
-      model: this.extractXml(xml, 'Model'),
-      description: this.extractXml(xml, 'Description'),
-      driverName: this.extractXml(xml, 'DriverName'),
-      driverBadgeNum: this.extractXml(xml, 'DriverBadgeNum'),
-      driverPhone: this.extractXml(xml, 'DriverPhone') || undefined,
+      vehicleNumber: extractXml(xml, 'VehicleNumber'),
+      make: extractXml(xml, 'Make'),
+      model: extractXml(xml, 'Model'),
+      description: extractXml(xml, 'Description'),
+      driverName: extractXml(xml, 'DriverName'),
+      driverBadgeNum: extractXml(xml, 'DriverBadgeNum'),
+      driverPhone: extractXml(xml, 'DriverPhone') || undefined,
       location: { lat, lon },
-      lastUpdate: avlUpdateTime > 0 ? this.secondsToTime(avlUpdateTime) : '',
+      lastUpdate: avlUpdateTime > 0 ? secondsToTime(avlUpdateTime) : '',
     };
   }
 
@@ -896,10 +896,10 @@ export class DATSApi {
    * Format address from event XML
    */
   private formatEventAddress(xml: string): string {
-    const streetNo = this.extractXml(xml, 'StreetNo');
-    const onStreet = this.extractXml(xml, 'OnStreet');
-    const city = this.extractXml(xml, 'City');
-    const state = this.extractXml(xml, 'State');
+    const streetNo = extractXml(xml, 'StreetNo');
+    const onStreet = extractXml(xml, 'OnStreet');
+    const city = extractXml(xml, 'City');
+    const state = extractXml(xml, 'State');
 
     if (!streetNo && !onStreet) return '';
     return `${streetNo} ${onStreet}, ${city}, ${state}`.trim();
@@ -919,112 +919,25 @@ export class DATSApi {
     };
   }
 
-  // ==================== HELPERS ====================
-
-  /**
-   * Build SOAP request XML
-   */
-  private buildSoapRequest(method: string, params: Record<string, unknown>): string {
-    const paramsXml = this.objectToXml(params);
-
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
-  <SOAP-ENV:Body>
-    <${method}>
-      ${paramsXml}
-    </${method}>
-  </SOAP-ENV:Body>
-</SOAP-ENV:Envelope>`;
-  }
-
-  /**
-   * Convert object to XML
-   */
-  private objectToXml(obj: Record<string, unknown>, indent = ''): string {
-    let xml = '';
-    for (const [key, value] of Object.entries(obj)) {
-      if (value === null || value === undefined) continue;
-
-      if (typeof value === 'object' && !Array.isArray(value)) {
-        xml += `${indent}<${key}>\n${this.objectToXml(value as Record<string, unknown>, indent + '  ')}${indent}</${key}>\n`;
-      } else {
-        xml += `${indent}<${key}>${value}</${key}>\n`;
-      }
-    }
-    return xml;
-  }
-
-  /**
-   * Call the SOAP API
-   */
-  private async callApi(soapBody: string, async = false): Promise<string> {
-    const url = async ? PASS_INFO_SERVER_ASYNC_URL : PASS_INFO_SERVER_URL;
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/xml;charset=UTF-8',
-          'Accept': 'application/json, text/plain, */*',
-          'Cookie': this.sessionCookie,
-        },
-        body: soapBody,
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.text();
-        logger.error(`SOAP API error: ${response.status} - ${errorBody.substring(0, 500)}`);
-        return '';
-      }
-
-      return await response.text();
-    } catch (error) {
-      logger.error('Failed to call SOAP API');
-      return '';
-    }
-  }
-
-  /**
-   * Extract XML value
-   */
-  private extractXml(xml: string, tag: string): string {
-    // Note: [^>]* allows for XML attributes like <Tag attr="value">
-    const match = xml.match(new RegExp(`<${tag}[^>]*>([^<]*)</${tag}>`));
-    return match ? match[1].trim() : '';
-  }
-
-  /**
-   * Extract all matches for a tag
-   */
-  private extractAllXml(xml: string, tag: string): string[] {
-    const regex = new RegExp(`<${tag}>([^<]*)</${tag}>`, 'g');
-    const matches: string[] = [];
-    let match;
-    while ((match = regex.exec(xml)) !== null) {
-      matches.push(match[1].trim());
-    }
-    return matches;
-  }
-
   // ==================== PARSERS ====================
 
   private parseClientInfo(xml: string): ClientInfo | null {
     if (!xml.includes('PassGetClientInfoResult')) return null;
 
     return {
-      clientId: this.extractXml(xml, 'ClientId'),
-      firstName: this.extractXml(xml, 'FirstName'),
-      lastName: this.extractXml(xml, 'LastName'),
-      phone: this.extractXml(xml, 'Phone'),
+      clientId: extractXml(xml, 'ClientId'),
+      firstName: extractXml(xml, 'FirstName'),
+      lastName: extractXml(xml, 'LastName'),
+      phone: extractXml(xml, 'Phone'),
       address: {
-        streetNo: this.extractXml(xml, 'StreetNo'),
-        street: this.extractXml(xml, 'OnStreet'),
-        city: this.extractXml(xml, 'City'),
-        state: this.extractXml(xml, 'State'),
-        zipCode: this.extractXml(xml, 'ZipCode'),
+        streetNo: extractXml(xml, 'StreetNo'),
+        street: extractXml(xml, 'OnStreet'),
+        city: extractXml(xml, 'City'),
+        state: extractXml(xml, 'State'),
+        zipCode: extractXml(xml, 'ZipCode'),
       },
-      mobilityAids: this.extractAllXml(xml, 'MobAidCode'),
-      spaceType: this.extractXml(xml, 'PrefSpaceType'),
+      mobilityAids: extractAllXml(xml, 'MobAidCode'),
+      spaceType: extractXml(xml, 'PrefSpaceType'),
     };
   }
 
@@ -1035,28 +948,28 @@ export class DATSApi {
 
     while ((match = locationRegex.exec(xml)) !== null) {
       const locXml = match[1];
-      const addrNumber = this.extractXml(locXml, 'AddrNumber');
-      const legId = this.extractXml(locXml, 'LegId');
+      const addrNumber = extractXml(locXml, 'AddrNumber');
+      const legId = extractXml(locXml, 'LegId');
 
       locations.push({
-        addressMode: (this.extractXml(locXml, 'AddressMode') || 'LL') as 'R' | 'LL',
-        addrType: (this.extractXml(locXml, 'AddrType') || 'AD') as 'CH' | 'CM' | 'AD' | 'LO',
-        addrDescr: this.extractXml(locXml, 'AddrDescr') || 'Address',
-        addrName: this.extractXml(locXml, 'AddrName') || undefined,
+        addressMode: (extractXml(locXml, 'AddressMode') || 'LL') as 'R' | 'LL',
+        addrType: (extractXml(locXml, 'AddrType') || 'AD') as 'CH' | 'CM' | 'AD' | 'LO',
+        addrDescr: extractXml(locXml, 'AddrDescr') || 'Address',
+        addrName: extractXml(locXml, 'AddrName') || undefined,
         addrNumber: addrNumber ? parseInt(addrNumber, 10) : undefined,
         legId: legId ? parseInt(legId, 10) : undefined,
-        streetNo: this.extractXml(locXml, 'StreetNo') || '',
-        onStreet: this.extractXml(locXml, 'OnStreet') || '',
-        unit: this.extractXml(locXml, 'Unit') || undefined,
-        city: this.extractXml(locXml, 'City') || '',
-        state: this.extractXml(locXml, 'State') || '',
-        zipCode: this.extractXml(locXml, 'ZipCode') || '',
-        lon: parseInt(this.extractXml(locXml, 'Lon') || '0', 10),
-        lat: parseInt(this.extractXml(locXml, 'Lat') || '0', 10),
-        source: (this.extractXml(locXml, 'Source') || 'Frequent') as 'Both' | 'Registered' | 'Frequent',
-        comments: this.extractXml(locXml, 'Comments') || undefined,
-        phone: this.extractXml(locXml, 'Phone') || undefined,
-        atStreet: this.extractXml(locXml, 'AtStreet') || undefined,
+        streetNo: extractXml(locXml, 'StreetNo') || '',
+        onStreet: extractXml(locXml, 'OnStreet') || '',
+        unit: extractXml(locXml, 'Unit') || undefined,
+        city: extractXml(locXml, 'City') || '',
+        state: extractXml(locXml, 'State') || '',
+        zipCode: extractXml(locXml, 'ZipCode') || '',
+        lon: parseInt(extractXml(locXml, 'Lon') || '0', 10),
+        lat: parseInt(extractXml(locXml, 'Lat') || '0', 10),
+        source: (extractXml(locXml, 'Source') || 'Frequent') as 'Both' | 'Registered' | 'Frequent',
+        comments: extractXml(locXml, 'Comments') || undefined,
+        phone: extractXml(locXml, 'Phone') || undefined,
+        atStreet: extractXml(locXml, 'AtStreet') || undefined,
       });
     }
 
@@ -1072,8 +985,8 @@ export class DATSApi {
     while ((match = aidRegex.exec(xml)) !== null) {
       const aidXml = match[1];
       aids.push({
-        code: this.extractXml(aidXml, 'MobAidCode'),
-        description: this.extractXml(aidXml, 'Description'),
+        code: extractXml(aidXml, 'MobAidCode'),
+        description: extractXml(aidXml, 'Description'),
       });
     }
 
@@ -1101,34 +1014,34 @@ export class DATSApi {
         const dropoffXml = dropoffMatch[1];
 
         trips.push({
-          bookingId: this.extractXml(tripXml, 'BookingId') || '',
-          useCount: parseInt(this.extractXml(tripXml, 'UseCount') || '0', 10),
-          mobilityAids: this.extractXml(tripXml, 'MobAids') || '',
+          bookingId: extractXml(tripXml, 'BookingId') || '',
+          useCount: parseInt(extractXml(tripXml, 'UseCount') || '0', 10),
+          mobilityAids: extractXml(tripXml, 'MobAids') || '',
           pickup: {
-            addressMode: this.extractXml(pickupXml, 'AddressMode') || '',
-            addrName: this.extractXml(pickupXml, 'AddrName') || undefined,
-            streetNo: this.extractXml(pickupXml, 'StreetNo') || '',
-            onStreet: this.extractXml(pickupXml, 'OnStreet') || '',
-            unit: this.extractXml(pickupXml, 'Unit') || undefined,
-            city: this.extractXml(pickupXml, 'City') || '',
-            state: this.extractXml(pickupXml, 'State') || '',
-            zipCode: this.extractXml(pickupXml, 'ZipCode') || '',
-            lon: parseInt(this.extractXml(pickupXml, 'Lon') || '0', 10),
-            lat: parseInt(this.extractXml(pickupXml, 'Lat') || '0', 10),
-            extra: this.extractXml(pickupXml, 'Extra') || undefined,
+            addressMode: extractXml(pickupXml, 'AddressMode') || '',
+            addrName: extractXml(pickupXml, 'AddrName') || undefined,
+            streetNo: extractXml(pickupXml, 'StreetNo') || '',
+            onStreet: extractXml(pickupXml, 'OnStreet') || '',
+            unit: extractXml(pickupXml, 'Unit') || undefined,
+            city: extractXml(pickupXml, 'City') || '',
+            state: extractXml(pickupXml, 'State') || '',
+            zipCode: extractXml(pickupXml, 'ZipCode') || '',
+            lon: parseInt(extractXml(pickupXml, 'Lon') || '0', 10),
+            lat: parseInt(extractXml(pickupXml, 'Lat') || '0', 10),
+            extra: extractXml(pickupXml, 'Extra') || undefined,
           },
           dropoff: {
-            addressMode: this.extractXml(dropoffXml, 'AddressMode') || '',
-            addrName: this.extractXml(dropoffXml, 'AddrName') || undefined,
-            streetNo: this.extractXml(dropoffXml, 'StreetNo') || '',
-            onStreet: this.extractXml(dropoffXml, 'OnStreet') || '',
-            unit: this.extractXml(dropoffXml, 'Unit') || undefined,
-            city: this.extractXml(dropoffXml, 'City') || '',
-            state: this.extractXml(dropoffXml, 'State') || '',
-            zipCode: this.extractXml(dropoffXml, 'ZipCode') || '',
-            lon: parseInt(this.extractXml(dropoffXml, 'Lon') || '0', 10),
-            lat: parseInt(this.extractXml(dropoffXml, 'Lat') || '0', 10),
-            extra: this.extractXml(dropoffXml, 'Extra') || undefined,
+            addressMode: extractXml(dropoffXml, 'AddressMode') || '',
+            addrName: extractXml(dropoffXml, 'AddrName') || undefined,
+            streetNo: extractXml(dropoffXml, 'StreetNo') || '',
+            onStreet: extractXml(dropoffXml, 'OnStreet') || '',
+            unit: extractXml(dropoffXml, 'Unit') || undefined,
+            city: extractXml(dropoffXml, 'City') || '',
+            state: extractXml(dropoffXml, 'State') || '',
+            zipCode: extractXml(dropoffXml, 'ZipCode') || '',
+            lon: parseInt(extractXml(dropoffXml, 'Lon') || '0', 10),
+            lat: parseInt(extractXml(dropoffXml, 'Lat') || '0', 10),
+            extra: extractXml(dropoffXml, 'Extra') || undefined,
           },
         });
       }
@@ -1153,9 +1066,9 @@ export class DATSApi {
 
   private parseBookingXml(xml: string): Trip | null {
     try {
-      const bookingId = this.extractXml(xml, 'BookingId');
-      const creationConfNum = this.extractXml(xml, 'CreationConfirmationNumber');
-      const date = this.extractXml(xml, 'DateF') || this.extractXml(xml, 'RawDate');
+      const bookingId = extractXml(xml, 'BookingId');
+      const creationConfNum = extractXml(xml, 'CreationConfirmationNumber');
+      const date = extractXml(xml, 'DateF') || extractXml(xml, 'RawDate');
 
       // Parse pickup leg
       const pickupMatch = xml.match(/<PickUpLeg[^>]*>([\s\S]*?)<\/PickUpLeg>/);
@@ -1172,10 +1085,10 @@ export class DATSApi {
       const eventsInfoXml = eventsInfoMatch ? eventsInfoMatch[1] : '';
 
       // Try to get status from EventsInfo first, fall back to top-level SchedStatusF
-      let schedStatusF = this.extractXml(eventsInfoXml, 'SchedStatusF');
+      let schedStatusF = extractXml(eventsInfoXml, 'SchedStatusF');
       if (!schedStatusF) {
         // Fallback to top-level status (for trips without EventsInfo)
-        schedStatusF = this.extractXml(xml, 'SchedStatusF');
+        schedStatusF = extractXml(xml, 'SchedStatusF');
       }
       const status = schedStatusF.toLowerCase();
 
@@ -1187,16 +1100,16 @@ export class DATSApi {
         providerInfoMatch = xml.match(/<EventsProviderInfo[^>]*>([\s\S]*?)<\/EventsProviderInfo>/);
       }
       const providerInfoXml = providerInfoMatch ? providerInfoMatch[1] : '';
-      const providerName = this.extractXml(providerInfoXml, 'ProviderName') || undefined;
-      const providerDescription = this.extractXml(providerInfoXml, 'Description') || undefined;
+      const providerName = extractXml(providerInfoXml, 'ProviderName') || undefined;
+      const providerDescription = extractXml(providerInfoXml, 'Description') || undefined;
 
       // Pickup times
-      const schEarly = parseInt(this.extractXml(pickupXml, 'SchEarly'), 10);
-      const schLate = parseInt(this.extractXml(pickupXml, 'SchLate'), 10);
-      const estPickup = parseInt(this.extractXml(pickupXml, 'EstTime'), 10);
+      const schEarly = parseInt(extractXml(pickupXml, 'SchEarly'), 10);
+      const schLate = parseInt(extractXml(pickupXml, 'SchLate'), 10);
+      const estPickup = parseInt(extractXml(pickupXml, 'EstTime'), 10);
 
       // Dropoff time
-      const estDropoff = parseInt(this.extractXml(dropoffXml, 'EstTime'), 10);
+      const estDropoff = parseInt(extractXml(dropoffXml, 'EstTime'), 10);
 
       // Addresses
       const pickupAddr = this.parseAddressFromXml(pickupXml);
@@ -1207,15 +1120,15 @@ export class DATSApi {
       const dropoffPhone = this.extractPhoneFromLeg(dropoffXml);
 
       // Comments from legs
-      const pickupComments = this.extractXml(pickupXml, 'Comments') || undefined;
-      const dropoffComments = this.extractXml(dropoffXml, 'Comments') || undefined;
+      const pickupComments = extractXml(pickupXml, 'Comments') || undefined;
+      const dropoffComments = extractXml(dropoffXml, 'Comments') || undefined;
 
       // Space type and mobility device
-      const spaceType = this.extractXml(xml, 'SpaceType');
+      const spaceType = extractXml(xml, 'SpaceType');
       const mobilityDevice = this.spaceTypeToMobilityDevice(spaceType);
 
       // Fare
-      const fareAmount = this.extractXml(xml, 'FareAmount');
+      const fareAmount = extractXml(xml, 'FareAmount');
       const fare = fareAmount ? `$${parseFloat(fareAmount).toFixed(2)}` : undefined;
 
       // Additional passengers
@@ -1228,18 +1141,18 @@ export class DATSApi {
       return {
         bookingId: bookingId,
         confirmationNumber: creationConfNum || bookingId,
-        date: date.includes(',') ? date : this.formatDateDisplay(date),
+        date: date.includes(',') ? date : formatDateDisplay(date),
         pickupWindow: {
-          start: schEarly > 0 ? this.secondsToTime(schEarly) : '',
-          end: schLate > 0 ? this.secondsToTime(schLate) : '',
+          start: schEarly > 0 ? secondsToTime(schEarly) : '',
+          end: schLate > 0 ? secondsToTime(schLate) : '',
         },
         pickupAddress: pickupAddr,
         destinationAddress: dropoffAddr,
         status: statusCode,
         statusLabel: statusInfo.label,
         statusDescription: statusInfo.description,
-        estimatedPickupTime: estPickup > 0 ? this.secondsToTime(estPickup) : undefined,
-        estimatedDropoffTime: estDropoff > 0 ? this.secondsToTime(estDropoff) : undefined,
+        estimatedPickupTime: estPickup > 0 ? secondsToTime(estPickup) : undefined,
+        estimatedDropoffTime: estDropoff > 0 ? secondsToTime(estDropoff) : undefined,
         spaceType: spaceType || undefined,
         mobilityDevice,
         additionalPassengers: additionalPassengers.length > 0 ? additionalPassengers : undefined,
@@ -1262,7 +1175,7 @@ export class DATSApi {
   private extractPhoneFromLeg(legXml: string): string | undefined {
     const addrMatch = legXml.match(/<(?:Request|Map)Address[^>]*>([\s\S]*?)<\/(?:Request|Map)Address>/);
     if (addrMatch) {
-      const phone = this.extractXml(addrMatch[1], 'Phone');
+      const phone = extractXml(addrMatch[1], 'Phone');
       return phone || undefined;
     }
     return undefined;
@@ -1314,8 +1227,8 @@ export class DATSApi {
 
     while ((match = passengerRegex.exec(xml)) !== null) {
       const passengerXml = match[1];
-      const typeCode = this.extractXml(passengerXml, 'PassengerType');
-      const count = parseInt(this.extractXml(passengerXml, 'PassengerCount') || '1', 10);
+      const typeCode = extractXml(passengerXml, 'PassengerType');
+      const count = parseInt(extractXml(passengerXml, 'PassengerCount') || '1', 10);
 
       if (typeCode) {
         const typeMapping: Record<string, 'escort' | 'pca' | 'guest'> = {
@@ -1338,12 +1251,12 @@ export class DATSApi {
     if (!addrMatch) return 'Unknown address';
 
     const addrXml = addrMatch[1];
-    const name = this.extractXml(addrXml, 'AddrName');
-    const streetNo = this.extractXml(addrXml, 'StreetNo');
-    const street = this.extractXml(addrXml, 'OnStreet');
-    const city = this.extractXml(addrXml, 'City');
-    const state = this.extractXml(addrXml, 'State');
-    const zip = this.extractXml(addrXml, 'ZipCode');
+    const name = extractXml(addrXml, 'AddrName');
+    const streetNo = extractXml(addrXml, 'StreetNo');
+    const street = extractXml(addrXml, 'OnStreet');
+    const city = extractXml(addrXml, 'City');
+    const state = extractXml(addrXml, 'State');
+    const zip = extractXml(addrXml, 'ZipCode');
 
     const parts: string[] = [];
     if (name) parts.push(name);
@@ -1363,15 +1276,15 @@ export class DATSApi {
     while ((match = dateRegex.exec(xml)) !== null) {
       const dateXml = match[1];
       availableDates.push({
-        date: this.extractXml(dateXml, 'Date') || '',
-        dayOfWeek: parseInt(this.extractXml(dateXml, 'DayOfWeek') || '0', 10),
-        rawDate: this.extractXml(dateXml, 'RawDate') || '',
+        date: extractXml(dateXml, 'Date') || '',
+        dayOfWeek: parseInt(extractXml(dateXml, 'DayOfWeek') || '0', 10),
+        rawDate: extractXml(dateXml, 'RawDate') || '',
       });
     }
 
-    const maxDays = this.extractXml(xml, 'CasualBookingMaxDaysAdvance');
-    const minDays = this.extractXml(xml, 'CasualBookingMinDaysAdvance');
-    const sameDayElement = this.extractXml(xml, 'CasualAllowSameDayBooking');
+    const maxDays = extractXml(xml, 'CasualBookingMaxDaysAdvance');
+    const minDays = extractXml(xml, 'CasualBookingMinDaysAdvance');
+    const sameDayElement = extractXml(xml, 'CasualAllowSameDayBooking');
 
     return {
       maxDaysAdvance: maxDays ? parseInt(maxDays, 10) : 3,
@@ -1388,30 +1301,30 @@ export class DATSApi {
 
     while ((match = timeRegex.exec(xml)) !== null) {
       const timeXml = match[1];
-      const previousDate = this.extractXml(timeXml, 'PreviousDate');
+      const previousDate = extractXml(timeXml, 'PreviousDate');
 
       timeSlots.push({
-        time: parseInt(this.extractXml(timeXml, 'Time') || '0', 10),
-        lastBookingTime: parseInt(this.extractXml(timeXml, 'LastBookingTime') || '0', 10),
-        index: parseInt(this.extractXml(timeXml, 'Index') || '0', 10),
+        time: parseInt(extractXml(timeXml, 'Time') || '0', 10),
+        lastBookingTime: parseInt(extractXml(timeXml, 'LastBookingTime') || '0', 10),
+        index: parseInt(extractXml(timeXml, 'Index') || '0', 10),
         previousDate: previousDate ? parseInt(previousDate, 10) : undefined,
       });
     }
 
     return {
-      date: this.extractXml(xml, 'Date') || '',
-      currentTime: parseInt(this.extractXml(xml, 'CurrentTime') || '0', 10),
-      firstBookingTime: parseInt(this.extractXml(xml, 'FirstBookingTime') || '0', 10),
-      lastBookingTime: parseInt(this.extractXml(xml, 'LastBookingTime') || '0', 10),
-      timeInterval: parseInt(this.extractXml(xml, 'TimeInterval') || '600', 10),
-      threshold: parseInt(this.extractXml(xml, 'Threshold') || '0', 10),
+      date: extractXml(xml, 'Date') || '',
+      currentTime: parseInt(extractXml(xml, 'CurrentTime') || '0', 10),
+      firstBookingTime: parseInt(extractXml(xml, 'FirstBookingTime') || '0', 10),
+      lastBookingTime: parseInt(extractXml(xml, 'LastBookingTime') || '0', 10),
+      timeInterval: parseInt(extractXml(xml, 'TimeInterval') || '600', 10),
+      threshold: parseInt(extractXml(xml, 'Threshold') || '0', 10),
       timeSlots,
     };
   }
 
   private parseCancelTripResponse(xml: string): CancelTripResult {
     if (xml.includes('RESULTOK')) {
-      const refCode = this.extractXml(xml, 'CancelRefCode');
+      const refCode = extractXml(xml, 'CancelRefCode');
       return {
         success: true,
         refCode,
@@ -1419,7 +1332,7 @@ export class DATSApi {
       };
     }
 
-    const errorMsg = this.extractXml(xml, 'Message') || 'Cancellation failed';
+    const errorMsg = extractXml(xml, 'Message') || 'Cancellation failed';
     return {
       success: false,
       message: errorMsg,
@@ -1434,13 +1347,13 @@ export class DATSApi {
 
     while ((match = passengerTypeRegex.exec(xml)) !== null) {
       const ptXml = match[1];
-      const fareTypeId = this.extractXml(ptXml, 'FareTypeId');
-      const reqdAsAddPass = this.extractXml(ptXml, 'ReqdAsAddPass');
+      const fareTypeId = extractXml(ptXml, 'FareTypeId');
+      const reqdAsAddPass = extractXml(ptXml, 'ReqdAsAddPass');
 
       passengerTypes.push({
-        abbreviation: this.extractXml(ptXml, 'Abbreviation') || '',
-        description: this.extractXml(ptXml, 'Description') || '',
-        defaultSpaceType: this.extractXml(ptXml, 'DefaultSpaceType') || '',
+        abbreviation: extractXml(ptXml, 'Abbreviation') || '',
+        description: extractXml(ptXml, 'Description') || '',
+        defaultSpaceType: extractXml(ptXml, 'DefaultSpaceType') || '',
         fareTypeId: fareTypeId ? parseInt(fareTypeId, 10) : undefined,
         reqdAsAddPass: reqdAsAddPass ? parseInt(reqdAsAddPass, 10) : undefined,
       });
@@ -1453,8 +1366,8 @@ export class DATSApi {
     while ((match = spaceTypeRegex.exec(xml)) !== null) {
       const stXml = match[1];
       spaceTypes.push({
-        abbreviation: this.extractXml(stXml, 'Abbreviation') || '',
-        description: this.extractXml(stXml, 'Description') || '',
+        abbreviation: extractXml(stXml, 'Abbreviation') || '',
+        description: extractXml(stXml, 'Description') || '',
       });
     }
 
@@ -1465,9 +1378,9 @@ export class DATSApi {
     while ((match = fareTypeRegex.exec(xml)) !== null) {
       const ftXml = match[1];
       fareTypes.push({
-        fareType: parseInt(this.extractXml(ftXml, 'FareType') || '0', 10),
-        abbreviation: this.extractXml(ftXml, 'Abbreviation') || '',
-        description: this.extractXml(ftXml, 'Description') || '',
+        fareType: parseInt(extractXml(ftXml, 'FareType') || '0', 10),
+        abbreviation: extractXml(ftXml, 'Abbreviation') || '',
+        description: extractXml(ftXml, 'Description') || '',
       });
     }
 
@@ -1478,10 +1391,10 @@ export class DATSApi {
     while ((match = purposeRegex.exec(xml)) !== null) {
       const purpXml = match[1];
       purposes.push({
-        bookingPurposeId: parseInt(this.extractXml(purpXml, 'BookingPurposeId') || '0', 10),
-        abbreviation: this.extractXml(purpXml, 'Abbreviation') || '',
-        description: this.extractXml(purpXml, 'Description') || '',
-        code: this.extractXml(purpXml, 'Code') || this.extractXml(purpXml, 'Abbreviation') || '',
+        bookingPurposeId: parseInt(extractXml(purpXml, 'BookingPurposeId') || '0', 10),
+        abbreviation: extractXml(purpXml, 'Abbreviation') || '',
+        description: extractXml(purpXml, 'Description') || '',
+        code: extractXml(purpXml, 'Code') || extractXml(purpXml, 'Abbreviation') || '',
       });
     }
 
@@ -1512,8 +1425,8 @@ export class DATSApi {
     let email: string | undefined;
 
     // Try to extract name from the response
-    let firstName = this.extractXml(xml, 'FirstName');
-    let lastName = this.extractXml(xml, 'LastName');
+    let firstName = extractXml(xml, 'FirstName');
+    let lastName = extractXml(xml, 'LastName');
 
     // Parse ContactInfo elements
     const contactRegex = /<ContactInfo[^>]*>([\s\S]*?)<\/ContactInfo>/g;
@@ -1523,10 +1436,10 @@ export class DATSApi {
     while ((match = contactRegex.exec(xml)) !== null) {
       contactCount++;
       const contactXml = match[1];
-      const addressType = this.extractXml(contactXml, 'AddressType');
-      const deviceAbbr = this.extractXml(contactXml, 'DeviceAbbr');
-      const connectString = this.extractXml(contactXml, 'ConnectString');
-      const comments = this.extractXml(contactXml, 'Comments');
+      const addressType = extractXml(contactXml, 'AddressType');
+      const deviceAbbr = extractXml(contactXml, 'DeviceAbbr');
+      const connectString = extractXml(contactXml, 'ConnectString');
+      const comments = extractXml(contactXml, 'Comments');
 
       logger.debug(`Contact ${contactCount}: AddressType=${addressType}, DeviceAbbr=${deviceAbbr}`);
 
@@ -1575,9 +1488,9 @@ export class DATSApi {
 
     while ((match = remarkRegex.exec(xml)) !== null) {
       const remarkXml = match[1];
-      const id = this.extractXml(remarkXml, 'RemarkId');
-      const ttsText = this.extractXmlWithAttributes(remarkXml, 'TtsText');
-      const groupDescr = this.extractXmlWithAttributes(remarkXml, 'RemarkGroupDescr');
+      const id = extractXml(remarkXml, 'RemarkId');
+      const ttsText = extractXmlWithAttributes(remarkXml, 'TtsText');
+      const groupDescr = extractXmlWithAttributes(remarkXml, 'RemarkGroupDescr');
 
       if (ttsText) {
         announcements.push({
@@ -1592,73 +1505,6 @@ export class DATSApi {
     }
 
     return announcements;
-  }
-
-  /**
-   * Extract XML value, handling elements with cattr attributes
-   */
-  private extractXmlWithAttributes(xml: string, tag: string): string {
-    const match = xml.match(new RegExp(`<${tag}[^>]*>([^<]*)</${tag}>`));
-    return match ? match[1].trim() : '';
-  }
-
-  // ==================== UTILITIES ====================
-
-  /**
-   * Escape special XML characters
-   */
-  private escapeXml(text: string): string {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&apos;');
-  }
-
-  private secondsToTime(seconds: number): string {
-    if (seconds < 0 || isNaN(seconds)) return '';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const period = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours > 12 ? hours - 12 : (hours === 0 ? 12 : hours);
-    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
-  }
-
-  private timeToSeconds(time: string): number {
-    const match = time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
-    if (!match) return 0;
-
-    let hours = parseInt(match[1], 10);
-    const minutes = parseInt(match[2], 10);
-    const period = match[3]?.toUpperCase();
-
-    if (period === 'PM' && hours !== 12) hours += 12;
-    if (period === 'AM' && hours === 12) hours = 0;
-
-    return hours * 3600 + minutes * 60;
-  }
-
-  private formatDate(date: Date): string {
-    const year = date.getUTCFullYear();
-    const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
-    const day = date.getUTCDate().toString().padStart(2, '0');
-    return `${year}${month}${day}`;
-  }
-
-  private formatDateDisplay(yyyymmdd: string): string {
-    if (!yyyymmdd || yyyymmdd.length !== 8) return yyyymmdd;
-    const year = parseInt(yyyymmdd.substring(0, 4), 10);
-    const month = parseInt(yyyymmdd.substring(4, 6), 10);
-    const day = parseInt(yyyymmdd.substring(6, 8), 10);
-
-    // Create UTC date to get correct day of week (timezone-neutral)
-    const date = new Date(Date.UTC(year, month - 1, day));
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const dayOfWeek = days[date.getUTCDay()];
-
-    return `${dayOfWeek}, ${months[month - 1]} ${day}, ${year}`;
   }
 
 }
