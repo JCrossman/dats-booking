@@ -122,6 +122,7 @@ Credentials are **never** sent to Claude or Anthropic. Instead:
 | Tool | Description |
 |------|-------------|
 | `connect_account` | Open secure login page to connect DATS account |
+| `check_connection` | Verify session is ready after authentication (v1.0.2+) |
 | `disconnect_account` | Log out and clear session |
 | `get_trips` | Retrieve booked trips with status (Scheduled/Performed/Cancelled) and provider info |
 | `track_trip` | Real-time tracking: vehicle location, ETA, driver info (within 60 min of pickup) |

@@ -144,12 +144,23 @@ export class CosmosSessionStore {
         createdAt: new Date(resource.createdAt).toISOString(),
       };
     } catch (error) {
-      // 404 means session not found
+      // 404 means session not found - this is expected and OK
       if ((error as { code?: number }).code === 404) {
         return null;
       }
-      logger.error('Failed to retrieve session', error as Error);
-      return null;
+
+      // Non-404 errors indicate infrastructure problems - throw to caller
+      const cosmosError = error as { code?: number; message?: string };
+      const { DATSError } = await import('../utils/errors.js');
+      const { ErrorCategory } = await import('../types.js');
+      
+      logger.error('Cosmos DB error retrieving session', error as Error);
+      
+      throw new DATSError(
+        ErrorCategory.STORAGE_ERROR,
+        `Failed to retrieve session from Cosmos DB: ${cosmosError.message || 'Unknown error'}`,
+        false // Not recoverable by user - infrastructure issue
+      );
     }
   }
 

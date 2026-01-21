@@ -10,6 +10,7 @@ export enum ErrorCategory {
   BOOKING_CONFLICT = 'booking_conflict',
   VALIDATION_ERROR = 'validation_error',
   NETWORK_ERROR = 'network_error',
+  STORAGE_ERROR = 'storage_error',
   RATE_LIMITED = 'rate_limited',
   SYSTEM_ERROR = 'system_error',
   CREDENTIALS_NOT_FOUND = 'credentials_not_found',

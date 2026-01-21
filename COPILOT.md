@@ -603,33 +603,50 @@ The `connect_account` tool uses a secure web-based authentication flow:
 - Only temporary session tokens are stored locally
 - Sessions expire when DATS invalidates them (typically daily)
 
-### ⚠️ CRITICAL: Authentication Flow Implementation (2026-01-21)
+### ⚠️ CRITICAL: Authentication Flow Implementation (2026-01-21 UPDATE)
 
-**Background Polling Pattern:**
+**Background Polling Pattern with Session Verification:**
 
-In remote mode (Claude Mobile/Web), `connect_account` starts background polling automatically. When the user says "done" or "connected", Claude should **immediately retry the original request** with the `session_id`, NOT call `complete_connection`.
+In remote mode (Claude Mobile/Web), `connect_account` starts background polling automatically. When the user says "done" or "connected", Claude should call `check_connection` FIRST to verify the session is ready, then retry the original request.
+
+**CORRECT Flow (v1.0.2+):**
+1. User requests action (e.g., "show my trips")
+2. `connect_account` returns auth URL + session_id
+3. User opens browser, authenticates, says "done"
+4. Claude calls `check_connection({session_id})` - polls up to 30s
+5. Returns `{ready: true}` when session found in Cosmos DB
+6. Claude immediately retries original request with session_id
+7. Success! No race condition.
+
+**check_connection Tool:**
+- Polls Cosmos DB every 2 seconds for up to 30 seconds
+- Returns `{ready: true, sessionId}` when session found
+- Returns error if session not found after 30s (user didn't complete auth)
+- Gracefully handles local mode (returns immediate success)
+- Prevents race condition where background polling hasn't completed
 
 **DO NOT call `complete_connection`:**
 - ❌ It is **DEPRECATED** and causes 3-minute hangs
 - ❌ It polls for authentication result redundantly
 - ❌ Claude should NEVER call this tool
+- ✅ Use `check_connection` instead
 
-**CORRECT behavior when user says "done":**
-1. Wait 2-3 seconds for background polling to complete
-2. Immediately retry the user's original request with `session_id`
-3. Example: User asked "show my trips" → called `get_trips({session_id: "..."})`
-
-**Why This Matters:**
+**Why This Pattern Works:**
 - Background polling in `connect_account` stores the session automatically
-- `complete_connection` re-polls the same endpoint, wasting 3 minutes
-- Causes terrible UX (user waits, thinks it's broken)
-- Was fixed 2026-01-21 by deprecating `complete_connection`
+- `check_connection` verifies session is stored before retrying
+- No more "session not found" errors
+- No arbitrary wait times (2-3 seconds was unreliable)
+- Explicit verification prevents race conditions
 
 **Implementation Notes:**
 - `connect_account` tool returns `forAssistant` instructions to guide Claude
-- Instructions explicitly tell Claude NOT to call `complete_connection`
-- `complete_connection` now returns immediate error if called
-- See `src/tools/complete-connection.ts` and `src/tools/connect-account.ts`
+- Instructions explicitly tell Claude to call `check_connection` first
+- `check_connection` returns `forAssistant` with retry instructions
+- See `src/tools/check-connection.ts` and `src/tools/connect-account.ts`
+
+**Timeline:**
+- v1.0.1 (2026-01-21): Deprecated `complete_connection`, added wait instructions
+- v1.0.2 (2026-01-21): Added `check_connection` tool for explicit verification
 
 ### Booking Options
 

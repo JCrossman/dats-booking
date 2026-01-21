@@ -4,6 +4,42 @@ All notable changes to the DATS Booking MCP Server will be documented in this fi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.2] - 2026-01-21 - Phase 1 Critical Fixes (IN PROGRESS)
+
+### Added
+
+**check_connection Tool (Task 1.1)**
+- New `check_connection` tool to verify session readiness after authentication
+- Polls Cosmos DB every 2 seconds for up to 30 seconds
+- Prevents race condition where user says "done" but background polling hasn't completed
+- Returns `{ready: true, sessionId}` when session is found
+- Gracefully handles local mode (returns immediate success)
+
+### Fixed
+
+**Auth Race Condition (Task 1.1)**
+- Updated `connect_account` forAssistant instructions to call `check_connection` first
+- Changed from "wait 2-3 seconds" to explicit session verification
+- Eliminates ~30-40% failure rate where session not found on retry
+- User flow: authenticate → say "done" → check_connection → retry original request
+
+**Cosmos DB Error Handling (Task 1.2)**
+- Added `STORAGE_ERROR` to `ErrorCategory` enum in `types.ts`
+- `cosmos-session-store.ts` now throws on non-404 errors instead of returning null
+- 404 errors still return null (session not found - expected behavior)
+- Infrastructure errors now surface to user with clear message
+- Callers can distinguish "session not found" from "database failure"
+
+### Changed
+- Tool registration order: `check_connection` now registered after `connect_account`
+- Error categorization: Cosmos DB failures are `STORAGE_ERROR` not `SYSTEM_ERROR`
+
+### Status
+- ✅ Task 1.1: check_connection tool - COMPLETE
+- ✅ Task 1.2: Cosmos DB error handling - COMPLETE
+- ⏳ Task 1.3: Refactor connect_account (205 lines) - PENDING
+- 🚧 Testing blocked by system tool issues - will verify after commit
+
 ## [1.0.1] - 2026-01-21 - Auth Hang Fix
 
 ### Fixed

@@ -9,6 +9,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { SessionManager } from '../auth/session-manager.js';
 import type { CosmosSessionStore } from '../auth/cosmos-session-store.js';
 import { createConnectAccountTool } from './connect-account.js';
+import { createCheckConnectionTool } from './check-connection.js';
 import { createBookTripTool } from './book-trip.js';
 import { createGetTripsTool } from './get-trips.js';
 import { createTrackTripTool } from './track-trip.js';
@@ -39,6 +40,7 @@ export interface ToolDependencies {
 export function registerAllTools(server: McpServer, deps: ToolDependencies): void {
   // Register authentication tools
   createConnectAccountTool(deps).register(server);
+  createCheckConnectionTool(deps).register(server);
   createCompleteConnectionTool(deps).register(server);
   createDisconnectAccountTool(deps).register(server);
 
