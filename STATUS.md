@@ -1,8 +1,27 @@
 # Project Status
 
-**Last Updated:** 2026-01-16  
+**Last Updated:** 2026-01-21  
 **Current Phase:** ✅ **PRODUCTION READY - Fully Automated**  
 **Status:** All development, deployment, and monitoring infrastructure complete
+
+---
+
+## 🎉 Latest Update: Auth Hang Fix (2026-01-21)
+
+**v1.0.1 - Critical UX Fix Deployed** ✅
+
+**Problem Solved:** Authentication was hanging for 3 minutes when users said "done" in Claude browser
+- Root cause: `complete_connection` tool was polling Azure for 3 minutes redundantly
+- Claude was calling this tool instead of retrying the user's original request
+- Background polling in `connect_account` already stores the session automatically
+
+**What Was Fixed:**
+- ✅ Deprecated `complete_connection` tool (now returns immediate error)
+- ✅ Updated `connect_account` instructions to guide Claude correctly
+- ✅ Documentation updated across 6 files (COPILOT.md, README.md, etc.)
+- ✅ Auth now completes in 2-3 seconds instead of hanging for 3 minutes
+
+**Deployment:** Automatic via GitHub Actions (deployed to Azure Container Apps)
 
 ---
 
