@@ -26,6 +26,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write  # Required for GitHub Models API
 
 jobs:
   run-agent:
@@ -44,7 +45,7 @@ jobs:
         env:
           AGENT_NAME: ${{ inputs.agent }}
           DRY_RUN: ${{ inputs.dry_run }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Summary
         run: |

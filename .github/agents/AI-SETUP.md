@@ -1,95 +1,81 @@
 # AI-Powered Agent Setup Guide
 
-The agents use AI/LLM (OpenAI GPT-4 by default) to perform intelligent code analysis.
+The agents use AI via **GitHub Models** (powered by GitHub Copilot infrastructure). No API keys needed!
 
-## Setup Instructions
+## ✅ No Setup Required!
 
-### 1. Get an OpenAI API Key
+The agents automatically use your GitHub Copilot subscription through the `GITHUB_TOKEN` that's provided to all GitHub Actions workflows.
 
-1. Go to https://platform.openai.com/api-keys
-2. Create a new API key
-3. Copy the key (starts with `sk-`)
+## How It Works
 
-### 2. Add API Key to GitHub Secrets
+1. You run an agent from GitHub Actions
+2. Agent uses `GITHUB_TOKEN` (automatically provided)
+3. Calls GitHub Models API (uses Copilot infrastructure)
+4. Gets AI-powered analysis back
+5. Displays results
 
-1. Go to your GitHub repository
-2. Click **Settings** > **Secrets and variables** > **Actions**
-3. Click **New repository secret**
-4. Name: `OPENAI_API_KEY`
-5. Value: Paste your API key
-6. Click **Add secret**
+## Usage
 
-### 3. Run an Agent
+### Run a Single Agent
 
 1. Go to **Actions** tab
 2. Select **"Run Agent (Manual)"**
-3. Click **"Run workflow"**
-4. Select an agent (e.g., `accessibility`)
-5. Leave dry-run checked
-6. Click **"Run workflow"**
+3. Choose an agent (e.g., `accessibility`)
+4. Click **"Run workflow"**
+5. Get AI-powered analysis!
 
-## What Happens
+### What Each Agent Analyzes
 
-When you run an agent:
-
-1. **Collects relevant files** from your repository
-2. **Sends to AI** with the agent's specialized instructions
-3. **Receives analysis** with specific findings, file/line references
-4. **Displays results** in the workflow log
-
-## Supported Agents
-
-Currently AI-powered:
-- ✅ **accessibility** - WCAG 2.2, AAC, screen reader analysis
-
-Coming soon (same pattern):
-- **security** - POPA compliance, credential security
-- **code-quality** - Clean code, refactoring opportunities
-- **pm** - Requirements analysis, user story validation
-- **architect** - System design review
-- **developer** - Code implementation review
-- **qa** - Test coverage gaps
-- **devops** - Infrastructure security
+- **accessibility** - WCAG 2.2, AAC, screen reader compatibility
+- **security** - POPA compliance, credential security, vulnerabilities
+- **code-quality** - Clean code, refactoring, DRY violations
+- **pm** - Requirements clarity, user story validation
+- **architect** - System design, MCP patterns
+- **developer** - Code implementation, best practices
+- **qa** - Test coverage, edge cases
+- **devops** - Infrastructure security, CI/CD
 - **ux-writer** - Plain language, readability
 - **legal** - POPA compliance, consent flows
 
-## Cost Considerations
+## Cost
 
-- OpenAI charges per token used
-- GPT-4: ~$0.03 per 1K input tokens, ~$0.06 per 1K output tokens
-- Typical agent run: 2K-5K tokens = $0.10-0.30 per run
-- Monitor usage at: https://platform.openai.com/usage
+✅ **Free!** Uses your existing GitHub Copilot subscription.
 
-## Alternative LLMs
+No additional API keys or charges required.
 
-To use Claude, Gemini, or other LLMs:
+## Models Available
 
-1. Edit `.github/agents/scripts/ai-helper.sh`
-2. Replace the API endpoint and authentication
-3. Update the model name
-4. Add the new API key as a GitHub Secret
+- `gpt-4o` (default) - Most capable
+- `gpt-4o-mini` - Faster, cheaper
+- `o1-preview` - Reasoning model
+- `claude-3.5-sonnet` - Anthropic Claude
 
 ## Troubleshooting
 
-**Error: "OPENAI_API_KEY environment variable not set"**
-- You haven't added the API key to GitHub Secrets
-- Follow step 2 above
+**Error: "GITHUB_TOKEN environment variable not set"**
+- This should never happen in GitHub Actions
+- If it does, the workflow configuration is incorrect
 
-**Error: "API Error: Incorrect API key provided"**
-- The API key is invalid or expired
-- Generate a new key and update the secret
+**Error: "Unauthorized"**
+- Your repository may not have access to GitHub Models
+- GitHub Copilot subscription required
+- Contact GitHub support
 
 **No files found to review**
-- The repository doesn't have files matching the agent's patterns
-- Check the agent script to see what file types it looks for
+- Agent looks for specific file types
+- Check agent script to see patterns
 
-## Security
+## Requirements
 
-- ✅ API keys stored as encrypted GitHub Secrets
-- ✅ Only accessible during workflow runs
-- ✅ Not exposed in logs
-- ✅ Code is sent to OpenAI (review their privacy policy)
-- ⚠️ Don't use on repositories with sensitive/proprietary code without approval
+- ✅ GitHub Copilot subscription (Individual, Business, or Enterprise)
+- ✅ Repository with code to analyze
+- ✅ That's it!
+
+## Privacy
+
+- Code is analyzed by GitHub's AI infrastructure
+- Same security/privacy as GitHub Copilot
+- See: https://docs.github.com/copilot/privacy
 
 ## Dry-Run Mode
 

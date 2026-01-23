@@ -1,19 +1,17 @@
 #!/bin/bash
-# AI Helper - Makes LLM API calls for agent analysis
+# AI Helper - Makes LLM API calls for agent analysis using GitHub Models
 # Usage: ./ai-helper.sh "system prompt" "user prompt" [model]
 
 set -euo pipefail
 
 SYSTEM_PROMPT="${1:-}"
 USER_PROMPT="${2:-}"
-MODEL="${3:-gpt-4}"
-API_KEY="${OPENAI_API_KEY:-}"
+MODEL="${3:-gpt-4o}"
+GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 
-if [ -z "$API_KEY" ]; then
-  echo "❌ Error: OPENAI_API_KEY environment variable not set"
-  echo "Configure it as a GitHub Secret: Settings > Secrets > Actions > New secret"
-  echo "Name: OPENAI_API_KEY"
-  echo "Value: sk-..."
+if [ -z "$GITHUB_TOKEN" ]; then
+  echo "❌ Error: GITHUB_TOKEN environment variable not set"
+  echo "This should be automatically provided by GitHub Actions"
   exit 1
 fi
 
@@ -22,10 +20,10 @@ if [ -z "$SYSTEM_PROMPT" ] || [ -z "$USER_PROMPT" ]; then
   exit 1
 fi
 
-# Call OpenAI API
-response=$(curl -s https://api.openai.com/v1/chat/completions \
+# Call GitHub Models API (uses Copilot infrastructure)
+response=$(curl -s https://models.inference.ai.azure.com/chat/completions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $API_KEY" \
+  -H "Authorization: Bearer $GITHUB_TOKEN" \
   -d @- <<EOF
 {
   "model": "$MODEL",
