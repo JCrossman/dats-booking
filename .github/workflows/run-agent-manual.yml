@@ -39,10 +39,12 @@ jobs:
       - name: Run agent script
         run: |
           chmod +x .github/agents/scripts/${{ inputs.agent }}.sh
+          chmod +x .github/agents/scripts/ai-helper.sh
           .github/agents/scripts/${{ inputs.agent }}.sh
         env:
           AGENT_NAME: ${{ inputs.agent }}
           DRY_RUN: ${{ inputs.dry_run }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       
       - name: Summary
         run: |
