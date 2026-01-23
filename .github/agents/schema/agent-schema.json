@@ -1,0 +1,176 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/JCrossman/dats-booking/main/.github/agents/schema/agent-schema.json",
+  "title": "DATS Agent Configuration",
+  "description": "Schema for DATS multi-agent development framework agent configurations",
+  "type": "object",
+  "required": ["name", "description", "owner", "trigger", "run"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unique identifier for the agent (lowercase with hyphens)",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "minLength": 3,
+      "maxLength": 50
+    },
+    "description": {
+      "type": "string",
+      "description": "Brief description of the agent's purpose and expertise",
+      "minLength": 10,
+      "maxLength": 500
+    },
+    "owner": {
+      "type": "string",
+      "description": "GitHub username or team responsible for this agent",
+      "minLength": 1
+    },
+    "contact": {
+      "type": "string",
+      "description": "Optional contact email or GitHub handle for agent maintainer"
+    },
+    "trigger": {
+      "type": "object",
+      "description": "Defines when and how the agent can be invoked",
+      "properties": {
+        "events": {
+          "type": "array",
+          "description": "GitHub events that can trigger this agent",
+          "items": {
+            "type": "string",
+            "enum": [
+              "issues",
+              "pull_request",
+              "push",
+              "workflow_dispatch",
+              "schedule",
+              "issue_comment",
+              "pull_request_review"
+            ]
+          }
+        },
+        "schedule": {
+          "type": "string",
+          "description": "Cron expression for scheduled runs (if applicable)",
+          "pattern": "^(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(@every (\\d+(ns|us|µs|ms|s|m|h))+)|((((\\d+,)+\\d+|(\\d+([/\\-])\\d+)|\\d+|\\*) ?){5,7})$"
+        },
+        "manual": {
+          "type": "boolean",
+          "description": "Whether the agent can be manually triggered via workflow_dispatch",
+          "default": true
+        }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "description": "List of actions this agent can perform",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "description": "GitHub Actions permissions required by this agent",
+      "properties": {
+        "contents": {
+          "type": "string",
+          "enum": ["read", "write", "none"]
+        },
+        "issues": {
+          "type": "string",
+          "enum": ["read", "write", "none"]
+        },
+        "pull-requests": {
+          "type": "string",
+          "enum": ["read", "write", "none"]
+        },
+        "checks": {
+          "type": "string",
+          "enum": ["read", "write", "none"]
+        },
+        "statuses": {
+          "type": "string",
+          "enum": ["read", "write", "none"]
+        }
+      }
+    },
+    "secrets_required": {
+      "type": "array",
+      "description": "List of GitHub secrets required by this agent (should be empty for dry_run mode)",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "modes": {
+      "type": "object",
+      "description": "Operating modes for the agent",
+      "properties": {
+        "dry_run": {
+          "type": "boolean",
+          "description": "Whether agent runs in dry-run mode (non-destructive)",
+          "default": true
+        },
+        "production": {
+          "type": "boolean",
+          "description": "Whether agent is enabled for production use",
+          "default": false
+        }
+      },
+      "required": ["dry_run"]
+    },
+    "run": {
+      "type": "object",
+      "description": "Execution configuration for the agent",
+      "required": ["entrypoint"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Type of execution (script, docker, action)",
+          "enum": ["script", "docker", "action"],
+          "default": "script"
+        },
+        "entrypoint": {
+          "type": "string",
+          "description": "Path to the script, Dockerfile, or action to execute",
+          "minLength": 1
+        },
+        "args": {
+          "type": "array",
+          "description": "Optional arguments to pass to the entrypoint",
+          "items": {
+            "type": "string"
+          }
+        },
+        "env": {
+          "type": "object",
+          "description": "Environment variables to set for the agent execution",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata about the agent",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "Agent configuration version"
+        },
+        "tags": {
+          "type": "array",
+          "description": "Tags for categorizing the agent",
+          "items": {
+            "type": "string"
+          }
+        },
+        "documentation": {
+          "type": "string",
+          "description": "URL or path to detailed agent documentation"
+        }
+      }
+    }
+  }
+}

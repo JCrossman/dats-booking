@@ -1,0 +1,46 @@
+name: Agent - Pull Request Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  route-to-agents:
+    name: Route PR to Agents
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        agent:
+          - architect
+          - security-privacy
+          - accessibility-specialist
+          - code-quality
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Run agent in dry-run mode
+        env:
+          AGENT_NAME: ${{ matrix.agent }}
+          DRY_RUN: "true"
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo "Running agent: ${AGENT_NAME}"
+          echo "PR: #${PR_NUMBER} - ${PR_TITLE}"
+          .github/agents/run-agent.sh
+      
+      - name: Comment on PR
+        if: always()
+        run: |
+          echo "In production mode, this would post review comments from ${{ matrix.agent }}"
+          echo "PR #${{ github.event.pull_request.number }}"

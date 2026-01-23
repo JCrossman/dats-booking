@@ -1,0 +1,46 @@
+name: developer
+description: TypeScript implementation, Playwright automation, MCP tools, and testing for DATS Accessible Booking Assistant
+owner: JCrossman
+contact: JCrossman
+
+trigger:
+  events:
+    - pull_request
+    - push
+    - workflow_dispatch
+  manual: true
+
+actions:
+  - Implement features according to specs
+  - Write clean, maintainable TypeScript code
+  - Create comprehensive tests
+  - Follow project coding conventions
+  - Handle errors with typed errors
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+
+secrets_required: []
+
+modes:
+  dry_run: true
+  production: false
+
+run:
+  type: script
+  entrypoint: .github/agents/run-agent.sh
+  env:
+    AGENT_ROLE: "Developer"
+    AGENT_FOCUS: "Implementation, testing, code quality"
+
+metadata:
+  version: "1.0.0"
+  tags:
+    - implementation
+    - typescript
+    - testing
+    - playwright
+    - mcp
+  documentation: AGENTS.md#agent-3-developer

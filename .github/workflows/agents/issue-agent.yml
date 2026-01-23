@@ -1,0 +1,55 @@
+name: Agent - Issue Review
+
+on:
+  issues:
+    types: [opened, edited, labeled]
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  route-to-agent:
+    name: Route Issue to Agent
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Determine agent
+        id: agent
+        run: |
+          # By default, route new issues to Product Manager for triage
+          AGENT_NAME="product-manager"
+          
+          # Check for specific labels to route to specialized agents
+          if echo "${{ github.event.issue.labels.*.name }}" | grep -q "security\|privacy"; then
+            AGENT_NAME="security-privacy"
+          elif echo "${{ github.event.issue.labels.*.name }}" | grep -q "accessibility"; then
+            AGENT_NAME="accessibility-specialist"
+          elif echo "${{ github.event.issue.labels.*.name }}" | grep -q "bug"; then
+            AGENT_NAME="qa-tester"
+          elif echo "${{ github.event.issue.labels.*.name }}" | grep -q "infrastructure\|deployment"; then
+            AGENT_NAME="devops-infrastructure"
+          fi
+          
+          echo "agent_name=${AGENT_NAME}" >> $GITHUB_OUTPUT
+      
+      - name: Run agent in dry-run mode
+        env:
+          AGENT_NAME: ${{ steps.agent.outputs.agent_name }}
+          DRY_RUN: "true"
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+        run: |
+          echo "Running agent: ${AGENT_NAME}"
+          echo "Issue: #${ISSUE_NUMBER} - ${ISSUE_TITLE}"
+          .github/agents/run-agent.sh
+      
+      - name: Comment on issue
+        if: always()
+        run: |
+          echo "In production mode, this would post a comment with agent analysis"
+          echo "Issue #${{ github.event.issue.number }}"

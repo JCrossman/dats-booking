@@ -1,0 +1,44 @@
+name: ux-writer
+description: Plain language, cognitive accessibility, symbol mapping, and microcopy for DATS Accessible Booking Assistant
+owner: JCrossman
+contact: JCrossman
+
+trigger:
+  events:
+    - pull_request
+    - workflow_dispatch
+  manual: true
+
+actions:
+  - Write clear, simple user-facing text
+  - Ensure cognitive accessibility
+  - Map concepts to appropriate symbols
+  - Create consistent voice and tone
+  - Review error messages and help content
+
+permissions:
+  contents: read
+  pull-requests: read
+
+secrets_required: []
+
+modes:
+  dry_run: true
+  production: false
+
+run:
+  type: script
+  entrypoint: .github/agents/run-agent.sh
+  env:
+    AGENT_ROLE: "UX Writer"
+    AGENT_FOCUS: "Plain language, microcopy, symbols"
+
+metadata:
+  version: "1.0.0"
+  tags:
+    - ux-writing
+    - plain-language
+    - microcopy
+    - accessibility
+    - symbols
+  documentation: AGENTS.md#agent-9-ux-writer

@@ -1,0 +1,104 @@
+name: Agent - Orchestrated Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      agents:
+        description: 'Comma-separated list of agents to run in sequence'
+        required: false
+        type: string
+        default: 'product-manager,architect,developer,security-privacy'
+      dry_run:
+        description: 'Run in dry-run mode (non-destructive)'
+        required: false
+        type: boolean
+        default: true
+      context:
+        description: 'Optional context (e.g., PR number, issue number)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  orchestrate:
+    name: Orchestrate Agent Review
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Parse agent list
+        id: parse
+        run: |
+          AGENTS="${{ inputs.agents }}"
+          echo "agents=${AGENTS}" >> $GITHUB_OUTPUT
+          echo "Agent sequence: ${AGENTS}"
+      
+      - name: Run agents in sequence
+        env:
+          AGENTS: ${{ steps.parse.outputs.agents }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          CONTEXT: ${{ inputs.context }}
+          GITHUB_EVENT_NAME: workflow_dispatch
+        run: |
+          echo "========================================"
+          echo "DATS Multi-Agent Orchestration"
+          echo "========================================"
+          echo "Agents: ${AGENTS}"
+          echo "Dry Run: ${DRY_RUN}"
+          if [ -n "${CONTEXT}" ]; then
+            echo "Context: ${CONTEXT}"
+          fi
+          echo ""
+          
+          # Split comma-separated agents and run each in sequence
+          IFS=',' read -ra AGENT_ARRAY <<< "${AGENTS}"
+          TOTAL=${#AGENT_ARRAY[@]}
+          CURRENT=1
+          
+          for AGENT in "${AGENT_ARRAY[@]}"; do
+            # Trim whitespace
+            AGENT=$(echo "${AGENT}" | xargs)
+            
+            echo "----------------------------------------"
+            echo "Running agent ${CURRENT}/${TOTAL}: ${AGENT}"
+            echo "----------------------------------------"
+            
+            # Validate agent configuration exists
+            AGENT_FILE=".github/agents/${AGENT}.yml"
+            if [ ! -f "${AGENT_FILE}" ]; then
+              echo "⚠️  Warning: Agent configuration not found: ${AGENT_FILE}"
+              echo "Skipping..."
+              CURRENT=$((CURRENT + 1))
+              continue
+            fi
+            
+            # Run the agent
+            AGENT_NAME="${AGENT}" .github/agents/run-agent.sh
+            
+            echo ""
+            CURRENT=$((CURRENT + 1))
+          done
+          
+          echo "========================================"
+          echo "✅ Orchestration completed"
+          echo "========================================"
+      
+      - name: Output summary
+        if: always()
+        run: |
+          echo "### Multi-Agent Orchestration Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Agents:** ${{ inputs.agents }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dry Run:** ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Context:** ${{ inputs.context || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Orchestration completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See agent logs above for details." >> $GITHUB_STEP_SUMMARY

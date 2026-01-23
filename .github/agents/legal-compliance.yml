@@ -1,0 +1,44 @@
+name: legal-compliance
+description: POPA interpretation, ToS analysis, accessibility law, and consent for DATS Accessible Booking Assistant
+owner: JCrossman
+contact: JCrossman
+
+trigger:
+  events:
+    - pull_request
+    - workflow_dispatch
+  manual: true
+
+actions:
+  - Interpret Alberta POPA requirements
+  - Analyze DATS Terms of Service implications
+  - Ensure proper consent collection
+  - Document compliance measures
+  - Review privacy and legal implications
+
+permissions:
+  contents: read
+  pull-requests: read
+
+secrets_required: []
+
+modes:
+  dry_run: true
+  production: false
+
+run:
+  type: script
+  entrypoint: .github/agents/run-agent.sh
+  env:
+    AGENT_ROLE: "Legal/Compliance"
+    AGENT_FOCUS: "POPA, ToS, consent, compliance"
+
+metadata:
+  version: "1.0.0"
+  tags:
+    - legal
+    - compliance
+    - popa
+    - privacy
+    - consent
+  documentation: AGENTS.md#agent-10-legalcompliance

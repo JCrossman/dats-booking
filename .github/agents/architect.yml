@@ -1,0 +1,43 @@
+name: architect
+description: System design, MCP patterns, integration architecture, and scalability for DATS Accessible Booking Assistant
+owner: JCrossman
+contact: JCrossman
+
+trigger:
+  events:
+    - pull_request
+    - workflow_dispatch
+  manual: true
+
+actions:
+  - Review system architecture decisions
+  - Validate MCP best practices
+  - Assess component boundaries and interfaces
+  - Evaluate integration patterns
+  - Ensure testability and maintainability
+
+permissions:
+  contents: read
+  pull-requests: read
+
+secrets_required: []
+
+modes:
+  dry_run: true
+  production: false
+
+run:
+  type: script
+  entrypoint: .github/agents/run-agent.sh
+  env:
+    AGENT_ROLE: "Architect"
+    AGENT_FOCUS: "System design, MCP patterns, architecture"
+
+metadata:
+  version: "1.0.0"
+  tags:
+    - architecture
+    - design
+    - mcp
+    - scalability
+  documentation: AGENTS.md#agent-2-architect

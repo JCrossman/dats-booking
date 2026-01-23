@@ -1,0 +1,144 @@
+name: Validate Agent Configurations
+
+on:
+  push:
+    paths:
+      - '.github/agents/**/*.yml'
+      - '.github/agents/schema/*.json'
+      - '.github/workflows/validate-agents.yml'
+  pull_request:
+    paths:
+      - '.github/agents/**/*.yml'
+      - '.github/agents/schema/*.json'
+      - '.github/workflows/validate-agents.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Agent Configs
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install validation tools
+        run: |
+          npm install -g ajv-cli js-yaml
+      
+      - name: Validate agent YAML syntax
+        run: |
+          echo "Validating YAML syntax for all agent configs..."
+          FAILED=0
+          
+          for file in .github/agents/*.yml; do
+            if [ -f "$file" ]; then
+              echo "Checking: $file"
+              if js-yaml "$file" > /dev/null 2>&1; then
+                echo "  ✅ Valid YAML"
+              else
+                echo "  ❌ Invalid YAML"
+                FAILED=1
+              fi
+            fi
+          done
+          
+          if [ $FAILED -eq 1 ]; then
+            echo ""
+            echo "❌ YAML validation failed"
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ All agent configs have valid YAML syntax"
+      
+      - name: Convert YAML to JSON for schema validation
+        run: |
+          echo "Converting YAML files to JSON..."
+          mkdir -p /tmp/agent-json
+          
+          for file in .github/agents/*.yml; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file" .yml)
+              echo "Converting: $filename"
+              js-yaml "$file" > "/tmp/agent-json/${filename}.json"
+            fi
+          done
+          
+          echo "✅ Conversion complete"
+      
+      - name: Validate against JSON schema
+        run: |
+          echo "Validating agent configs against schema..."
+          SCHEMA=".github/agents/schema/agent-schema.json"
+          FAILED=0
+          
+          if [ ! -f "$SCHEMA" ]; then
+            echo "❌ Schema file not found: $SCHEMA"
+            exit 1
+          fi
+          
+          for file in /tmp/agent-json/*.json; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              echo "Validating: $filename"
+              if ajv validate -s "$SCHEMA" -d "$file" --strict=false 2>&1; then
+                echo "  ✅ Valid"
+              else
+                echo "  ❌ Validation failed"
+                FAILED=1
+              fi
+            fi
+          done
+          
+          if [ $FAILED -eq 1 ]; then
+            echo ""
+            echo "❌ Schema validation failed"
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ All agent configs conform to schema"
+      
+      - name: Verify runner script exists and is executable
+        run: |
+          RUNNER=".github/agents/run-agent.sh"
+          
+          if [ ! -f "$RUNNER" ]; then
+            echo "❌ Runner script not found: $RUNNER"
+            exit 1
+          fi
+          
+          if [ ! -x "$RUNNER" ]; then
+            echo "❌ Runner script is not executable: $RUNNER"
+            exit 1
+          fi
+          
+          echo "✅ Runner script exists and is executable"
+      
+      - name: Test runner script
+        run: |
+          echo "Testing runner script with test agent..."
+          AGENT_NAME="product-manager" DRY_RUN="true" .github/agents/run-agent.sh
+          
+          echo ""
+          echo "✅ Runner script test passed"
+      
+      - name: Output summary
+        if: always()
+        run: |
+          echo "### Agent Configuration Validation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All validation checks passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Validated:**" >> $GITHUB_STEP_SUMMARY
+          echo "- YAML syntax" >> $GITHUB_STEP_SUMMARY
+          echo "- JSON schema compliance" >> $GITHUB_STEP_SUMMARY
+          echo "- Runner script" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,45 @@
+name: product-manager
+description: Requirements analysis, user stories, acceptance criteria, and prioritization for DATS Accessible Booking Assistant
+owner: JCrossman
+contact: JCrossman
+
+trigger:
+  events:
+    - issues
+    - pull_request
+    - workflow_dispatch
+  manual: true
+
+actions:
+  - Review feature requirements
+  - Write user stories with acceptance criteria
+  - Prioritize work based on user impact
+  - Ensure accessibility requirements are explicit
+  - Validate alignment with project goals
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+secrets_required: []
+
+modes:
+  dry_run: true
+  production: false
+
+run:
+  type: script
+  entrypoint: .github/agents/run-agent.sh
+  env:
+    AGENT_ROLE: "Product Manager"
+    AGENT_FOCUS: "Requirements, user stories, prioritization"
+
+metadata:
+  version: "1.0.0"
+  tags:
+    - requirements
+    - user-stories
+    - prioritization
+    - accessibility
+  documentation: AGENTS.md#agent-1-product-manager

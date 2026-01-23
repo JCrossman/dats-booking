@@ -1,0 +1,43 @@
+name: Agent - Scheduled Reviews
+
+on:
+  schedule:
+    # Run weekly on Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  scheduled-review:
+    name: Weekly Agent Review
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        agent:
+          - qa-tester
+          - devops-infrastructure
+          - security-privacy
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Run agent in dry-run mode
+        env:
+          AGENT_NAME: ${{ matrix.agent }}
+          DRY_RUN: "true"
+          GITHUB_EVENT_NAME: schedule
+        run: |
+          echo "Running scheduled agent: ${AGENT_NAME}"
+          .github/agents/run-agent.sh
+      
+      - name: Create summary
+        if: always()
+        run: |
+          echo "In production mode, this would create an issue with scheduled review findings"
+          echo "Agent: ${{ matrix.agent }}"

@@ -1,8 +1,90 @@
 # Multi-Agent Development Framework: Agent Definitions
 
-**Version:** 1.1
+**Version:** 1.2
 **Project:** DATS Accessible Booking Assistant
 **Status:** ACTIVE
+
+---
+
+## 🤖 Machine-Readable Agent Configurations
+
+**NEW:** Agent definitions are now available in structured YAML format under `.github/agents/`. These machine-readable configs enable automated workflows, CI/CD integration, and programmatic agent orchestration.
+
+### Quick Start
+
+**Run an agent manually from GitHub Actions UI:**
+1. Go to **Actions** → **Agent - Manual Run**
+2. Click **Run workflow**
+3. Select your agent and context
+4. All runs default to `dry_run=true` (non-destructive)
+
+**Run multiple agents in sequence:**
+1. Go to **Actions** → **Agent - Orchestrated Review**
+2. Click **Run workflow**
+3. Enter comma-separated agent names (e.g., `product-manager,architect,security-privacy`)
+4. Defaults to `dry_run=true`
+
+### Available Agent Configs
+
+All agent configurations are located in `.github/agents/`:
+
+| Agent Config File | Agent Role | Triggers |
+|------------------|------------|----------|
+| `product-manager.yml` | Requirements, user stories | Issues, PRs, manual |
+| `architect.yml` | System design, architecture | PRs, manual |
+| `developer.yml` | Implementation, testing | PRs, push, manual |
+| `security-privacy.yml` | Security, POPA compliance | PRs, manual |
+| `accessibility-specialist.yml` | WCAG, AAC, cognitive | PRs, manual |
+| `code-quality.yml` | Clean code, refactoring | PRs, manual |
+| `qa-tester.yml` | Testing, edge cases | PRs, manual |
+| `devops-infrastructure.yml` | CI/CD, Azure, monitoring | PRs, manual |
+| `ux-writer.yml` | Plain language, microcopy | PRs, manual |
+| `legal-compliance.yml` | POPA, ToS, consent | PRs, manual |
+
+### Automated Workflows
+
+- **`.github/workflows/agents/issue-agent.yml`** - Routes new issues to appropriate agents
+- **`.github/workflows/agents/pull-request-agent.yml`** - Reviews PRs with multiple agents
+- **`.github/workflows/agents/schedule-agent.yml`** - Weekly scheduled reviews
+- **`.github/workflows/agents/run-agent-manual.yml`** - Manual agent execution
+- **`.github/workflows/agents/orchestrate-agents.yml`** - Multi-agent orchestration
+- **`.github/workflows/validate-agents.yml`** - Validates agent configs against schema
+
+### Migration & Rollout
+
+**Current Status:** All agent workflows run in `dry_run=true` mode by default.
+
+**Safety Features:**
+- ✅ Non-destructive by default
+- ✅ No secrets or credentials required
+- ✅ Conservative permissions (read-only)
+- ✅ Schema validation on every change
+
+**To Enable Production Mode:**
+1. Update `owner` fields in agent configs if needed (currently `JCrossman`)
+2. Review and approve agent logic in `.github/agents/run-agent.sh`
+3. Implement production agent execution (currently a placeholder)
+4. Set `modes.production: true` in agent configs
+5. Change workflow default `dry_run` to `false`
+
+**⚠️ Important:** Do not enable production mode without:
+- Proper authentication mechanism
+- Review of security implications
+- Testing in a staging environment
+- Approval from repository maintainers
+
+### Schema
+
+Agent configurations are validated against `.github/agents/schema/agent-schema.json` (JSON Schema Draft 7).
+
+**Required fields:**
+- `name` - Unique agent identifier
+- `description` - Purpose and expertise
+- `owner` - GitHub username/team
+- `trigger` - Event triggers and manual flag
+- `run.entrypoint` - Path to runner script
+
+See the schema file for complete specification.
 
 ---
 

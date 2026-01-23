@@ -1,0 +1,77 @@
+name: Agent - Manual Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      agent_name:
+        description: 'Agent to run'
+        required: true
+        type: choice
+        options:
+          - product-manager
+          - architect
+          - developer
+          - security-privacy
+          - accessibility-specialist
+          - code-quality
+          - qa-tester
+          - devops-infrastructure
+          - ux-writer
+          - legal-compliance
+      dry_run:
+        description: 'Run in dry-run mode (non-destructive)'
+        required: false
+        type: boolean
+        default: true
+      context:
+        description: 'Optional context (e.g., PR number, issue number, file paths)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  run-agent:
+    name: Run ${{ inputs.agent_name }}
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Validate agent configuration
+        run: |
+          AGENT_FILE=".github/agents/${{ inputs.agent_name }}.yml"
+          if [ ! -f "${AGENT_FILE}" ]; then
+            echo "❌ Error: Agent configuration not found: ${AGENT_FILE}"
+            exit 1
+          fi
+          echo "✅ Agent configuration found: ${AGENT_FILE}"
+      
+      - name: Run agent
+        env:
+          AGENT_NAME: ${{ inputs.agent_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          CONTEXT: ${{ inputs.context }}
+          GITHUB_EVENT_NAME: workflow_dispatch
+        run: |
+          echo "Running agent manually: ${AGENT_NAME}"
+          if [ -n "${CONTEXT}" ]; then
+            echo "Context: ${CONTEXT}"
+          fi
+          .github/agents/run-agent.sh
+      
+      - name: Output summary
+        if: always()
+        run: |
+          echo "### Agent Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Agent:** ${{ inputs.agent_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dry Run:** ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Context:** ${{ inputs.context || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Agent execution completed" >> $GITHUB_STEP_SUMMARY

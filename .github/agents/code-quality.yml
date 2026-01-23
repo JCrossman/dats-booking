@@ -1,0 +1,43 @@
+name: code-quality
+description: Clean code, refactoring, DRY principles, and maintainability review for DATS Accessible Booking Assistant
+owner: JCrossman
+contact: JCrossman
+
+trigger:
+  events:
+    - pull_request
+    - workflow_dispatch
+  manual: true
+
+actions:
+  - Ensure code is clean and maintainable
+  - Identify opportunities for simplification
+  - Enforce DRY principles
+  - Reduce technical debt
+  - Review TypeScript best practices
+
+permissions:
+  contents: read
+  pull-requests: read
+
+secrets_required: []
+
+modes:
+  dry_run: true
+  production: false
+
+run:
+  type: script
+  entrypoint: .github/agents/run-agent.sh
+  env:
+    AGENT_ROLE: "Code Quality Reviewer"
+    AGENT_FOCUS: "Clean code, refactoring, maintainability"
+
+metadata:
+  version: "1.0.0"
+  tags:
+    - code-quality
+    - refactoring
+    - maintainability
+    - typescript
+  documentation: AGENTS.md#agent-6-code-quality-reviewer

@@ -1,0 +1,44 @@
+name: accessibility-specialist
+description: WCAG 2.2, AAC integration, switch access, screen readers, and cognitive accessibility for DATS Accessible Booking Assistant
+owner: JCrossman
+contact: JCrossman
+
+trigger:
+  events:
+    - pull_request
+    - workflow_dispatch
+  manual: true
+
+actions:
+  - Ensure WCAG 2.2 AA compliance
+  - Design for non-verbal users and AAC devices
+  - Validate switch access compatibility
+  - Review cognitive load and simplicity
+  - Assess screen reader compatibility
+
+permissions:
+  contents: read
+  pull-requests: read
+
+secrets_required: []
+
+modes:
+  dry_run: true
+  production: false
+
+run:
+  type: script
+  entrypoint: .github/agents/run-agent.sh
+  env:
+    AGENT_ROLE: "Accessibility Specialist"
+    AGENT_FOCUS: "WCAG 2.2, AAC, switch access, cognitive accessibility"
+
+metadata:
+  version: "1.0.0"
+  tags:
+    - accessibility
+    - wcag
+    - aac
+    - screen-readers
+    - cognitive
+  documentation: AGENTS.md#agent-5-accessibility-specialist

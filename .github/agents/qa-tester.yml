@@ -1,0 +1,45 @@
+name: qa-tester
+description: Test strategy, E2E testing, edge cases, and regression testing for DATS Accessible Booking Assistant
+owner: JCrossman
+contact: JCrossman
+
+trigger:
+  events:
+    - pull_request
+    - workflow_dispatch
+  manual: true
+
+actions:
+  - Define test strategy and coverage requirements
+  - Identify edge cases and failure modes
+  - Design E2E test scenarios
+  - Verify accessibility testing completeness
+  - Review test coverage
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+
+secrets_required: []
+
+modes:
+  dry_run: true
+  production: false
+
+run:
+  type: script
+  entrypoint: .github/agents/run-agent.sh
+  env:
+    AGENT_ROLE: "QA/Tester"
+    AGENT_FOCUS: "Test strategy, coverage, edge cases"
+
+metadata:
+  version: "1.0.0"
+  tags:
+    - qa
+    - testing
+    - e2e
+    - coverage
+    - edge-cases
+  documentation: AGENTS.md#agent-7-qatester
