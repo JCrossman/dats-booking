@@ -1,0 +1,102 @@
+name: Run Agent Manually
+
+on:
+  workflow_dispatch:
+    inputs:
+      agent_name:
+        description: 'Agent to run'
+        required: true
+        type: choice
+        options:
+          - product-manager
+          - architect
+          - developer
+          - security-privacy
+          - accessibility-specialist
+          - code-quality
+          - qa-tester
+          - devops-infrastructure
+          - ux-writer
+          - legal-compliance
+      dry_run:
+        description: 'Dry run mode (simulates actions without making changes)'
+        required: false
+        type: boolean
+        default: true
+      context:
+        description: 'Additional context for the agent (optional)'
+        required: false
+        type: string
+
+jobs:
+  run-agent:
+    name: Run ${{ inputs.agent_name }} Agent
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup environment
+        run: |
+          echo "🤖 Preparing to run agent: ${{ inputs.agent_name }}"
+          echo "🔧 Dry run mode: ${{ inputs.dry_run }}"
+          
+          # Install yq for YAML parsing (optional but helpful)
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+      
+      - name: Display agent info
+        run: |
+          agent_file=".github/agents/${{ inputs.agent_name }}.yml"
+          
+          if [ -f "$agent_file" ]; then
+            echo "📋 Agent Configuration:"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            yq eval '.agent' "$agent_file"
+            echo ""
+            echo "📊 Metadata:"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            yq eval '.metadata' "$agent_file"
+            echo ""
+            echo "🔒 Permissions:"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            yq eval '.permissions' "$agent_file"
+          else
+            echo "❌ Agent config not found: $agent_file"
+            exit 1
+          fi
+      
+      - name: Run agent
+        env:
+          AGENT_NAME: ${{ inputs.agent_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          AGENT_CONTEXT: ${{ inputs.context }}
+        run: |
+          echo ""
+          echo "🚀 Executing agent..."
+          echo ""
+          
+          # Run the agent
+          .github/agents/run-agent.sh
+      
+      - name: Summary
+        if: always()
+        run: |
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📝 Execution Summary"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "   Agent:   ${{ inputs.agent_name }}"
+          echo "   Mode:    ${{ inputs.dry_run && 'DRY RUN' || 'LIVE' }}"
+          echo "   Trigger: Manual (workflow_dispatch)"
+          echo "   Actor:   ${{ github.actor }}"
+          echo ""
+          
+          if [ "${{ inputs.dry_run }}" == "true" ]; then
+            echo "ℹ️  This was a dry-run. No actual changes were made."
+            echo "   To run in live mode, set 'dry_run' to false."
+          else
+            echo "⚠️  Live mode execution completed."
+            echo "   Review any changes made by the agent."
+          fi

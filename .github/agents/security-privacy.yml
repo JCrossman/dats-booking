@@ -1,0 +1,83 @@
+agent:
+  name: Security & Privacy
+  id: security-privacy
+  version: "1.1"
+  description: POPA compliance, credential security, threat modeling, and audit logging
+
+metadata:
+  owner: JCrossman
+  status: active
+  tags:
+    - security
+    - privacy
+    - popa
+    - compliance
+    - encryption
+  slash_command: /project:security-review
+
+expertise:
+  domains:
+    - Alberta POPA (replaced FOIP in 2025)
+    - Cryptographic best practices (AES-256-GCM)
+    - OAuth 2.1 + PKCE
+    - OWASP security guidelines
+    - Threat modeling
+  triggers:
+    - Credential handling
+    - PII processing
+    - Authentication flows
+    - New data storage
+
+permissions:
+  read:
+    - source_code
+    - security_docs
+    - pull_requests
+    - issues
+  write:
+    - security_reports
+    - pull_request_comments
+    - issue_comments
+  restricted:
+    - credentials
+    - secrets
+    - production_data
+
+modes:
+  dry_run: true
+  interactive: false
+  auto_approve: false
+
+run:
+  entrypoint: .github/agents/run-agent.sh
+  timeout: 900
+  environment:
+    AGENT_TYPE: "security-privacy"
+
+review_criteria:
+  - Credentials encrypted at rest (AES-256-GCM minimum)
+  - No credentials in logs, comments, or error messages
+  - TLS 1.2+ for all network traffic
+  - Input validation on all external inputs
+  - Audit logging for credential access
+  - Session management (short-lived, invalidated on error)
+
+output_format:
+  type: markdown
+  template: |
+    ## Security Review
+    
+    ### Risk Level
+    - [Critical/High/Medium/Low/None]
+    
+    ### POPA Compliance
+    - [Compliant/Non-compliant/Needs Review]
+    
+    ### Findings
+    1. ...
+    
+    ### Required Changes
+    - ...
+    
+    ### Recommendations
+    - ...

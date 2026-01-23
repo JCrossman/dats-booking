@@ -1,0 +1,77 @@
+agent:
+  name: QA/Tester
+  id: qa-tester
+  version: "1.1"
+  description: Test strategy, E2E testing, edge cases, and regression testing
+
+metadata:
+  owner: JCrossman
+  status: active
+  tags:
+    - qa
+    - testing
+    - e2e
+    - coverage
+  slash_command: /project:qa-review
+
+expertise:
+  domains:
+    - Vitest (unit/integration testing)
+    - Playwright (E2E testing)
+    - axe-core (accessibility testing)
+    - Test pyramid strategy
+    - Boundary testing
+  triggers:
+    - Test planning
+    - Coverage gaps
+    - Bug reports
+
+permissions:
+  read:
+    - source_code
+    - tests
+    - pull_requests
+    - issues
+  write:
+    - test_reports
+    - pull_request_comments
+    - issue_comments
+  restricted:
+    - credentials
+    - secrets
+    - production_data
+
+modes:
+  dry_run: true
+  interactive: false
+  auto_approve: false
+
+run:
+  entrypoint: .github/agents/run-agent.sh
+  timeout: 1200
+  environment:
+    AGENT_TYPE: "qa-tester"
+
+review_criteria:
+  - Unit tests 80% minimum coverage
+  - Integration tests for all MCP tools
+  - E2E tests for all critical user paths
+  - Accessibility tests 100% WCAG 2.2 AA
+  - Edge cases covered
+
+output_format:
+  type: markdown
+  template: |
+    ## QA Review
+    
+    ### Coverage Assessment
+    - [Sufficient / Gaps Found]
+    
+    ### Missing Test Cases
+    1. ...
+    
+    ### Edge Cases Not Covered
+    - ...
+    
+    ### Test Improvements Suggested
+    - ...

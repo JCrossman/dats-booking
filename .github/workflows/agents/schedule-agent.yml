@@ -1,0 +1,91 @@
+name: Agent - Scheduled
+
+# Example workflow that runs agents on a schedule
+# This is a template - customize based on your needs
+
+on:
+  schedule:
+    # Run weekly code quality review on Mondays at 9 AM UTC
+    - cron: '0 9 * * 1'
+  
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: 'Agent to run (leave empty for default: code-quality)'
+        required: false
+        type: string
+        default: 'code-quality'
+
+jobs:
+  scheduled-review:
+    name: Scheduled Agent Review
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup environment
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+      
+      - name: Determine agent
+        id: agent
+        run: |
+          # Use input if provided, otherwise default to code-quality
+          agent="${{ github.event.inputs.agent }}"
+          if [ -z "$agent" ]; then
+            agent="code-quality"
+          fi
+          
+          echo "agent=$agent" >> $GITHUB_OUTPUT
+          echo "🤖 Agent to run: $agent"
+      
+      - name: Run agent (dry-run)
+        env:
+          AGENT_NAME: ${{ steps.agent.outputs.agent }}
+          DRY_RUN: true
+        run: |
+          echo "🔄 Running scheduled agent review"
+          echo "   Agent: ${{ steps.agent.outputs.agent }}"
+          echo "   Schedule: Weekly on Mondays at 9 AM UTC"
+          echo ""
+          
+          .github/agents/run-agent.sh
+      
+      - name: Create summary issue (optional)
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const agent = '${{ steps.agent.outputs.agent }}';
+            const date = new Date().toISOString().split('T')[0];
+            
+            // Only create issue in live mode (when not on schedule)
+            if (context.eventName === 'workflow_dispatch') {
+              await github.rest.issues.create({
+                ...context.repo,
+                title: `Scheduled ${agent} Review - ${date}`,
+                body: `## Scheduled Agent Review\n\n` +
+                      `**Agent:** ${agent}\n` +
+                      `**Date:** ${date}\n` +
+                      `**Trigger:** ${context.eventName}\n\n` +
+                      `The agent completed its scheduled review.\n\n` +
+                      `_This is a dry-run. Enable live mode to get detailed findings._`,
+                labels: ['agent-review', 'automated']
+              });
+            }
+      
+      - name: Summary
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📝 Scheduled Review Complete"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "   Agent: ${{ steps.agent.outputs.agent }}"
+          echo "   Mode:  DRY_RUN"
+          echo ""
+          echo "💡 Next Steps:"
+          echo "   1. Review the agent output above"
+          echo "   2. Enable live mode for actionable feedback"
+          echo "   3. Adjust schedule in .github/workflows/agents/schedule-agent.yml"

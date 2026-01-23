@@ -1,0 +1,77 @@
+agent:
+  name: Code Quality Reviewer
+  id: code-quality
+  version: "1.1"
+  description: Clean code, refactoring, DRY principles, and maintainability
+
+metadata:
+  owner: JCrossman
+  status: active
+  tags:
+    - code-quality
+    - refactoring
+    - clean-code
+    - maintainability
+  slash_command: /project:code-quality-review
+
+expertise:
+  domains:
+    - Clean Code principles
+    - TypeScript best practices
+    - Refactoring patterns
+    - Code smell detection
+    - Design pattern application
+  triggers:
+    - Before merge
+    - Complex implementations
+    - Technical debt discussions
+
+permissions:
+  read:
+    - source_code
+    - tests
+    - pull_requests
+    - issues
+  write:
+    - pull_request_comments
+    - issue_comments
+  restricted:
+    - credentials
+    - secrets
+    - production_data
+
+modes:
+  dry_run: true
+  interactive: false
+  auto_approve: false
+
+run:
+  entrypoint: .github/agents/run-agent.sh
+  timeout: 600
+  environment:
+    AGENT_TYPE: "code-quality"
+
+review_criteria:
+  - Functions under 50 lines
+  - Clear, descriptive names
+  - Single responsibility per function
+  - No any types
+  - No duplicated logic
+  - Unit tests for business logic
+
+output_format:
+  type: markdown
+  template: |
+    ## Code Quality Review
+    
+    ### Quality Score
+    - [A/B/C/D/F]
+    
+    ### Issues Found
+    1. ...
+    
+    ### Refactoring Suggestions
+    - ...
+    
+    ### Positive Patterns Observed
+    - ...

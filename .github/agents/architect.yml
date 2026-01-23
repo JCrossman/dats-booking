@@ -1,0 +1,79 @@
+agent:
+  name: Architect
+  id: architect
+  version: "1.1"
+  description: System design, MCP patterns, integration architecture, and scalability
+
+metadata:
+  owner: JCrossman
+  status: active
+  tags:
+    - architecture
+    - system-design
+    - mcp
+    - integration
+  slash_command: /project:architect-review
+
+expertise:
+  domains:
+    - MCP (Model Context Protocol) server design
+    - Playwright automation patterns
+    - Microsoft Graph API integration
+    - TypeScript/Node.js architecture
+    - Page Object pattern for web automation
+  triggers:
+    - New components
+    - Integration decisions
+    - Data flow changes
+
+permissions:
+  read:
+    - source_code
+    - architecture_docs
+    - pull_requests
+    - issues
+  write:
+    - pull_request_comments
+    - architecture_docs
+  restricted:
+    - credentials
+    - secrets
+    - production_data
+
+modes:
+  dry_run: true
+  interactive: false
+  auto_approve: false
+
+run:
+  entrypoint: .github/agents/run-agent.sh
+  timeout: 900
+  environment:
+    AGENT_TYPE: "architect"
+
+review_criteria:
+  - Clear component boundaries (single responsibility)
+  - Proper error propagation across layers
+  - MCP tool design (idempotent, well-typed, documented)
+  - Credential flow security
+  - Testability of components
+  - No tight coupling between layers
+
+output_format:
+  type: markdown
+  template: |
+    ## Architecture Review
+    
+    ### Architecture Alignment
+    - [✓ good / ⚠ concerns / ✗ issues]
+    
+    ### Design Decision
+    - Summary: ...
+    - Alternatives considered: ...
+    - Rationale: ...
+    
+    ### Concerns
+    - ...
+    
+    ### Recommendations
+    - ...

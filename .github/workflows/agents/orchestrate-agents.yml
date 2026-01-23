@@ -1,0 +1,181 @@
+name: Orchestrate Agents
+
+on:
+  workflow_dispatch:
+    inputs:
+      agents:
+        description: 'Agents to run (comma-separated)'
+        required: true
+        type: string
+        default: 'product-manager,architect,developer,security-privacy'
+      execution_mode:
+        description: 'Execution mode'
+        required: true
+        type: choice
+        options:
+          - sequential
+          - parallel
+        default: sequential
+      dry_run:
+        description: 'Dry run mode (simulates actions without making changes)'
+        required: false
+        type: boolean
+        default: true
+      context:
+        description: 'Shared context for all agents (optional)'
+        required: false
+        type: string
+
+jobs:
+  prepare:
+    name: Prepare Orchestration
+    runs-on: ubuntu-latest
+    outputs:
+      agent_list: ${{ steps.parse.outputs.agent_list }}
+      agent_count: ${{ steps.parse.outputs.agent_count }}
+    
+    steps:
+      - name: Parse agent list
+        id: parse
+        run: |
+          # Convert comma-separated list to JSON array
+          agents="${{ inputs.agents }}"
+          
+          # Remove spaces and convert to array
+          agents_clean=$(echo "$agents" | tr -d ' ')
+          
+          # Convert to JSON array format
+          IFS=',' read -ra agent_array <<< "$agents_clean"
+          
+          # Build JSON array
+          json_array="["
+          for i in "${!agent_array[@]}"; do
+            if [ $i -gt 0 ]; then
+              json_array+=","
+            fi
+            json_array+="\"${agent_array[$i]}\""
+          done
+          json_array+="]"
+          
+          echo "agent_list=$json_array" >> $GITHUB_OUTPUT
+          echo "agent_count=${#agent_array[@]}" >> $GITHUB_OUTPUT
+          
+          echo "📋 Agents to run: ${agent_array[*]}"
+          echo "📊 Total count: ${#agent_array[@]}"
+          echo "🔧 Mode: ${{ inputs.execution_mode }}"
+          echo "🔒 Dry run: ${{ inputs.dry_run }}"
+  
+  run-sequential:
+    name: Run ${{ matrix.agent }} (Sequential)
+    if: inputs.execution_mode == 'sequential'
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        agent: ${{ fromJson(needs.prepare.outputs.agent_list) }}
+      max-parallel: 1  # Ensures sequential execution
+      fail-fast: false
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup environment
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+      
+      - name: Verify agent config
+        run: |
+          agent_file=".github/agents/${{ matrix.agent }}.yml"
+          if [ ! -f "$agent_file" ]; then
+            echo "❌ Agent config not found: $agent_file"
+            exit 1
+          fi
+          
+          echo "✅ Agent config found: ${{ matrix.agent }}"
+          echo ""
+          yq eval '.agent' "$agent_file"
+      
+      - name: Run agent
+        env:
+          AGENT_NAME: ${{ matrix.agent }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          AGENT_CONTEXT: ${{ inputs.context }}
+        run: |
+          echo "🤖 Running agent: ${{ matrix.agent }}"
+          .github/agents/run-agent.sh
+  
+  run-parallel:
+    name: Run ${{ matrix.agent }} (Parallel)
+    if: inputs.execution_mode == 'parallel'
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        agent: ${{ fromJson(needs.prepare.outputs.agent_list) }}
+      fail-fast: false
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup environment
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+      
+      - name: Verify agent config
+        run: |
+          agent_file=".github/agents/${{ matrix.agent }}.yml"
+          if [ ! -f "$agent_file" ]; then
+            echo "❌ Agent config not found: $agent_file"
+            exit 1
+          fi
+          
+          echo "✅ Agent config found: ${{ matrix.agent }}"
+          echo ""
+          yq eval '.agent' "$agent_file"
+      
+      - name: Run agent
+        env:
+          AGENT_NAME: ${{ matrix.agent }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          AGENT_CONTEXT: ${{ inputs.context }}
+        run: |
+          echo "🤖 Running agent: ${{ matrix.agent }}"
+          .github/agents/run-agent.sh
+  
+  summary:
+    name: Orchestration Summary
+    if: always()
+    needs: [prepare, run-sequential, run-parallel]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Display summary
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📝 Orchestration Summary"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "   Agents:      ${{ inputs.agents }}"
+          echo "   Mode:        ${{ inputs.execution_mode }}"
+          echo "   Dry Run:     ${{ inputs.dry_run }}"
+          echo "   Agent Count: ${{ needs.prepare.outputs.agent_count }}"
+          echo "   Trigger:     Manual (workflow_dispatch)"
+          echo "   Actor:       ${{ github.actor }}"
+          echo ""
+          
+          if [ "${{ inputs.dry_run }}" == "true" ]; then
+            echo "ℹ️  This was a dry-run orchestration."
+            echo "   No actual changes were made by any agent."
+            echo ""
+            echo "   To run in live mode, set 'dry_run' to false."
+          else
+            echo "⚠️  Live mode orchestration completed."
+            echo "   Review any changes made by the agents."
+          fi
+          
+          echo ""
+          echo "💡 Tip: Use the 'Run Agent Manually' workflow to test"
+          echo "   individual agents before orchestration."

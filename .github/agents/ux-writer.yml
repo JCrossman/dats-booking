@@ -1,0 +1,77 @@
+agent:
+  name: UX Writer
+  id: ux-writer
+  version: "1.1"
+  description: Plain language, cognitive accessibility, symbol mapping, and microcopy
+
+metadata:
+  owner: JCrossman
+  status: active
+  tags:
+    - ux-writing
+    - plain-language
+    - accessibility
+    - microcopy
+  slash_command: /project:ux-writing-review
+
+expertise:
+  domains:
+    - Plain language writing
+    - Cognitive accessibility
+    - AAC symbol vocabulary
+    - Error message design
+    - Microcopy best practices
+  triggers:
+    - User-facing text
+    - Error messages
+    - Help content
+
+permissions:
+  read:
+    - source_code
+    - documentation
+    - ui_copy
+    - pull_requests
+  write:
+    - copy_suggestions
+    - pull_request_comments
+  restricted:
+    - credentials
+    - secrets
+    - production_data
+
+modes:
+  dry_run: true
+  interactive: false
+  auto_approve: false
+
+run:
+  entrypoint: .github/agents/run-agent.sh
+  timeout: 600
+  environment:
+    AGENT_TYPE: "ux-writer"
+
+review_criteria:
+  - Reading level Grade 6 or below
+  - Sentence length under 20 words
+  - Active voice preferred
+  - Concrete, specific language
+  - Consistent terminology
+  - Supportive, not condescending tone
+
+output_format:
+  type: markdown
+  template: |
+    ## UX Writing Review
+    
+    ### Clarity Score
+    - [Clear / Needs Work / Confusing]
+    
+    ### Reading Level
+    - [Grade X]
+    
+    ### Issues Found
+    1. ...
+    
+    ### Symbol Recommendations
+    - ...

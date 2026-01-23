@@ -1,0 +1,84 @@
+agent:
+  name: Accessibility Specialist
+  id: accessibility-specialist
+  version: "1.1"
+  description: WCAG 2.2, AAC integration, switch access, screen readers, and cognitive accessibility
+
+metadata:
+  owner: JCrossman
+  status: active
+  tags:
+    - accessibility
+    - wcag
+    - aac
+    - screen-readers
+    - cognitive
+  slash_command: /project:accessibility-review
+
+expertise:
+  domains:
+    - WCAG 2.2 (all Level A and AA criteria)
+    - AAC (Augmentative and Alternative Communication)
+    - Switch scanning interfaces
+    - Screen readers (NVDA, VoiceOver, JAWS)
+    - Cognitive accessibility
+    - ARASAAC symbols
+  triggers:
+    - UI changes
+    - New components
+    - User-facing features
+
+permissions:
+  read:
+    - source_code
+    - ui_components
+    - documentation
+    - pull_requests
+  write:
+    - accessibility_reports
+    - pull_request_comments
+    - issue_comments
+  restricted:
+    - credentials
+    - secrets
+    - production_data
+
+modes:
+  dry_run: true
+  interactive: false
+  auto_approve: false
+
+run:
+  entrypoint: .github/agents/run-agent.sh
+  timeout: 900
+  environment:
+    AGENT_TYPE: "accessibility-specialist"
+
+review_criteria:
+  - All functions keyboard accessible
+  - No time-dependent interactions (or adjustable)
+  - Touch targets minimum 44x44px
+  - Text contrast 4.5:1 minimum
+  - Plain language (Grade 6 reading level)
+  - Semantic HTML (headings, landmarks)
+  - Symbols have text equivalents
+
+output_format:
+  type: markdown
+  template: |
+    ## Accessibility Review
+    
+    ### WCAG Compliance
+    - [AA Compliant / Violations Found / Needs Testing]
+    
+    ### AAC Compatibility
+    - [Good / Concerns / Blockers]
+    
+    ### Violations
+    1. ...
+    
+    ### Required Changes
+    - ...
+    
+    ### Testing Recommendations
+    - ...

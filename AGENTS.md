@@ -27,6 +27,128 @@ Invoke agents by asking your AI assistant (GitHub Copilot, Claude, etc.) to adop
 
 ---
 
+## Machine-Readable Configurations
+
+**🆕 New in Version 1.1**
+
+All agents now have machine-readable YAML configurations in `.github/agents/` that enable automation and validation.
+
+### Features
+
+- **✅ Schema Validation**: All agent configs are validated against JSON Schema on push/PR
+- **🤖 Manual Execution**: Run any agent manually from GitHub Actions UI
+- **🔄 Orchestration**: Run multiple agents in sequence or parallel
+- **🔒 Safety First**: All agents default to `dry_run: true` - simulates actions without making changes
+- **📋 Example Triggers**: Issue labels, PR changes, and scheduled reviews
+
+### Quick Start
+
+#### Run an Agent Manually
+
+1. Go to **Actions** → **Run Agent Manually**
+2. Select an agent from the dropdown
+3. Choose dry-run mode (default: true)
+4. Click **Run workflow**
+
+#### Orchestrate Multiple Agents
+
+1. Go to **Actions** → **Orchestrate Agents**
+2. Enter comma-separated agent names (e.g., `product-manager,architect,security-privacy`)
+3. Choose sequential or parallel execution
+4. Choose dry-run mode (default: true)
+5. Click **Run workflow**
+
+### Agent Configuration Files
+
+All agent configurations are stored in `.github/agents/`:
+
+| Agent | Config File | ID |
+|-------|-------------|-----|
+| Product Manager | `product-manager.yml` | `product-manager` |
+| Architect | `architect.yml` | `architect` |
+| Developer | `developer.yml` | `developer` |
+| Security & Privacy | `security-privacy.yml` | `security-privacy` |
+| Accessibility Specialist | `accessibility-specialist.yml` | `accessibility-specialist` |
+| Code Quality Reviewer | `code-quality.yml` | `code-quality` |
+| QA/Tester | `qa-tester.yml` | `qa-tester` |
+| DevOps/Infrastructure | `devops-infrastructure.yml` | `devops-infrastructure` |
+| UX Writer | `ux-writer.yml` | `ux-writer` |
+| Legal/Compliance | `legal-compliance.yml` | `legal-compliance` |
+
+### Configuration Schema
+
+Each agent configuration includes:
+
+- **Agent metadata**: Name, ID, version, description
+- **Owner**: GitHub username or team responsible for the agent (currently set to `JCrossman`)
+- **Expertise**: Domains and trigger conditions
+- **Permissions**: Read/write access and restrictions
+- **Modes**: `dry_run` (default: true), `interactive`, `auto_approve`
+- **Run settings**: Entrypoint script, timeout, environment
+- **Review criteria**: Key criteria the agent evaluates
+- **Output format**: Expected output structure
+
+### Workflows
+
+#### Validation Workflow
+- **File**: `.github/workflows/validate-agents.yml`
+- **Trigger**: Push/PR to agent configs
+- **Purpose**: Validates all agent YAML files against the schema
+
+#### Manual Run Workflow
+- **File**: `.github/workflows/agents/run-agent-manual.yml`
+- **Trigger**: Manual (workflow_dispatch)
+- **Purpose**: Run a single agent on demand
+
+#### Orchestration Workflow
+- **File**: `.github/workflows/agents/orchestrate-agents.yml`
+- **Trigger**: Manual (workflow_dispatch)
+- **Purpose**: Run multiple agents in sequence or parallel
+
+#### Example Trigger Workflows
+- **Issue Agent**: `.github/workflows/agents/issue-agent.yml` - Triggers on issue labels
+- **PR Agent**: `.github/workflows/agents/pull-request-agent.yml` - Triggers on PR changes
+- **Scheduled Agent**: `.github/workflows/agents/schedule-agent.yml` - Weekly reviews
+
+### Migration Notes
+
+**From Version 1.0 to 1.1:**
+
+1. **Agent prompts remain unchanged** - All persona descriptions and review criteria in this document are still the primary source of truth for AI assistants
+2. **New automation layer** - Machine-readable configs enable workflow automation without changing how agents work
+3. **Owner fields** - Currently set to `JCrossman`. Replace with your GitHub username or team slug if you fork this repo
+4. **Dry-run default** - All agents run in simulation mode by default. Set `DRY_RUN=false` to enable live mode (not yet implemented)
+
+**For Maintainers:**
+
+If you want to change the agent owner, update the `metadata.owner` field in each `.github/agents/*.yml` file:
+
+```yaml
+metadata:
+  owner: your-github-username  # or your-org/your-team
+  status: active
+```
+
+### Safety and Security
+
+- **Non-destructive by default**: Runner script (`run-agent.sh`) defaults to dry-run mode
+- **No credentials**: Agent configs contain no secrets or sensitive data
+- **Permissions model**: Each agent declares read/write permissions and restrictions
+- **Validation required**: All configs must pass schema validation before merge
+
+### Future Enhancements
+
+Planned features for future versions:
+
+- AI model integration (GPT-4, Claude, etc.) for live agent execution
+- GitHub API integration for automated commenting and reviews
+- Context gathering from issues, PRs, and code changes
+- Agent chaining with output passing between agents
+- Custom agent prompt templates
+- Agent performance metrics and feedback loops
+
+---
+
 ## Overview
 
 This document defines 10 specialized agents for the multi-agent consensus development approach. Each agent has a specific role, expertise domain, and review criteria. Agents are invoked by asking your AI assistant to adopt the persona described below.

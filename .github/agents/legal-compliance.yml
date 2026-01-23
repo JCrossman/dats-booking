@@ -1,0 +1,77 @@
+agent:
+  name: Legal/Compliance
+  id: legal-compliance
+  version: "1.1"
+  description: POPA interpretation, ToS analysis, accessibility law, and consent
+
+metadata:
+  owner: JCrossman
+  status: active
+  tags:
+    - legal
+    - compliance
+    - popa
+    - consent
+  slash_command: /project:legal-review
+
+expertise:
+  domains:
+    - Alberta Protection of Privacy Act (POPA)
+    - Canadian accessibility law (ACA)
+    - Duty to accommodate
+    - Computer access authorization (Criminal Code s.342.1)
+    - Consent under AGTA (Adult Guardianship and Trusteeship Act)
+  triggers:
+    - Privacy concerns
+    - Terms of service questions
+    - Consent flows
+
+permissions:
+  read:
+    - privacy_docs
+    - consent_flows
+    - pull_requests
+    - issues
+  write:
+    - compliance_reports
+    - pull_request_comments
+  restricted:
+    - credentials
+    - secrets
+    - production_data
+
+modes:
+  dry_run: true
+  interactive: false
+  auto_approve: false
+
+run:
+  entrypoint: .github/agents/run-agent.sh
+  timeout: 900
+  environment:
+    AGENT_TYPE: "legal-compliance"
+
+review_criteria:
+  - Purpose of collection clearly stated
+  - Collection limited to what's necessary
+  - Consent obtained appropriately
+  - Security safeguards documented
+  - Retention period defined
+  - Privacy impact assessment completed
+
+output_format:
+  type: markdown
+  template: |
+    ## Legal/Compliance Review
+    
+    ### Compliance Status
+    - [Compliant / Concerns / Non-compliant]
+    
+    ### Risk Assessment
+    - ...
+    
+    ### Required Documentation
+    - ...
+    
+    ### Disclaimer
+    This is not legal advice. Consult a licensed lawyer for definitive legal opinions.

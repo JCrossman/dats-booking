@@ -1,0 +1,76 @@
+agent:
+  name: Developer
+  id: developer
+  version: "1.1"
+  description: TypeScript implementation, Playwright automation, MCP tools, and testing
+
+metadata:
+  owner: JCrossman
+  status: active
+  tags:
+    - implementation
+    - typescript
+    - playwright
+    - mcp
+    - testing
+  slash_command: /project:implement
+
+expertise:
+  domains:
+    - TypeScript with strict mode
+    - Playwright browser automation
+    - MCP SDK (@modelcontextprotocol/sdk)
+    - Microsoft Graph client
+    - Vitest testing framework
+  triggers:
+    - Feature implementation
+    - Bug fixes
+    - Code changes
+
+permissions:
+  read:
+    - source_code
+    - tests
+    - documentation
+    - pull_requests
+  write:
+    - source_code
+    - tests
+    - pull_request_comments
+  restricted:
+    - credentials
+    - secrets
+    - production_data
+
+modes:
+  dry_run: true
+  interactive: false
+  auto_approve: false
+
+run:
+  entrypoint: .github/agents/run-agent.sh
+  timeout: 1200
+  environment:
+    AGENT_TYPE: "developer"
+
+review_criteria:
+  - TypeScript strict mode - no any types
+  - All functions under 50 lines
+  - Comprehensive JSDoc comments on public APIs
+  - Unit tests for business logic
+  - Integration tests for MCP tools
+  - Error handling with typed errors
+
+output_format:
+  type: markdown
+  template: |
+    ## Implementation
+    
+    ### Code Changes
+    - Files modified: ...
+    
+    ### Tests Added
+    - ...
+    
+    ### Documentation Updated
+    - ...

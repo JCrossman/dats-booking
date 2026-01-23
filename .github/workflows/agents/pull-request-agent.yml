@@ -1,0 +1,115 @@
+name: Agent - Pull Request Triggered
+
+# Example workflow that triggers agents on PR events
+# This is a template - customize based on your needs
+
+on:
+  pull_request:
+    types: [opened, synchronize, labeled]
+
+jobs:
+  detect-trigger:
+    name: Detect Agent Trigger
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+      agents: ${{ steps.check.outputs.agents }}
+    
+    steps:
+      - name: Check PR for agent triggers
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const labels = pr.labels.map(l => l.name);
+            const files = await github.rest.pulls.listFiles({
+              ...context.repo,
+              pull_number: pr.number
+            });
+            
+            const agents = new Set();
+            
+            // Label-based triggers
+            const labelToAgent = {
+              'needs-security-review': 'security-privacy',
+              'needs-accessibility-review': 'accessibility-specialist',
+              'needs-code-review': 'code-quality'
+            };
+            
+            for (const [label, agent] of Object.entries(labelToAgent)) {
+              if (labels.includes(label)) {
+                agents.add(agent);
+              }
+            }
+            
+            // File-based triggers
+            const filePatterns = {
+              'security-privacy': [/password|secret|credential|auth/i],
+              'accessibility-specialist': [/\.tsx?$/, /components\//],
+              'devops-infrastructure': [/\.github\/workflows/, /Dockerfile/, /azure\//]
+            };
+            
+            for (const file of files.data) {
+              for (const [agent, patterns] of Object.entries(filePatterns)) {
+                if (patterns.some(pattern => pattern.test(file.filename))) {
+                  agents.add(agent);
+                }
+              }
+            }
+            
+            const agentList = Array.from(agents);
+            
+            if (agentList.length > 0) {
+              core.setOutput('should_run', 'true');
+              core.setOutput('agents', JSON.stringify(agentList));
+              console.log(`Agents to run: ${agentList.join(', ')}`);
+            } else {
+              core.setOutput('should_run', 'false');
+              console.log('No agent triggers detected');
+            }
+  
+  run-agents:
+    name: Run ${{ matrix.agent }} Agent
+    needs: detect-trigger
+    if: needs.detect-trigger.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        agent: ${{ fromJson(needs.detect-trigger.outputs.agents) }}
+      fail-fast: false
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup environment
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+      
+      - name: Run agent (dry-run)
+        env:
+          AGENT_NAME: ${{ matrix.agent }}
+          DRY_RUN: true
+          GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          echo "🤖 Running agent for PR #${{ github.event.pull_request.number }}"
+          echo "   Agent: ${{ matrix.agent }}"
+          echo ""
+          
+          .github/agents/run-agent.sh
+      
+      - name: Post comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const agentName = '${{ matrix.agent }}';
+            
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.payload.pull_request.number,
+              body: `🤖 **${agentName}** agent triggered (dry-run mode)\n\n` +
+                    `The agent has analyzed this PR. In live mode, it would provide detailed review feedback.\n\n` +
+                    `_This is a demonstration. Enable live mode in the workflow to get actual agent reviews._`
+            });

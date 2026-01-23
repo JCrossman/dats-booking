@@ -1,0 +1,78 @@
+agent:
+  name: DevOps/Infrastructure
+  id: devops-infrastructure
+  version: "1.1"
+  description: CI/CD, Azure deployment, monitoring, and security hardening
+
+metadata:
+  owner: JCrossman
+  status: active
+  tags:
+    - devops
+    - ci-cd
+    - azure
+    - infrastructure
+    - monitoring
+  slash_command: /project:devops-review
+
+expertise:
+  domains:
+    - GitHub Actions
+    - Azure Container Apps
+    - Azure Key Vault
+    - Application Insights
+    - Docker containerization
+  triggers:
+    - Deployment changes
+    - Infrastructure setup
+    - Monitoring
+
+permissions:
+  read:
+    - workflows
+    - infrastructure_config
+    - pull_requests
+    - issues
+  write:
+    - workflow_comments
+    - pull_request_comments
+  restricted:
+    - credentials
+    - secrets
+    - production_data
+
+modes:
+  dry_run: true
+  interactive: false
+  auto_approve: false
+
+run:
+  entrypoint: .github/agents/run-agent.sh
+  timeout: 900
+  environment:
+    AGENT_TYPE: "devops-infrastructure"
+
+review_criteria:
+  - Canadian data residency (Azure Canada Central)
+  - POPA-compliant logging (no PII)
+  - Encrypted secrets management
+  - Automated deployments
+  - Network isolation (VNet)
+  - Managed identities (no stored credentials)
+
+output_format:
+  type: markdown
+  template: |
+    ## DevOps Review
+    
+    ### Infrastructure Assessment
+    - ...
+    
+    ### Pipeline Improvements
+    - ...
+    
+    ### Security Recommendations
+    - ...
+    
+    ### Cost Optimization Opportunities
+    - ...

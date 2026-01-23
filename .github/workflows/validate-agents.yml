@@ -1,0 +1,137 @@
+name: Validate Agent Configs
+
+on:
+  push:
+    paths:
+      - '.github/agents/*.yml'
+      - '.github/agents/schema/*.json'
+      - '.github/workflows/validate-agents.yml'
+  pull_request:
+    paths:
+      - '.github/agents/*.yml'
+      - '.github/agents/schema/*.json'
+      - '.github/workflows/validate-agents.yml'
+
+jobs:
+  validate:
+    name: Validate Agent YAML Configs
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install ajv-cli
+        run: npm install -g ajv-cli ajv-formats
+      
+      - name: Install yq (YAML to JSON converter)
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+      
+      - name: Validate agent configs against schema
+        run: |
+          echo "🔍 Validating agent configurations..."
+          
+          # Find all agent YAML files
+          agent_files=$(find .github/agents -maxdepth 1 -name "*.yml" -type f)
+          
+          if [ -z "$agent_files" ]; then
+            echo "❌ No agent YAML files found"
+            exit 1
+          fi
+          
+          # Counter for validation
+          total=0
+          passed=0
+          failed=0
+          
+          # Validate each agent config
+          for agent_file in $agent_files; do
+            total=$((total + 1))
+            agent_name=$(basename "$agent_file" .yml)
+            
+            echo ""
+            echo "📋 Validating: $agent_name"
+            echo "   File: $agent_file"
+            
+            # Convert YAML to JSON
+            json_file="/tmp/${agent_name}.json"
+            yq eval -o=json "$agent_file" > "$json_file"
+            
+            # Validate against schema
+            if ajv validate -s .github/agents/schema/agent-schema.json -d "$json_file" --strict=false; then
+              echo "   ✅ Valid"
+              passed=$((passed + 1))
+            else
+              echo "   ❌ Invalid"
+              failed=$((failed + 1))
+            fi
+          done
+          
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📊 Validation Summary"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "   Total:  $total"
+          echo "   Passed: $passed"
+          echo "   Failed: $failed"
+          echo ""
+          
+          if [ $failed -gt 0 ]; then
+            echo "❌ Validation failed for $failed agent(s)"
+            exit 1
+          else
+            echo "✅ All agent configurations are valid!"
+          fi
+      
+      - name: Verify required agents exist
+        run: |
+          echo "🔍 Checking for required agents..."
+          
+          required_agents=(
+            "product-manager"
+            "architect"
+            "developer"
+            "security-privacy"
+            "accessibility-specialist"
+            "code-quality"
+            "qa-tester"
+            "devops-infrastructure"
+            "ux-writer"
+            "legal-compliance"
+          )
+          
+          missing=0
+          
+          for agent in "${required_agents[@]}"; do
+            if [ -f ".github/agents/${agent}.yml" ]; then
+              echo "   ✅ ${agent}.yml"
+            else
+              echo "   ❌ ${agent}.yml (missing)"
+              missing=$((missing + 1))
+            fi
+          done
+          
+          echo ""
+          
+          if [ $missing -gt 0 ]; then
+            echo "❌ $missing required agent(s) missing"
+            exit 1
+          else
+            echo "✅ All required agents present"
+          fi
+      
+      - name: Verify runner script exists
+        run: |
+          if [ -x ".github/agents/run-agent.sh" ]; then
+            echo "✅ Runner script exists and is executable"
+          else
+            echo "❌ Runner script missing or not executable"
+            exit 1
+          fi
