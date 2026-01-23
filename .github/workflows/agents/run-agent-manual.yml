@@ -1,0 +1,68 @@
+name: Run Agent Manually
+
+on:
+  workflow_dispatch:
+    inputs:
+      agent_name:
+        description: 'Agent to run (e.g., product-manager, architect, developer)'
+        required: true
+        type: choice
+        options:
+          - product-manager
+          - architect
+          - developer
+          - security-privacy
+          - accessibility-specialist
+          - code-quality
+          - qa-tester
+          - devops-infrastructure
+          - ux-writer
+          - legal-compliance
+      dry_run:
+        description: 'Run in dry-run mode (recommended)'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  run-agent:
+    name: Run ${{ inputs.agent_name }} Agent
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Display execution mode
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "⚠️  Running in DRY RUN mode - no changes will be made"
+          else
+            echo "🚨 Running in LIVE mode - agent will make real changes"
+            echo "Note: Live mode is not yet implemented and will behave like dry-run"
+          fi
+      
+      - name: Run agent
+        env:
+          AGENT_NAME: ${{ inputs.agent_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          echo "=== Manual Agent Execution ==="
+          echo "Agent: ${{ inputs.agent_name }}"
+          echo "Dry Run: ${{ inputs.dry_run }}"
+          echo "Triggered by: ${{ github.actor }}"
+          echo ""
+          .github/agents/run-agent.sh
+      
+      - name: Summary
+        run: |
+          echo "=== Execution Summary ==="
+          echo "✅ Agent '${{ inputs.agent_name }}' executed successfully"
+          echo ""
+          echo "In a production setup, results would be:"
+          echo "  - Posted as a workflow artifact"
+          echo "  - Sent to relevant stakeholders"
+          echo "  - Integrated with project management tools"

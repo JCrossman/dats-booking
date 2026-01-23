@@ -1,0 +1,41 @@
+name: Scheduled Agent Run (Dry Run)
+
+on:
+  schedule:
+    # Run every Monday at 9:00 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  run-scheduled-agent:
+    name: Run DevOps Agent Weekly Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Run agent in dry-run mode
+        env:
+          AGENT_NAME: devops-infrastructure
+          DRY_RUN: true
+        run: |
+          echo "Running weekly DevOps infrastructure review..."
+          echo ""
+          .github/agents/run-agent.sh
+      
+      - name: Output scheduled check context
+        run: |
+          echo "=== Scheduled Check Context ==="
+          echo "Trigger: ${{ github.event_name }}"
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref }}"
+          echo ""
+          echo "In a production setup, the DevOps agent would:"
+          echo "  - Review infrastructure configurations"
+          echo "  - Check for security vulnerabilities"
+          echo "  - Analyze cost optimization opportunities"
+          echo "  - Generate weekly report"

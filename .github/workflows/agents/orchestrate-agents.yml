@@ -1,0 +1,108 @@
+name: Orchestrate Agent Sequence
+
+on:
+  workflow_dispatch:
+    inputs:
+      agent_sequence:
+        description: 'Comma-separated list of agents to run (or leave empty for default)'
+        required: false
+        type: string
+        default: 'product-manager,architect,developer,security-privacy'
+      dry_run:
+        description: 'Run in dry-run mode (recommended)'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  orchestrate:
+    name: Orchestrate Agent Sequence
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Display orchestration plan
+        run: |
+          SEQUENCE="${{ inputs.agent_sequence }}"
+          if [ -z "$SEQUENCE" ]; then
+            SEQUENCE="product-manager,architect,developer,security-privacy"
+          fi
+          
+          echo "=== Agent Orchestration Plan ==="
+          echo "Mode: $([ "${{ inputs.dry_run }}" = "true" ] && echo "DRY RUN" || echo "LIVE")"
+          echo "Triggered by: ${{ github.actor }}"
+          echo ""
+          echo "Agent execution order:"
+          IFS=',' read -ra AGENTS <<< "$SEQUENCE"
+          i=1
+          for agent in "${AGENTS[@]}"; do
+            agent=$(echo "$agent" | xargs)  # trim whitespace
+            echo "  $i. $agent"
+            ((i++))
+          done
+      
+      - name: Run agent sequence
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          SEQUENCE="${{ inputs.agent_sequence }}"
+          if [ -z "$SEQUENCE" ]; then
+            SEQUENCE="product-manager,architect,developer,security-privacy"
+          fi
+          
+          echo ""
+          echo "=== Starting Agent Execution Sequence ==="
+          echo ""
+          
+          IFS=',' read -ra AGENTS <<< "$SEQUENCE"
+          STEP=1
+          TOTAL=${#AGENTS[@]}
+          
+          for agent in "${AGENTS[@]}"; do
+            agent=$(echo "$agent" | xargs)  # trim whitespace
+            
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Step $STEP of $TOTAL: Running $agent"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            
+            export AGENT_NAME="$agent"
+            if .github/agents/run-agent.sh; then
+              echo ""
+              echo "✅ $agent completed successfully"
+            else
+              echo ""
+              echo "❌ $agent failed"
+              exit 1
+            fi
+            
+            echo ""
+            ((STEP++))
+          done
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ All agents completed successfully"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      
+      - name: Summary
+        run: |
+          SEQUENCE="${{ inputs.agent_sequence }}"
+          if [ -z "$SEQUENCE" ]; then
+            SEQUENCE="product-manager,architect,developer,security-privacy"
+          fi
+          
+          echo ""
+          echo "=== Orchestration Summary ==="
+          echo "Agents executed: $SEQUENCE"
+          echo "Mode: $([ "${{ inputs.dry_run }}" = "true" ] && echo "DRY RUN" || echo "LIVE")"
+          echo ""
+          echo "In a production setup, orchestration would:"
+          echo "  - Pass context between agents"
+          echo "  - Aggregate findings from all agents"
+          echo "  - Generate comprehensive report"
+          echo "  - Trigger follow-up actions based on results"

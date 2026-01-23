@@ -1,0 +1,42 @@
+name: Pull Request Agent (Dry Run)
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  run-pr-agent:
+    name: Run Code Quality Agent on PR
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Run agent in dry-run mode
+        env:
+          AGENT_NAME: code-quality
+          DRY_RUN: true
+        run: |
+          echo "Pull Request #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}"
+          echo ""
+          echo "Running agent analysis (dry-run mode)..."
+          .github/agents/run-agent.sh
+      
+      - name: Output PR context
+        run: |
+          echo "=== Pull Request Context ==="
+          echo "Title: ${{ github.event.pull_request.title }}"
+          echo "Author: ${{ github.event.pull_request.user.login }}"
+          echo "Branch: ${{ github.event.pull_request.head.ref }}"
+          echo "Changed files: ${{ github.event.pull_request.changed_files }}"
+          echo ""
+          echo "In a production setup, the Code Quality agent would:"
+          echo "  - Analyze code changes in the PR"
+          echo "  - Check for code smells and anti-patterns"
+          echo "  - Verify TypeScript best practices"
+          echo "  - Post review comments on specific lines"

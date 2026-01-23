@@ -1,8 +1,84 @@
 # Multi-Agent Development Framework: Agent Definitions
 
-**Version:** 1.1
+**Version:** 1.2
 **Project:** DATS Accessible Booking Assistant
 **Status:** ACTIVE
+
+---
+
+## 🤖 Machine-Readable Agent Configs
+
+**NEW:** Agent definitions are now available as structured YAML configurations in `.github/agents/`.
+
+### Migration to YAML Configs
+
+The agent definitions in this document have been migrated to machine-readable YAML files that can be:
+- **Validated** against a JSON Schema (`.github/agents/schema/agent-schema.json`)
+- **Executed** via automated workflows (GitHub Actions)
+- **Orchestrated** in sequences for multi-agent reviews
+- **Integrated** with CI/CD pipelines
+
+### Available Configs
+
+All 10 agents now have YAML configurations:
+
+| Agent | Config File | Workflow Support |
+|-------|-------------|------------------|
+| Product Manager | `.github/agents/product-manager.yml` | ✅ Manual + Issue triggers |
+| Architect | `.github/agents/architect.yml` | ✅ Manual |
+| Developer | `.github/agents/developer.yml` | ✅ Manual |
+| Security & Privacy | `.github/agents/security-privacy.yml` | ✅ Manual + Orchestration |
+| Accessibility Specialist | `.github/agents/accessibility-specialist.yml` | ✅ Manual |
+| Code Quality | `.github/agents/code-quality.yml` | ✅ Manual + PR triggers |
+| QA/Tester | `.github/agents/qa-tester.yml` | ✅ Manual |
+| DevOps/Infrastructure | `.github/agents/devops-infrastructure.yml` | ✅ Manual + Scheduled |
+| UX Writer | `.github/agents/ux-writer.yml` | ✅ Manual |
+| Legal/Compliance | `.github/agents/legal-compliance.yml` | ✅ Manual |
+
+### Running Agents
+
+#### Via GitHub Actions UI
+
+1. **Manual Run** (single agent):
+   - Go to Actions → "Run Agent Manually"
+   - Select agent from dropdown
+   - Choose dry_run mode (default: true)
+   - Click "Run workflow"
+
+2. **Orchestration** (agent sequence):
+   - Go to Actions → "Orchestrate Agent Sequence"
+   - Specify agents: `product-manager,architect,developer,security-privacy`
+   - Or leave empty for default sequence
+   - Choose dry_run mode (default: true)
+   - Click "Run workflow"
+
+#### Via Command Line
+
+```bash
+# Run single agent (dry-run mode)
+cd .github/agents
+AGENT_NAME=product-manager ./run-agent.sh
+
+# Run in live mode (not yet implemented)
+AGENT_NAME=security-privacy DRY_RUN=false ./run-agent.sh
+```
+
+### Validation
+
+Agent configs are automatically validated on push/PR:
+
+```bash
+# Manual validation
+npm install -g ajv-cli ajv-formats
+ajv validate -s .github/agents/schema/agent-schema.json -d /tmp/agent.json
+```
+
+### Safety Notes
+
+- **All agents default to `dry_run: true`** for safety
+- Runner script is non-destructive (simulation only)
+- Workflows have read-only permissions by default
+- Owner fields are set to `JCrossman` (update as needed)
 
 ---
 

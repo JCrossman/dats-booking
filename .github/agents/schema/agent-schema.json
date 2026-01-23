@@ -1,0 +1,158 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DATS Agent Configuration Schema",
+  "description": "Schema for defining automated agent configurations in the DATS Accessible Booking Assistant project",
+  "type": "object",
+  "required": ["name", "version", "metadata", "expertise", "triggers", "review_criteria", "modes"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Agent name (lowercase with hyphens)",
+      "pattern": "^[a-z]+(-[a-z]+)*$"
+    },
+    "version": {
+      "type": "string",
+      "description": "Agent configuration version (semantic versioning)",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["display_name", "slash_command", "description", "owner"],
+      "properties": {
+        "display_name": {
+          "type": "string",
+          "description": "Human-readable agent name"
+        },
+        "slash_command": {
+          "type": "string",
+          "description": "Slash command to invoke this agent",
+          "pattern": "^/project:[a-z-]+$"
+        },
+        "description": {
+          "type": "string",
+          "description": "Brief description of agent purpose"
+        },
+        "owner": {
+          "type": "string",
+          "description": "GitHub username of the agent owner"
+        }
+      }
+    },
+    "expertise": {
+      "type": "array",
+      "description": "List of agent expertise areas",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "triggers": {
+      "type": "array",
+      "description": "Events or conditions that trigger this agent",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "role": {
+      "type": "object",
+      "required": ["summary", "responsibilities"],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "description": "Brief summary of agent role"
+        },
+        "responsibilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "review_criteria": {
+      "type": "object",
+      "description": "Criteria used by agent for reviews",
+      "properties": {
+        "checklist": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "categories": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "red_flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "output_format": {
+      "type": "object",
+      "description": "Expected output format from agent",
+      "properties": {
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "description": "Project-specific context for the agent",
+      "properties": {
+        "project_name": {
+          "type": "string"
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "key_facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "modes": {
+      "type": "object",
+      "required": ["dry_run"],
+      "properties": {
+        "dry_run": {
+          "type": "boolean",
+          "description": "Whether agent runs in dry-run mode by default",
+          "default": true
+        },
+        "interactive": {
+          "type": "boolean",
+          "description": "Whether agent requires human interaction",
+          "default": false
+        }
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "description": "Other agents this agent depends on",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
