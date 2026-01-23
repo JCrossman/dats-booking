@@ -26,7 +26,8 @@ on:
 
 permissions:
   contents: read
-  id-token: write  # Required for GitHub Models API
+  id-token: write
+  models: write  # Required for GitHub Models API
 
 jobs:
   run-agent:
