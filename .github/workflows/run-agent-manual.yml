@@ -1,0 +1,53 @@
+name: Run Agent (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: 'Agent to run'
+        required: true
+        type: choice
+        options:
+          - pm
+          - architect
+          - developer
+          - security
+          - accessibility
+          - code-quality
+          - qa
+          - devops
+          - ux-writer
+          - legal
+      dry_run:
+        description: 'Dry run mode (suggestions only)'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    name: Run ${{ inputs.agent }} agent
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run agent script
+        run: |
+          chmod +x .github/agents/scripts/${{ inputs.agent }}.sh
+          .github/agents/scripts/${{ inputs.agent }}.sh
+        env:
+          AGENT_NAME: ${{ inputs.agent }}
+          DRY_RUN: ${{ inputs.dry_run }}
+      
+      - name: Summary
+        run: |
+          echo "### Agent Execution Complete ✅" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Agent:** ${{ inputs.agent }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Mode:** ${{ inputs.dry_run && 'Dry Run (Suggestions Only)' || 'Production Mode' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** Completed successfully" >> $GITHUB_STEP_SUMMARY

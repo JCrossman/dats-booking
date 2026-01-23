@@ -1,0 +1,57 @@
+name: Multi-Agent Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      agents:
+        description: 'Comma-separated list of agents (e.g., pm,architect,security)'
+        required: true
+        type: string
+        default: 'pm,architect,developer'
+      dry_run:
+        description: 'Dry run mode (suggestions only)'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  orchestrate:
+    runs-on: ubuntu-latest
+    name: Multi-Agent Review
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run agents sequentially
+        run: |
+          IFS=',' read -ra AGENT_LIST <<< "${{ inputs.agents }}"
+          
+          echo "### Multi-Agent Review" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Agents:** ${{ inputs.agents }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Mode:** ${{ inputs.dry_run && 'Dry Run' || 'Production' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          for agent in "${AGENT_LIST[@]}"; do
+            agent=$(echo "$agent" | xargs)  # trim whitespace
+            echo "## Running: $agent" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            if [ -f ".github/agents/scripts/$agent.sh" ]; then
+              chmod +x ".github/agents/scripts/$agent.sh"
+              ".github/agents/scripts/$agent.sh"
+              echo "✅ Completed" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ Agent not found: $agent" >> $GITHUB_STEP_SUMMARY
+              exit 1
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
+          done
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
