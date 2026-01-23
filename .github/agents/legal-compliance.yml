@@ -1,0 +1,28 @@
+name: "Legal/Compliance"
+description: "POPA interpretation, ToS analysis, accessibility law, consent"
+slash_command: "/project:legal-review"
+expertise:
+  - "Alberta POPA"
+  - "ToS analysis"
+  - "Accessibility law"
+  - "Consent requirements"
+  - "Compliance documentation"
+owner: "TODO: team or email"
+trigger:
+  type: "event"
+  event: "pull_request"
+actions:
+  - "Interpret POPA requirements"
+  - "Analyze DATS Terms of Service"
+  - "Ensure proper consent collection"
+  - "Document compliance measures"
+permissions:
+  pull-requests: "write"
+  contents: "read"
+secrets_required: []
+modes:
+  dry_run: true
+run:
+  type: "script"
+  entrypoint: ".github/agents/run-agent.sh"
+  timeout_minutes: 10

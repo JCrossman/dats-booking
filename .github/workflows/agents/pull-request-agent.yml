@@ -1,0 +1,83 @@
+name: "Agent: Pull Request Review"
+
+# This workflow demonstrates how to invoke agents when pull requests are opened or updated.
+# By default, all agents run in dry-run mode (non-destructive).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      agent_name:
+        description: 'Agent to run (e.g., architect, security-privacy, accessibility-specialist)'
+        required: true
+        default: 'architect'
+      dry_run:
+        description: 'Run in dry-run mode'
+        required: false
+        default: 'true'
+
+# Conservative permissions - only what's needed for PR agents
+permissions:
+  pull-requests: write
+  contents: read
+  checks: write
+
+jobs:
+  run-pr-agent:
+    runs-on: ubuntu-latest
+    name: "Execute PR Agent"
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      
+      - name: Determine agent
+        id: agent
+        run: |
+          # For workflow_dispatch, use input; otherwise use default
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ github.event.inputs.agent_name }}" >> $GITHUB_OUTPUT
+            echo "dry_run=${{ github.event.inputs.dry_run }}" >> $GITHUB_OUTPUT
+          else
+            # Default to architect for PR events
+            echo "name=architect" >> $GITHUB_OUTPUT
+            echo "dry_run=true" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Validate agent configuration
+        run: |
+          AGENT_CONFIG=".github/agents/${{ steps.agent.outputs.name }}.yml"
+          if [ ! -f "$AGENT_CONFIG" ]; then
+            echo "Error: Agent configuration not found: $AGENT_CONFIG"
+            exit 1
+          fi
+          echo "Agent configuration validated: $AGENT_CONFIG"
+      
+      - name: Run agent
+        env:
+          AGENT_NAME: ${{ steps.agent.outputs.name }}
+          DRY_RUN: ${{ steps.agent.outputs.dry_run }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          bash .github/agents/run-agent.sh
+      
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Agent Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Agent**: ${{ steps.agent.outputs.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Event**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dry Run**: ${{ steps.agent.outputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.agent.outputs.dry_run }}" = "true" ]; then
+            echo "⚠️ Agent ran in dry-run mode (non-destructive simulation)" >> $GITHUB_STEP_SUMMARY
+          fi

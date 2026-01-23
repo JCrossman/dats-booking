@@ -6,6 +6,75 @@
 
 ---
 
+## Machine-Readable Agent Configurations
+
+**NEW: Agents are now defined in structured YAML configs!**
+
+All agent definitions have been migrated to machine-readable YAML configuration files in the `.github/agents/` directory. This enables automation, validation, and integration with GitHub Actions workflows.
+
+### Configuration Files
+
+Each agent has a corresponding YAML file:
+- `.github/agents/product-manager.yml`
+- `.github/agents/architect.yml`
+- `.github/agents/developer.yml`
+- `.github/agents/security-privacy.yml`
+- `.github/agents/accessibility-specialist.yml`
+- `.github/agents/code-quality.yml`
+- `.github/agents/qa-tester.yml`
+- `.github/agents/devops-infrastructure.yml`
+- `.github/agents/ux-writer.yml`
+- `.github/agents/legal-compliance.yml`
+
+### Schema Validation
+
+All agent configs are validated against a JSON schema (`.github/agents/schema/agent-schema.json`) using automated workflows. The validation ensures:
+- Required fields are present (name, description, owner, trigger, permissions, run)
+- Permissions follow least-privilege principles
+- All agents default to `dry_run: true` for safety
+- Proper entrypoint configuration
+
+### Automated Workflows
+
+Example workflows demonstrate how to execute agents:
+- `.github/workflows/agents/issue-agent.yml` - Triggered on issue events
+- `.github/workflows/agents/pull-request-agent.yml` - Triggered on PR events
+- `.github/workflows/agents/schedule-agent.yml` - Scheduled execution
+
+**Safety First**: All workflows default to dry-run mode (non-destructive simulation).
+
+### Adding or Modifying Agents
+
+To add a new agent or modify an existing one:
+
+1. **Create/edit the YAML config** in `.github/agents/`
+2. **Follow the schema** defined in `agent-schema.json`
+3. **Set conservative permissions** (least privilege)
+4. **Keep `dry_run: true`** for safety
+5. **Update the owner field** with your team/email (replace TODO)
+6. **Submit a PR** - validation runs automatically
+7. **Request security review** before enabling production mode
+
+**PR Checklist for Agent Changes:**
+- [ ] Agent config validates against schema
+- [ ] Owner/contact field is populated (no TODO)
+- [ ] Permissions are minimal and justified
+- [ ] `dry_run: true` is set (required for new agents)
+- [ ] Security review requested for production enablement
+- [ ] Documentation updated if agent behavior changes
+
+### Migration Notes
+
+The human-readable agent prompts below remain the authoritative source for agent personas and expertise. The YAML configs enable automation while the detailed prompts guide AI assistant behavior. Both are maintained in parallel.
+
+For production rollout:
+1. Maintainers must replace TODO placeholders in owner fields
+2. Security review required before setting `dry_run: false`
+3. Test agents with `workflow_dispatch` before enabling automatic triggers
+4. Monitor execution logs and adjust permissions as needed
+
+---
+
 ## Quick Reference
 
 Invoke agents by asking your AI assistant (GitHub Copilot, Claude, etc.) to adopt a specific persona:

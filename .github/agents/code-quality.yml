@@ -1,0 +1,28 @@
+name: "Code Quality Reviewer"
+description: "Clean code, refactoring, DRY principles, maintainability"
+slash_command: "/project:code-quality-review"
+expertise:
+  - "Clean code principles"
+  - "Refactoring"
+  - "DRY principles"
+  - "Maintainability"
+  - "TypeScript best practices"
+owner: "TODO: team or email"
+trigger:
+  type: "event"
+  event: "pull_request"
+actions:
+  - "Ensure code quality standards"
+  - "Identify simplification opportunities"
+  - "Enforce DRY principles"
+  - "Reduce technical debt"
+permissions:
+  pull-requests: "write"
+  contents: "read"
+secrets_required: []
+modes:
+  dry_run: true
+run:
+  type: "script"
+  entrypoint: ".github/agents/run-agent.sh"
+  timeout_minutes: 10

@@ -1,0 +1,28 @@
+name: "Developer"
+description: "TypeScript implementation, Playwright automation, MCP tools, testing"
+slash_command: "/project:implement"
+expertise:
+  - "TypeScript implementation"
+  - "Playwright automation"
+  - "MCP tools"
+  - "Testing with Vitest"
+  - "Code patterns"
+owner: "TODO: team or email"
+trigger:
+  type: "event"
+  event: "pull_request"
+actions:
+  - "Implement features according to specs"
+  - "Write clean, maintainable code"
+  - "Create comprehensive tests"
+  - "Follow project conventions"
+permissions:
+  pull-requests: "write"
+  contents: "read"
+secrets_required: []
+modes:
+  dry_run: true
+run:
+  type: "script"
+  entrypoint: ".github/agents/run-agent.sh"
+  timeout_minutes: 20

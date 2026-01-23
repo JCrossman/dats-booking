@@ -1,0 +1,80 @@
+name: "Agent: Scheduled Review"
+
+# This workflow demonstrates how to invoke agents on a schedule.
+# Example: Run security or compliance reviews nightly.
+# By default, all agents run in dry-run mode (non-destructive).
+
+on:
+  schedule:
+    # Run at 2 AM UTC every day (example)
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      agent_name:
+        description: 'Agent to run (e.g., security-privacy, qa-tester, devops-infrastructure)'
+        required: true
+        default: 'security-privacy'
+      dry_run:
+        description: 'Run in dry-run mode'
+        required: false
+        default: 'true'
+
+# Conservative permissions
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  run-scheduled-agent:
+    runs-on: ubuntu-latest
+    name: "Execute Scheduled Agent"
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Determine agent
+        id: agent
+        run: |
+          # For workflow_dispatch, use input; otherwise use default
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ github.event.inputs.agent_name }}" >> $GITHUB_OUTPUT
+            echo "dry_run=${{ github.event.inputs.dry_run }}" >> $GITHUB_OUTPUT
+          else
+            # Default to security-privacy for scheduled runs
+            echo "name=security-privacy" >> $GITHUB_OUTPUT
+            echo "dry_run=true" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Validate agent configuration
+        run: |
+          AGENT_CONFIG=".github/agents/${{ steps.agent.outputs.name }}.yml"
+          if [ ! -f "$AGENT_CONFIG" ]; then
+            echo "Error: Agent configuration not found: $AGENT_CONFIG"
+            exit 1
+          fi
+          echo "Agent configuration validated: $AGENT_CONFIG"
+      
+      - name: Run agent
+        env:
+          AGENT_NAME: ${{ steps.agent.outputs.name }}
+          DRY_RUN: ${{ steps.agent.outputs.dry_run }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          bash .github/agents/run-agent.sh
+      
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Agent Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Agent**: ${{ steps.agent.outputs.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Event**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dry Run**: ${{ steps.agent.outputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.agent.outputs.dry_run }}" = "true" ]; then
+            echo "⚠️ Agent ran in dry-run mode (non-destructive simulation)" >> $GITHUB_STEP_SUMMARY
+          fi

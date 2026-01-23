@@ -1,0 +1,79 @@
+name: "Agent: Issue Review"
+
+# This workflow demonstrates how to invoke agents when issues are opened or updated.
+# By default, all agents run in dry-run mode (non-destructive).
+
+on:
+  issues:
+    types: [opened, edited, labeled]
+  workflow_dispatch:
+    inputs:
+      agent_name:
+        description: 'Agent to run (e.g., product-manager)'
+        required: true
+        default: 'product-manager'
+      dry_run:
+        description: 'Run in dry-run mode'
+        required: false
+        default: 'true'
+
+# Conservative permissions - only what's needed for issue agents
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  run-issue-agent:
+    runs-on: ubuntu-latest
+    name: "Execute Issue Agent"
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Determine agent
+        id: agent
+        run: |
+          # For workflow_dispatch, use input; otherwise use default
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ github.event.inputs.agent_name }}" >> $GITHUB_OUTPUT
+            echo "dry_run=${{ github.event.inputs.dry_run }}" >> $GITHUB_OUTPUT
+          else
+            # Default to product-manager for issue events
+            echo "name=product-manager" >> $GITHUB_OUTPUT
+            echo "dry_run=true" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Validate agent configuration
+        run: |
+          AGENT_CONFIG=".github/agents/${{ steps.agent.outputs.name }}.yml"
+          if [ ! -f "$AGENT_CONFIG" ]; then
+            echo "Error: Agent configuration not found: $AGENT_CONFIG"
+            exit 1
+          fi
+          echo "Agent configuration validated: $AGENT_CONFIG"
+      
+      - name: Run agent
+        env:
+          AGENT_NAME: ${{ steps.agent.outputs.name }}
+          DRY_RUN: ${{ steps.agent.outputs.dry_run }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+        run: |
+          bash .github/agents/run-agent.sh
+      
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Agent Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Agent**: ${{ steps.agent.outputs.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Event**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dry Run**: ${{ steps.agent.outputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.agent.outputs.dry_run }}" = "true" ]; then
+            echo "⚠️ Agent ran in dry-run mode (non-destructive simulation)" >> $GITHUB_STEP_SUMMARY
+          fi

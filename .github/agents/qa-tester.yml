@@ -1,0 +1,29 @@
+name: "QA/Tester"
+description: "Test strategy, E2E testing, edge cases, regression testing"
+slash_command: "/project:qa-review"
+expertise:
+  - "Test strategy"
+  - "E2E testing"
+  - "Edge cases"
+  - "Regression testing"
+  - "Test coverage"
+owner: "TODO: team or email"
+trigger:
+  type: "event"
+  event: "pull_request"
+actions:
+  - "Define test strategy"
+  - "Identify edge cases"
+  - "Design E2E test scenarios"
+  - "Verify test coverage"
+permissions:
+  pull-requests: "write"
+  contents: "read"
+  checks: "write"
+secrets_required: []
+modes:
+  dry_run: true
+run:
+  type: "script"
+  entrypoint: ".github/agents/run-agent.sh"
+  timeout_minutes: 20

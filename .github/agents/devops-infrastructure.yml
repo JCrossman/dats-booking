@@ -1,0 +1,29 @@
+name: "DevOps/Infrastructure"
+description: "CI/CD, Azure deployment, monitoring, security hardening"
+slash_command: "/project:devops-review"
+expertise:
+  - "CI/CD pipelines"
+  - "Azure deployment"
+  - "Monitoring"
+  - "Security hardening"
+  - "GitHub Actions"
+owner: "TODO: team or email"
+trigger:
+  type: "event"
+  event: "pull_request"
+actions:
+  - "Design CI/CD pipelines"
+  - "Review deployment configuration"
+  - "Set up monitoring"
+  - "Ensure infrastructure security"
+permissions:
+  pull-requests: "write"
+  contents: "read"
+  actions: "write"
+secrets_required: []
+modes:
+  dry_run: true
+run:
+  type: "script"
+  entrypoint: ".github/agents/run-agent.sh"
+  timeout_minutes: 15

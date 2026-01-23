@@ -1,0 +1,29 @@
+name: "Product Manager"
+description: "Requirements analysis, user stories, acceptance criteria, prioritization"
+slash_command: "/project:pm-review"
+expertise:
+  - "Requirements analysis"
+  - "User stories"
+  - "Acceptance criteria"
+  - "Prioritization"
+  - "Accessibility as core requirement"
+owner: "TODO: team or email"
+trigger:
+  type: "event"
+  event: "issues"
+actions:
+  - "Review new feature requests"
+  - "Write user stories with acceptance criteria"
+  - "Prioritize work based on user impact"
+  - "Ensure accessibility requirements are explicit"
+permissions:
+  issues: "write"
+  pull-requests: "read"
+  contents: "read"
+secrets_required: []
+modes:
+  dry_run: true
+run:
+  type: "script"
+  entrypoint: ".github/agents/run-agent.sh"
+  timeout_minutes: 10

@@ -1,0 +1,29 @@
+name: "Security & Privacy"
+description: "POPA compliance, credential security, threat modeling, audit logging"
+slash_command: "/project:security-review"
+expertise:
+  - "POPA compliance"
+  - "Credential security"
+  - "Threat modeling"
+  - "Audit logging"
+  - "Cryptographic best practices"
+owner: "TODO: team or email"
+trigger:
+  type: "event"
+  event: "pull_request"
+actions:
+  - "Review credential handling"
+  - "Identify security vulnerabilities"
+  - "Verify POPA compliance"
+  - "Check audit logging"
+permissions:
+  pull-requests: "write"
+  contents: "read"
+  checks: "write"
+secrets_required: []
+modes:
+  dry_run: true
+run:
+  type: "script"
+  entrypoint: ".github/agents/run-agent.sh"
+  timeout_minutes: 15

@@ -1,0 +1,29 @@
+name: "Accessibility Specialist"
+description: "WCAG 2.2, AAC integration, switch access, screen readers, cognitive accessibility"
+slash_command: "/project:accessibility-review"
+expertise:
+  - "WCAG 2.2 AA compliance"
+  - "AAC integration"
+  - "Switch access"
+  - "Screen readers"
+  - "Cognitive accessibility"
+owner: "TODO: team or email"
+trigger:
+  type: "event"
+  event: "pull_request"
+actions:
+  - "Ensure WCAG 2.2 AA compliance"
+  - "Design for non-verbal users"
+  - "Validate switch access compatibility"
+  - "Review cognitive load"
+permissions:
+  pull-requests: "write"
+  contents: "read"
+  checks: "write"
+secrets_required: []
+modes:
+  dry_run: true
+run:
+  type: "script"
+  entrypoint: ".github/agents/run-agent.sh"
+  timeout_minutes: 15

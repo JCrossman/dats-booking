@@ -1,0 +1,149 @@
+name: "Validate Agent Configurations"
+
+# This workflow validates that all agent YAML files conform to the JSON schema.
+# Runs on pull requests and pushes to main to ensure agent configs are always valid.
+
+on:
+  pull_request:
+    paths:
+      - '.github/agents/**/*.yml'
+      - '.github/agents/schema/*.json'
+      - '.github/workflows/validate-agents.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/agents/**/*.yml'
+      - '.github/agents/schema/*.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-agent-configs:
+    runs-on: ubuntu-latest
+    name: "Validate Agent Configurations"
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install validation tools
+        run: |
+          npm install -g ajv-cli ajv-formats js-yaml
+          echo "Installed ajv-cli version:"
+          ajv --version
+      
+      - name: List agent configurations
+        run: |
+          echo "Agent configurations to validate:"
+          ls -1 .github/agents/*.yml
+      
+      - name: Convert YAML to JSON and validate
+        run: |
+          # Create a temporary directory for converted files
+          mkdir -p /tmp/agent-configs
+          
+          # Convert each YAML file to JSON and validate
+          EXIT_CODE=0
+          for yaml_file in .github/agents/*.yml; do
+            if [ -f "$yaml_file" ]; then
+              filename=$(basename "$yaml_file" .yml)
+              json_file="/tmp/agent-configs/${filename}.json"
+              
+              echo ""
+              echo "=================================================="
+              echo "Validating: $yaml_file"
+              echo "=================================================="
+              
+              # Convert YAML to JSON
+              if node -e "const yaml = require('js-yaml'); const fs = require('fs'); const doc = yaml.load(fs.readFileSync('$yaml_file', 'utf8')); fs.writeFileSync('$json_file', JSON.stringify(doc, null, 2));" 2>/dev/null; then
+                echo "✓ YAML parsed successfully"
+                
+                # Validate against schema
+                if ajv validate -s .github/agents/schema/agent-schema.json -d "$json_file" --strict=false 2>&1; then
+                  echo "✓ Schema validation passed"
+                else
+                  echo "✗ Schema validation failed"
+                  EXIT_CODE=1
+                fi
+              else
+                echo "✗ Failed to parse YAML"
+                EXIT_CODE=1
+              fi
+            fi
+          done
+          
+          echo ""
+          echo "=================================================="
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "✓ All agent configurations are valid"
+          else
+            echo "✗ Some agent configurations failed validation"
+          fi
+          echo "=================================================="
+          
+          exit $EXIT_CODE
+      
+      - name: Validate schema itself
+        run: |
+          echo "Validating schema file..."
+          if ajv compile -s .github/agents/schema/agent-schema.json --strict=false; then
+            echo "✓ Schema is valid JSON Schema"
+          else
+            echo "✗ Schema validation failed"
+            exit 1
+          fi
+      
+      - name: Check for required fields
+        run: |
+          echo "Checking for required fields in all agent configs..."
+          EXIT_CODE=0
+          for yaml_file in .github/agents/*.yml; do
+            if [ -f "$yaml_file" ]; then
+              echo "Checking: $yaml_file"
+              
+              # Check for TODO placeholders in owner field
+              if grep -q "owner: \"TODO:" "$yaml_file"; then
+                echo "⚠️  Warning: $yaml_file contains TODO placeholder in owner field"
+              fi
+              
+              # Check that dry_run defaults to true
+              if ! grep -q "dry_run: true" "$yaml_file"; then
+                echo "✗ Error: $yaml_file must have dry_run: true for safety"
+                EXIT_CODE=1
+              else
+                echo "✓ dry_run is set to true"
+              fi
+            fi
+          done
+          
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo ""
+            echo "✗ Some safety checks failed"
+            exit $EXIT_CODE
+          fi
+          
+          echo ""
+          echo "✓ All safety checks passed"
+      
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Validated agent configurations:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          for yaml_file in .github/agents/*.yml; do
+            if [ -f "$yaml_file" ]; then
+              echo "- ✓ $(basename $yaml_file)" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY

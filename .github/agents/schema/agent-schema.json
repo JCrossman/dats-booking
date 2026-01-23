@@ -1,0 +1,144 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/JCrossman/dats-booking/blob/main/.github/agents/schema/agent-schema.json",
+  "title": "Agent Configuration Schema",
+  "description": "Schema for validating agent configuration files in the DATS Booking multi-agent framework",
+  "type": "object",
+  "required": [
+    "name",
+    "description",
+    "owner",
+    "trigger",
+    "permissions",
+    "run"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Agent name (human-readable identifier)",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "description": {
+      "type": "string",
+      "description": "Brief description of agent's role and expertise",
+      "minLength": 1
+    },
+    "slash_command": {
+      "type": "string",
+      "description": "Optional slash command for invoking the agent",
+      "pattern": "^/[a-z0-9:-]+$"
+    },
+    "expertise": {
+      "type": "array",
+      "description": "List of expertise domains",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "owner": {
+      "type": "string",
+      "description": "Team or contact email responsible for this agent",
+      "minLength": 1
+    },
+    "trigger": {
+      "type": "object",
+      "description": "Event or condition that invokes the agent",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["event", "manual", "schedule"],
+          "description": "Type of trigger"
+        },
+        "event": {
+          "type": "string",
+          "description": "GitHub event name (for type: event)",
+          "enum": ["issues", "pull_request", "push", "workflow_dispatch"]
+        },
+        "schedule": {
+          "type": "string",
+          "description": "Cron expression (for type: schedule)",
+          "pattern": "^[0-9*/,-]+ [0-9*/,-]+ [0-9*/,-]+ [0-9*/,-]+ [0-9*/,-]+$"
+        }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "description": "Actions the agent can perform",
+      "items": {
+        "type": "string"
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "description": "GitHub Actions permissions required",
+      "properties": {
+        "issues": {
+          "type": "string",
+          "enum": ["read", "write", "none"]
+        },
+        "pull-requests": {
+          "type": "string",
+          "enum": ["read", "write", "none"]
+        },
+        "contents": {
+          "type": "string",
+          "enum": ["read", "write", "none"]
+        },
+        "actions": {
+          "type": "string",
+          "enum": ["read", "write", "none"]
+        },
+        "checks": {
+          "type": "string",
+          "enum": ["read", "write", "none"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "secrets_required": {
+      "type": "array",
+      "description": "List of secrets required by this agent",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "modes": {
+      "type": "object",
+      "description": "Operational modes",
+      "properties": {
+        "dry_run": {
+          "type": "boolean",
+          "description": "Whether agent defaults to dry-run mode",
+          "default": true
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "description": "Execution configuration",
+      "required": ["entrypoint"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["script", "action", "container"],
+          "default": "script"
+        },
+        "entrypoint": {
+          "type": "string",
+          "description": "Path to execution script or action",
+          "minLength": 1
+        },
+        "timeout_minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 360,
+          "default": 10
+        }
+      }
+    }
+  }
+}
