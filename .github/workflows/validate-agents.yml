@@ -32,12 +32,8 @@ jobs:
         run: |
           echo "Installing yq for YAML to JSON conversion..."
           YQ_VERSION="4.40.5"
-          YQ_CHECKSUM="c9a347c2e98b5d8c3d993fa5e9f3d555e0f5a8e0e88e3f4b5c1e8d6f7a2b3c4d"
           
           wget -q -O /tmp/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
-          
-          # Verify checksum (if checksums are needed, use sha256sum)
-          # echo "${YQ_CHECKSUM}  /tmp/yq" | sha256sum -c -
           
           sudo mv /tmp/yq /usr/local/bin/yq
           sudo chmod +x /usr/local/bin/yq
