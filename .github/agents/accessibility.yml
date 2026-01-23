@@ -1,0 +1,17 @@
+name: accessibility
+description: "Accessibility Specialist - WCAG 2.2, AAC integration, switch access, screen readers"
+owner: "JCrossman"
+trigger:
+  type: manual
+permissions:
+  contents: read
+secrets_required: []
+modes:
+  dry_run: true
+  retries: 1
+run:
+  type: script
+  entrypoint: .github/agents/scripts/accessibility.sh
+audit:
+  enabled: true
+  log_destination: "TODO"

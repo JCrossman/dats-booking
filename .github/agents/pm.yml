@@ -1,0 +1,17 @@
+name: pm
+description: "Product Manager - Requirements analysis, user stories, acceptance criteria, and prioritization"
+owner: "JCrossman"
+trigger:
+  type: manual
+permissions:
+  contents: read
+secrets_required: []
+modes:
+  dry_run: true
+  retries: 1
+run:
+  type: script
+  entrypoint: .github/agents/scripts/pm.sh
+audit:
+  enabled: true
+  log_destination: "TODO"

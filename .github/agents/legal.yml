@@ -1,0 +1,17 @@
+name: legal
+description: "Legal/Compliance - POPA interpretation, ToS analysis, accessibility law, and consent"
+owner: "JCrossman"
+trigger:
+  type: manual
+permissions:
+  contents: read
+secrets_required: []
+modes:
+  dry_run: true
+  retries: 1
+run:
+  type: script
+  entrypoint: .github/agents/scripts/legal.sh
+audit:
+  enabled: true
+  log_destination: "TODO"

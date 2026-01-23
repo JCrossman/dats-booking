@@ -1,0 +1,17 @@
+name: qa
+description: "QA/Tester - Test strategy, E2E testing, edge cases, and regression testing"
+owner: "JCrossman"
+trigger:
+  type: manual
+permissions:
+  contents: read
+secrets_required: []
+modes:
+  dry_run: true
+  retries: 1
+run:
+  type: script
+  entrypoint: .github/agents/scripts/qa.sh
+audit:
+  enabled: true
+  log_destination: "TODO"

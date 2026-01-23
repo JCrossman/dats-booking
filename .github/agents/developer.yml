@@ -1,0 +1,17 @@
+name: developer
+description: "Developer - TypeScript implementation, SOAP API integration, MCP tools, and testing"
+owner: "JCrossman"
+trigger:
+  type: manual
+permissions:
+  contents: read
+secrets_required: []
+modes:
+  dry_run: true
+  retries: 1
+run:
+  type: script
+  entrypoint: .github/agents/scripts/developer.sh
+audit:
+  enabled: true
+  log_destination: "TODO"

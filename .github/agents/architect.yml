@@ -1,0 +1,17 @@
+name: architect
+description: "Architect - System design, MCP patterns, integration architecture, and scalability"
+owner: "JCrossman"
+trigger:
+  type: manual
+permissions:
+  contents: read
+secrets_required: []
+modes:
+  dry_run: true
+  retries: 1
+run:
+  type: script
+  entrypoint: .github/agents/scripts/architect.sh
+audit:
+  enabled: true
+  log_destination: "TODO"

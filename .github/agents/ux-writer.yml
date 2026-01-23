@@ -1,0 +1,17 @@
+name: ux-writer
+description: "UX Writer - Plain language, cognitive accessibility, symbol mapping, and microcopy"
+owner: "JCrossman"
+trigger:
+  type: manual
+permissions:
+  contents: read
+secrets_required: []
+modes:
+  dry_run: true
+  retries: 1
+run:
+  type: script
+  entrypoint: .github/agents/scripts/ux-writer.sh
+audit:
+  enabled: true
+  log_destination: "TODO"

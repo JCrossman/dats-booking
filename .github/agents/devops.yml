@@ -1,0 +1,17 @@
+name: devops
+description: "DevOps/Infrastructure - CI/CD, Azure deployment, monitoring, and security hardening"
+owner: "JCrossman"
+trigger:
+  type: manual
+permissions:
+  contents: read
+secrets_required: []
+modes:
+  dry_run: true
+  retries: 1
+run:
+  type: script
+  entrypoint: .github/agents/scripts/devops.sh
+audit:
+  enabled: true
+  log_destination: "TODO"
