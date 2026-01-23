@@ -65,6 +65,20 @@ EOF
 
 # Validate agent name
 validate_agent() {
+    # Input validation: only allow lowercase letters and hyphens
+    if [[ ! "$AGENT_NAME" =~ ^[a-z]+(-[a-z]+)*$ ]]; then
+        log_error "Invalid agent name: ${AGENT_NAME}"
+        log_error "Agent names must contain only lowercase letters and hyphens"
+        return 1
+    fi
+    
+    # Prevent path traversal
+    if [[ "$AGENT_NAME" =~ \.\. ]] || [[ "$AGENT_NAME" =~ / ]]; then
+        log_error "Invalid agent name: ${AGENT_NAME}"
+        log_error "Agent names cannot contain '..' or '/' characters"
+        return 1
+    fi
+    
     local agent_file="${AGENTS_DIR}/${AGENT_NAME}.yml"
     
     if [ ! -f "$agent_file" ]; then

@@ -66,6 +66,20 @@ jobs:
           for agent in "${AGENTS[@]}"; do
             agent=$(echo "$agent" | xargs)  # trim whitespace
             
+            # Input validation: only allow lowercase letters and hyphens
+            if [[ ! "$agent" =~ ^[a-z]+(-[a-z]+)*$ ]]; then
+              echo "❌ Invalid agent name: '$agent'"
+              echo "Agent names must contain only lowercase letters and hyphens"
+              exit 1
+            fi
+            
+            # Prevent path traversal
+            if [[ "$agent" =~ \.\. ]] || [[ "$agent" =~ / ]]; then
+              echo "❌ Invalid agent name: '$agent'"
+              echo "Agent names cannot contain '..' or '/' characters"
+              exit 1
+            fi
+            
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo "Step $STEP of $TOTAL: Running $agent"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
