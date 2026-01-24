@@ -38,19 +38,33 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Run agent script
+        id: agent
         run: |
           chmod +x .github/agents/scripts/${{ inputs.agent }}.sh
           chmod +x .github/agents/scripts/ai-helper.sh
-          .github/agents/scripts/${{ inputs.agent }}.sh
+          # Capture output and display it
+          .github/agents/scripts/${{ inputs.agent }}.sh | tee agent_output.txt
+          
+          # Add output to step summary for visibility
+          echo "## Agent Output" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat agent_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
         env:
           AGENT_NAME: ${{ inputs.agent }}
           DRY_RUN: ${{ inputs.dry_run }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Summary
+        if: always()
         run: |
           echo "### Agent Execution Complete ✅" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Agent:** ${{ inputs.agent }}" >> $GITHUB_STEP_SUMMARY
           echo "**Mode:** ${{ inputs.dry_run && 'Dry Run (Suggestions Only)' || 'Production Mode' }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Status:** Completed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📝 **Full report is shown above in the 'Agent Output' section**" >> $GITHUB_STEP_SUMMARY
