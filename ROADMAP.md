@@ -50,7 +50,7 @@ This document tracks planned features and improvements. Items are derived from [
   - Azure Container Apps deployment (Canada Central)
   - Cosmos DB session storage (encrypted, 24-hour TTL)
   - Streamable HTTP transport for iOS/Android/Web
-  - Add as connector: `https://dats-mcp-dev-app.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/mcp`
+  - Add as connector: `https://dats-mcp-app.whitewater-072cffec.canadacentral.azurecontainerapps.io/mcp`
 - [x] **Flexible date parsing** - Server-side date calculation
   - Accepts day names ("thursday"), relative dates ("tomorrow"), and YYYY-MM-DD
   - Timezone-aware (defaults to America/Edmonton)
@@ -110,7 +110,7 @@ This document tracks planned features and improvements. Items are derived from [
 - [ ] Self-signing doesn't work (corrupts bundle)
 
 **Recommendation:** Use the remote connector instead (no installation required):
-`https://dats-mcp-dev-app.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/mcp`
+`https://dats-mcp-app.whitewater-072cffec.canadacentral.azurecontainerapps.io/mcp`
 
 ---
 

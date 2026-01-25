@@ -37,7 +37,7 @@ See `CONTRIBUTING.md` for development workflow and `.github/workflows/deploy-to-
 ### Claude Mobile/Web (Recommended)
 
 1. Go to [claude.ai](https://claude.ai) → Settings → Connectors
-2. Add custom connector: `https://dats-mcp-dev-app.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/mcp`
+2. Add custom connector: `https://dats-mcp-app.whitewater-072cffec.canadacentral.azurecontainerapps.io/mcp`
 3. Works on iOS, Android, and web - no installation needed!
 
 **First use:** Ask "Show my DATS trips" → Open the auth link → Enter credentials → Say "done" → Claude continues automatically.
@@ -79,7 +79,7 @@ Credentials are **never** sent to Claude or Anthropic. Instead:
 - ✅ 24-hour automatic deletion (TTL)
 - ✅ User right to delete data anytime (`disconnect_account`)
 - ✅ Audit logging (no PII)
-- ✅ Privacy policy: [View Policy](https://dats-mcp-auth.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/privacy)
+- ✅ Privacy policy: [View Policy](https://dats-mcp-app.whitewater-072cffec.canadacentral.azurecontainerapps.io/privacy)
 
 **What We Store (Remote Mode Only):**
 - Encrypted DATS session cookie (enables booking)

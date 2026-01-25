@@ -17,7 +17,7 @@ Use DATS Booking on your phone or in the browser:
 
 1. Go to [claude.ai](https://claude.ai) → Settings → Connectors
 2. Click "Add custom connector"
-3. Enter URL: `https://dats-mcp-dev-app.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/mcp`
+3. Enter URL: `https://dats-mcp-app.whitewater-072cffec.canadacentral.azurecontainerapps.io/mcp`
 4. Name it "DATS Booking"
 5. The connector syncs to Claude iOS/Android automatically
 

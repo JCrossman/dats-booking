@@ -204,7 +204,7 @@ az staticwebapp create \
 # Push to GitHub, Static Web App will auto-deploy
 ```
 
-**Verify:** Visit `https://dats-mcp-auth.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/privacy.html`
+**Verify:** Visit `https://dats-mcp-app.whitewater-072cffec.canadacentral.azurecontainerapps.io/privacy.html`
 
 ---
 
@@ -215,7 +215,7 @@ az staticwebapp create \
 CONTAINER_APP_NAME="dats-mcp-prod-app"
 
 # Get DATS Auth URL
-DATS_AUTH_URL="https://dats-mcp-auth.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io"
+DATS_AUTH_URL="https://dats-mcp-app.whitewater-072cffec.canadacentral.azurecontainerapps.io"
 
 # Update Container App environment variables
 az containerapp update \
@@ -260,7 +260,7 @@ az containerapp logs show \
 
 ```bash
 # Test privacy page is accessible
-curl -I https://dats-mcp-auth.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/privacy.html
+curl -I https://dats-mcp-app.whitewater-072cffec.canadacentral.azurecontainerapps.io/privacy.html
 ```
 
 **Expected:** HTTP 200 OK
@@ -350,7 +350,7 @@ curl https://${CONTAINER_APP_URL}/mcp
 
 ### Test 3: Privacy Policy
 
-1. **Visit:** `https://dats-mcp-auth.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/privacy.html`
+1. **Visit:** `https://dats-mcp-app.whitewater-072cffec.canadacentral.azurecontainerapps.io/privacy.html`
 2. **Verify:**
    - Page loads correctly
    - All sections present
@@ -505,10 +505,10 @@ az containerapp revision show \
 `https://dats-mcp-prod-app.<your-url>.canadacentral.azurecontainerapps.io/mcp`
 
 **Privacy Policy:**  
-`https://dats-mcp-auth.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/privacy.html`
+`https://dats-mcp-app.whitewater-072cffec.canadacentral.azurecontainerapps.io/privacy.html`
 
 **Auth Portal:**  
-`https://dats-mcp-auth.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io`
+`https://dats-mcp-app.whitewater-072cffec.canadacentral.azurecontainerapps.io`
 
 ---
 

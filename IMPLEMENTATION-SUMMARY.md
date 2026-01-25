@@ -172,7 +172,7 @@ az containerapp logs show \
 
 ```bash
 # Verify privacy page is accessible
-curl -I https://dats-mcp-auth.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/privacy.html
+curl -I https://dats-mcp-app.whitewater-072cffec.canadacentral.azurecontainerapps.io/privacy.html
 
 # Expected: HTTP 200 OK
 ```
