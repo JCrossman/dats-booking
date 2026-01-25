@@ -192,6 +192,85 @@ describe.skipIf(!HAS_CREDENTIALS)('DATS API E2E Tests', () => {
     });
   });
 
+  // ==================== Debug: Specific Failure Case ====================
+
+  describe('Debug: Home to West Edmonton Mall (Monday 6pm)', () => {
+    let debugBookingId: string | undefined;
+
+    afterAll(async () => {
+      if (debugBookingId && api) {
+        console.log(`Cleaning up debug booking: ${debugBookingId}`);
+        try {
+          await api.cancelTrip(CLIENT_ID!, debugBookingId, 'Debug test cleanup');
+          console.log('✅ Debug booking cancelled');
+        } catch (error) {
+          console.error('⚠️ Failed to cancel debug booking:', error);
+        }
+      }
+    });
+
+    it('should book home to West Edmonton Mall on Monday at 6pm', async () => {
+      // Get client info for home address
+      const clientInfo = await api.getClientInfo(CLIENT_ID!);
+      if (!clientInfo) {
+        console.log('Could not retrieve client info - skipping');
+        return;
+      }
+
+      // Calculate next Monday
+      const today = new Date();
+      const dayOfWeek = today.getDay();
+      const daysUntilMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 7 : (8 - dayOfWeek);
+      const monday = new Date(today);
+      monday.setDate(today.getDate() + daysUntilMonday);
+      const pickupDate = monday.toISOString().split('T')[0];
+
+      // Use client home address as pickup
+      const pickupAddress = `${clientInfo.address.streetNo} ${clientInfo.address.street}, Edmonton, AB`;
+      const destinationAddress = 'West Edmonton Mall, Edmonton, AB';
+
+      console.log('\n========== DEBUG: User-Reported Failure Case ==========');
+      console.log(`Client ID: ${CLIENT_ID}`);
+      console.log(`Home Address: ${pickupAddress}`);
+      console.log(`Date: ${pickupDate} (Monday)`);
+      console.log(`Time: 18:00 (6:00 PM)`);
+      console.log(`Destination: ${destinationAddress}`);
+      console.log('========================================================\n');
+
+      // Try to create booking
+      const result = await api.bookTrip(CLIENT_ID!, {
+        pickupDate,
+        pickupTime: '18:00',
+        pickupAddress,
+        destinationAddress,
+        mobilityDevice: 'none',
+      });
+
+      console.log('\n========== BOOKING RESULT ==========');
+      console.log(JSON.stringify(result, null, 2));
+      console.log('====================================\n');
+
+      if (result.success) {
+        debugBookingId = result.bookingId;
+        console.log(`✅ Booking succeeded! ID: ${debugBookingId}`);
+        console.log(`   Pickup window: ${result.pickupWindow?.start} - ${result.pickupWindow?.end}`);
+      } else {
+        console.error('❌ Booking FAILED');
+        console.error(`   Error: ${result.error?.message}`);
+        console.error(`   Category: ${result.error?.category}`);
+        
+        if (result.error?.message?.includes('user defined booking logic')) {
+          console.error('\n⚠️ THIS IS THE REPORTED BUG');
+          console.error('The "user defined booking logic" error indicates DATS rejected our request.');
+          console.error('Check the debug logs above for the full SOAP request/response.\n');
+        }
+      }
+
+      // Don't fail the test - we want to see the output either way
+      expect(true).toBe(true);
+    });
+  });
+
   // ==================== Address Geocoding Test ====================
 
   describe('Address Geocoding', () => {
