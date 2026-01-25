@@ -17,8 +17,8 @@ name: Deploy to Azure
         options:
           - production
           - staging
-      skip_e2e:
-        description: 'Skip E2E tests (for urgent hotfixes)'
+      run_e2e:
+        description: 'Run E2E tests with real DATS credentials'
         required: false
         default: false
         type: boolean
@@ -61,7 +61,8 @@ jobs:
     name: E2E Integration Tests
     runs-on: ubuntu-latest
     needs: unit-tests
-    if: ${{ !inputs.skip_e2e }}
+    # Only run E2E tests when explicitly requested via manual trigger
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_e2e }}
     defaults:
       run:
         working-directory: ${{ env.WORKING_DIRECTORY }}
@@ -226,6 +227,8 @@ jobs:
     name: Post-Deploy Smoke Tests
     runs-on: ubuntu-latest
     needs: deploy-to-azure
+    # Only run smoke tests when E2E tests are enabled (manual trigger with run_e2e=true)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_e2e }}
     defaults:
       run:
         working-directory: ${{ env.WORKING_DIRECTORY }}
