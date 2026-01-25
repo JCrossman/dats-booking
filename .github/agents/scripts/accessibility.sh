@@ -55,8 +55,12 @@ if [ "$USE_AI" = true ] && [ $FILE_COUNT -gt 0 ]; then
       CONTENT=$(head -50 "$file" 2>/dev/null || echo "")
       SAMPLES="${SAMPLES}File: ${FILENAME}\n${CONTENT}\n\n---\n\n"
       ((COUNT++))
+      echo "DEBUG: Collected file $COUNT: $FILENAME" >&2
     fi
   done <<< "$UI_FILES_LIST"
+  
+  echo "DEBUG: Total files collected: $COUNT" >&2
+  echo "DEBUG: FILE_LIST length: ${#FILE_LIST}" >&2
   
   if [ $COUNT -eq 0 ]; then
     echo "⚠️  No files could be read, falling back to basic checks"
