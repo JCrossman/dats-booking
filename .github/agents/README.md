@@ -1,117 +1,161 @@
 # GitHub Agents for DATS Booking Assistant
 
-This directory contains 10 specialized agents based on the multi-agent development framework defined in `/AGENTS.md`.
+This directory contains 10 **AI-powered** agents that use GPT-4o (via GitHub Models) to provide intelligent code reviews based on the multi-agent development framework defined in `/AGENTS.md`.
+
+## ✨ What Makes These Agents Special
+
+Unlike traditional static analysis tools, these agents:
+- 🤖 **Use GPT-4o** for intelligent, context-aware analysis
+- 💬 **Provide natural language feedback** with specific code examples
+- 🎯 **Understand your domain** (accessibility, DATS, POPA compliance)
+- 📝 **Give actionable recommendations** with fixes you can implement
 
 ## Available Agents
 
-| Agent | File | Purpose |
-|-------|------|---------|
-| **Product Manager** | `pm.yml` | Requirements analysis, user stories, acceptance criteria |
-| **Architect** | `architect.yml` | System design, MCP patterns, integration architecture |
-| **Developer** | `developer.yml` | TypeScript implementation, SOAP API integration, testing |
-| **Security & Privacy** | `security.yml` | POPA compliance, credential security, threat modeling |
-| **Accessibility** | `accessibility.yml` | WCAG 2.2, AAC integration, screen readers |
-| **Code Quality** | `code-quality.yml` | Clean code, refactoring, DRY principles |
-| **QA/Tester** | `qa.yml` | Test strategy, E2E testing, edge cases |
-| **DevOps** | `devops.yml` | CI/CD, Azure deployment, monitoring |
-| **UX Writer** | `ux-writer.yml` | Plain language, cognitive accessibility, microcopy |
-| **Legal/Compliance** | `legal.yml` | POPA interpretation, ToS analysis, consent |
+| Agent | Purpose | Focus Areas |
+|-------|---------|-------------|
+| **🔒 Security** | Security & privacy review | Vulnerabilities, secrets, POPA compliance, PII handling |
+| **✨ Code Quality** | Code maintainability | Clean code, TypeScript strict mode, DRY principles |
+| **📋 PM** | Requirements analysis | User stories, acceptance criteria, accessibility requirements |
+| **🏗️ Architect** | System design review | Component boundaries, scalability, MCP patterns |
+| **💻 Developer** | Implementation review | TypeScript best practices, error handling, JSDoc |
+| **🧪 QA** | Test coverage analysis | Missing tests, edge cases, E2E coverage |
+| **🚀 DevOps** | Infrastructure review | CI/CD pipelines, secrets management, Azure deployment |
+| **✍️ UX Writer** | Copy & readability | Plain language, cognitive accessibility, error messages |
+| **⚖️ Legal** | Compliance review | POPA compliance, consent flows, privacy documentation |
+| **♿ Accessibility** | WCAG 2.2 AA compliance | Alt text, keyboard nav, ARIA, screen readers |
 
 ## How to Use
 
-### Manual Invocation
+### Option 1: GitHub Actions UI (Recommended)
 
-Each agent can be triggered manually via GitHub Actions:
+1. Go to the **Actions** tab in GitHub
+2. Select **"Run Agent (Manual)"** workflow
+3. Click **"Run workflow"**
+4. Choose an agent from the dropdown
+5. Click **"Run workflow"**
+6. View results in the **Summary** tab
 
-1. Go to **Actions** tab in GitHub
-2. Select the agent workflow (e.g., "pm")
-3. Click **Run workflow**
-4. Review the agent's output in the workflow logs
+### Option 2: Command Line
 
-### From Other Workflows
-
-Agents can be invoked from other workflows using `workflow_dispatch`:
-
-```yaml
-- name: Run Security Review
-  uses: ./.github/workflows/security.yml
-  with:
-    dry_run: true
+```bash
+gh workflow run run-agent-manual.yml -f agent=security -f dry_run=true
+gh run watch  # Watch the run
 ```
 
-### Agent Configuration
+### Option 3: Run Locally
 
-All agents are currently in **dry-run mode** (`dry_run: true`), meaning they:
-- ✅ Provide suggestions and recommendations
-- ✅ Output review findings
-- ❌ Do NOT make code changes
-- ❌ Do NOT commit or push
+```bash
+export GITHUB_TOKEN=$(gh auth token)
+./.github/agents/scripts/security.sh
+```
 
-To enable execution mode for an agent:
-1. Edit the agent's YAML file (e.g., `pm.yml`)
-2. Change `dry_run: true` to `dry_run: false`
-3. Commit and push
+## Example Output
 
-## Agent Scripts
+When you run the **Accessibility** agent, you get:
 
-Agent logic is contained in executable shell scripts under `scripts/`:
+```
+♿ Accessibility Specialist Agent
+🔍 Analyzing 3 files with GPT-4o...
 
-- `scripts/pm.sh` - Product Manager instructions
-- `scripts/architect.sh` - Architect instructions
-- `scripts/developer.sh` - Developer instructions
-- etc.
+### Critical Issues (WCAG Violations)
+1. Missing label for passcode input (WCAG 1.3.1, 4.1.2)
+   Fix:
+   <label for="passcode">Your Passcode</label>
+   <input id="passcode" name="passcode" required>
 
-Each script displays the agent's role, expertise, review criteria, and output format.
+2. Missing submit button (WCAG 3.2.2)
+   Fix:
+   <button type="submit">Connect</button>
+
+### Warnings
+- Placeholder text should not replace labels
+- Check color contrast ratios
+
+### Recommendations
+- Add skip links for keyboard users
+- Test with screen readers
+```
+
+## Setup Requirements
+
+### For GitHub Actions
+
+The agents need access to GitHub Models API. This is already configured via the `MODELS_TOKEN` secret.
+
+✅ **No additional setup required!** The token is already configured in your repository.
+
+### For Local Use
+
+To run agents locally:
+
+```bash
+# Authenticate with GitHub CLI (one time)
+gh auth login
+
+# Run any agent
+export GITHUB_TOKEN=$(gh auth token)
+./.github/agents/scripts/accessibility.sh
+```
+
+## Agent Architecture
+
+Each agent follows this pattern:
+
+1. **Find relevant files** (HTML, TypeScript, docs, etc.)
+2. **Collect samples** (2-3 files, 50-80 lines each)
+3. **Send to GPT-4o** with specialized prompt
+4. **Parse and display** actionable recommendations
+
+```mermaid
+graph LR
+    A[Find Files] --> B[Collect Samples]
+    B --> C[Send to GPT-4o]
+    C --> D[Display Results]
+```
 
 ## Multi-Agent Workflow
 
-For complex changes requiring multiple perspectives, use the consensus process defined in `/AGENTS.md`:
+For complex changes, use multiple agents in sequence:
 
-| Change Type | Required Reviews |
-|-------------|------------------|
-| **New feature** | PM → Architect → Developer → (parallel: Security, Accessibility, Code Quality) → QA |
-| **Security-sensitive** | Developer → Security → Code Quality |
-| **UI change** | Developer → Accessibility → UX Writer → Code Quality |
-| **Bug fix** | Developer → QA → Code Quality |
+| Change Type | Recommended Agent Flow |
+|-------------|------------------------|
+| **New feature** | PM → Architect → Developer → Security + Accessibility + Code Quality (parallel) → QA |
+| **Security fix** | Developer → Security → Code Quality |
+| **UI change** | Developer → Accessibility → UX Writer |
 | **Infrastructure** | DevOps → Security |
-| **Privacy/consent** | Legal → Security → PM |
 
-## Permissions
+## Customizing Agents
 
-All agents use minimal permissions by default:
-- `contents: read` - Can read repository code
-- No write permissions in dry-run mode
-- No secrets access unless explicitly configured
+Each agent has a specialized prompt tailored to its role. To customize:
 
-## Audit Logging
+1. Edit `.github/agents/scripts/<agent>.sh`
+2. Modify the `SYSTEM_PROMPT` variable
+3. Test locally before committing
 
-All agent runs are audited:
-- `audit.enabled: true` on all agents
-- Logs include: timestamp, user, inputs, outputs
-- Log destination: TODO (configure based on requirements)
+Example:
 
-## Extending Agents
+```bash
+SYSTEM_PROMPT="You are a security expert... [add your custom instructions]"
+```
 
-To add capabilities to an agent:
+## Troubleshooting
 
-1. **Edit the YAML** (e.g., `pm.yml`):
-   - Add required `permissions`
-   - Add `secrets_required` if needed
-   - Update `description`
+### "No GITHUB_TOKEN" error
 
-2. **Edit the script** (e.g., `scripts/pm.sh`):
-   - Add new logic/instructions
-   - Update review criteria
-   - Modify output format
+**In GitHub Actions**: The `MODELS_TOKEN` secret should be configured. If not, contact the repo owner.
 
-3. **Test**:
-   - Run manually from Actions tab
-   - Verify output meets expectations
-   - Iterate as needed
+**Locally**: Run `gh auth login` first, then `export GITHUB_TOKEN=$(gh auth token)`
+
+### Agent runs but no output
+
+Check that the agent is finding files:
+- Accessibility: Looks for `*.html`, `*.tsx`, `*.jsx`
+- Security: Looks for `*.ts`, `*.js` with auth/credential keywords
+- PM: Looks for `README.md`, `PRD.md`
 
 ## Reference
 
 - Full agent definitions: `/AGENTS.md`
 - Project guidance: `/COPILOT.md`
-- Architecture: `/ARCHITECTURE.md`
-- GitHub Actions docs: https://docs.github.com/en/actions
+- GitHub Models docs: https://github.com/marketplace/models
