@@ -23,15 +23,15 @@ fi
 echo ""
 
 echo "📁 Finding UI files to review..."
-# Find all UI-related files
-UI_FILES=$(find "$REPO_ROOT" -type f \( \
+# Find all UI-related files using null delimiter for safety with spaces
+UI_FILES_LIST=$(find "$REPO_ROOT" -type f \( \
   -name "*.tsx" -o \
   -name "*.jsx" -o \
   -name "*.html" -o \
   -name "*.vue" \
-\) -not -path "*/node_modules/*" -not -path "*/.git/*" -not -path "*/dist/*" -not -path "*/build/*")
+\) -not -path "*/node_modules/*" -not -path "*/.git/*" -not -path "*/dist/*" -not -path "*/build/*" -not -path "*/coverage/*" 2>/dev/null)
 
-FILE_COUNT=$(echo "$UI_FILES" | grep -c '^' || echo 0)
+FILE_COUNT=$(echo "$UI_FILES_LIST" | grep -c . || echo 0)
 echo "Found $FILE_COUNT files to check"
 echo ""
 
@@ -40,55 +40,54 @@ if [ "$USE_AI" = true ] && [ $FILE_COUNT -gt 0 ]; then
   echo "🔍 Running AI-Powered Accessibility Analysis..."
   echo ""
   
-  # Collect file contents (limit to first 3 files to avoid token limits)
-  CODE_SAMPLE=""
+  # Collect file contents (limit to first 2 files to avoid token limits)
   FILE_LIST=""
   COUNT=0
-  for file in $UI_FILES; do
-    if [ $COUNT -lt 3 ]; then
-      FILE_LIST="${FILE_LIST}\n- $file"
-      CODE_SAMPLE="${CODE_SAMPLE}\n\n### File: $file\n\`\`\`\n$(cat "$file" | head -100)\n\`\`\`"
+  SAMPLES=""
+  
+  # Use while read to properly handle filenames with spaces
+  while IFS= read -r file; do
+    if [ $COUNT -lt 2 ] && [ -f "$file" ]; then
+      FILENAME=$(basename "$file")
+      FILE_LIST="${FILE_LIST}- ${FILENAME}\n"
+      
+      # Get first 50 lines of the file
+      CONTENT=$(head -50 "$file" 2>/dev/null || echo "")
+      SAMPLES="${SAMPLES}File: ${FILENAME}\n${CONTENT}\n\n---\n\n"
       ((COUNT++))
     fi
-  done
+  done <<< "$UI_FILES_LIST"
   
-  # Call AI helper with accessibility review prompt
-  SYSTEM_PROMPT="You are an Accessibility Specialist reviewing code for WCAG 2.2 AA compliance.
-Focus on:
-- Missing alt text on images
-- Unlabeled form inputs
-- Keyboard navigation issues
-- Color contrast problems
-- Semantic HTML usage
-- ARIA attributes
-- Screen reader compatibility
-
-Target users: Adults with disabilities using screen readers, keyboards, switches, and AAC devices.
-
-Provide specific, actionable findings with file names and line numbers where possible."
-
-  USER_PROMPT="Review these UI files for accessibility issues:
-
-Files found ($FILE_COUNT total, showing first $COUNT):$FILE_LIST
-
-$CODE_SAMPLE
-
-Provide:
-1. Critical Issues (WCAG violations)
-2. Warnings (potential issues)
-3. Recommendations
-4. Overall assessment"
-  
-  AI_RESPONSE=$("$SCRIPT_DIR/ai-helper.sh" "$SYSTEM_PROMPT" "$USER_PROMPT" "gpt-4o" 2>&1 || echo "AI analysis failed")
-  
-  echo "## AI Accessibility Review Results"
-  echo ""
-  echo "$AI_RESPONSE"
-  echo ""
-  
-  if echo "$AI_RESPONSE" | grep -q "AI analysis failed\|Error"; then
-    echo "⚠️  AI analysis encountered an issue, falling back to basic checks..."
+  if [ $COUNT -eq 0 ]; then
+    echo "⚠️  No files could be read, falling back to basic checks"
     USE_AI=false
+  else
+    echo "Analyzing $COUNT sample files with AI..."
+    
+    # Simple, short prompts to avoid escaping issues
+    SYSTEM_PROMPT="You are an accessibility expert. Review HTML/JSX code for WCAG 2.2 AA compliance. Focus on: missing alt text, unlabeled inputs, keyboard access, semantic HTML, ARIA. Be specific and actionable."
+    
+    USER_PROMPT="Review these files for accessibility issues:\n\nFiles ($FILE_COUNT total, showing $COUNT):\n$FILE_LIST\n\nCode samples:\n$SAMPLES\n\nProvide:\n1. Critical issues\n2. Warnings\n3. Recommendations"
+    
+    # Use printf to properly handle newlines
+    RESPONSE=$("$SCRIPT_DIR/ai-helper.sh" "$(printf '%b' "$SYSTEM_PROMPT")" "$(printf '%b' "$USER_PROMPT")" "gpt-4o" 2>&1)
+    EXIT_CODE=$?
+    
+    echo "## AI Accessibility Review Results"
+    echo ""
+    
+    if [ $EXIT_CODE -ne 0 ]; then
+      echo "⚠️  AI call failed (exit code: $EXIT_CODE)"
+      echo "Error: $RESPONSE"
+      USE_AI=false
+    elif echo "$RESPONSE" | head -1 | grep -qi "^error\|❌.*error"; then
+      echo "⚠️  AI API returned an error"
+      echo "$RESPONSE"
+      USE_AI=false
+    else
+      echo "$RESPONSE"
+      echo ""
+    fi
   fi
 fi
 
@@ -102,21 +101,36 @@ if [ "$USE_AI" = false ]; then
   
   # Check 1: Images without alt text
   echo "## Check 1: Image Alt Text"
-  MISSING_ALT=$(echo "$UI_FILES" | xargs grep -l '<img' 2>/dev/null | xargs grep '<img' 2>/dev/null | grep -v 'alt=' || true)
-  if [ -n "$MISSING_ALT" ]; then
-    echo "⚠️  Found images potentially missing alt text:"
-    echo "$MISSING_ALT" | head -5
+  MISSING_ALT_COUNT=0
+  while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    if grep -q '<img' "$file" 2>/dev/null && ! grep -q 'alt=' "$file" 2>/dev/null; then
+      echo "⚠️  Missing alt: $(basename "$file")"
+      ((MISSING_ALT_COUNT++))
+    fi
+  done <<< "$UI_FILES_LIST"
+  
+  if [ $MISSING_ALT_COUNT -gt 0 ]; then
     ((WARNINGS++))
   else
     echo "✅ All images have alt text"
   fi
   echo ""
   
-  # Check 2: Form inputs without labels
+  # Check 2: Form inputs without labels  
   echo "## Check 2: Form Input Labels"
-  UNLABELED_INPUTS=$(echo "$UI_FILES" | xargs grep -l '<input' 2>/dev/null | xargs grep '<input' 2>/dev/null | grep -v 'aria-label\|aria-labelledby' | grep -v 'type="hidden"' || true)
-  if [ -n "$UNLABELED_INPUTS" ]; then
-    echo "⚠️  Potential missing labels found (manual review needed)"
+  UNLABELED_COUNT=0
+  while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    if grep -q '<input' "$file" 2>/dev/null && \
+       ! grep -q 'aria-label\|aria-labelledby\|type="hidden"' "$file" 2>/dev/null; then
+      echo "⚠️  Potential unlabeled input: $(basename "$file")"
+      ((UNLABELED_COUNT++))
+    fi
+  done <<< "$UI_FILES_LIST"
+  
+  if [ $UNLABELED_COUNT -gt 0 ]; then
+    echo "ℹ️  Found $UNLABELED_COUNT files (manual review needed)"
     ((WARNINGS++))
   else
     echo "✅ All inputs appear to have labels"
@@ -125,9 +139,16 @@ if [ "$USE_AI" = false ]; then
   
   # Check 3: Buttons without text
   echo "## Check 3: Button Text"
-  EMPTY_BUTTONS=$(echo "$UI_FILES" | xargs grep -l '<button' 2>/dev/null | xargs grep '<button[^>]*></button>' 2>/dev/null || true)
-  if [ -n "$EMPTY_BUTTONS" ]; then
-    echo "⚠️  Found buttons without text"
+  EMPTY_BUTTON_COUNT=0
+  while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    if grep -q '<button[^>]*></button>' "$file" 2>/dev/null; then
+      echo "⚠️  Empty button: $(basename "$file")"
+      ((EMPTY_BUTTON_COUNT++))
+    fi
+  done <<< "$UI_FILES_LIST"
+  
+  if [ $EMPTY_BUTTON_COUNT -gt 0 ]; then
     ((CRITICAL_ISSUES++))
   else
     echo "✅ No empty buttons found"
@@ -151,7 +172,7 @@ if [ "$USE_AI" = false ]; then
   fi
   
   echo ""
-  echo "💡 For comprehensive analysis, ensure MODELS_TOKEN secret is set"
+  echo "💡 For comprehensive AI analysis, ensure MODELS_TOKEN secret is set correctly"
 fi
 
 echo ""
