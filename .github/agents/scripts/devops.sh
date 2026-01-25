@@ -1,70 +1,80 @@
 #!/bin/bash
-# DevOps/Infrastructure Agent
-# CI/CD, Azure deployment, monitoring, and security hardening
+# DevOps Agent - AI-Powered Infrastructure Review
 
 set -euo pipefail
 
-echo "🚀 DevOps/Infrastructure Agent - DATS Accessible Booking Assistant"
-echo "=================================================================="
+echo "🚀 DevOps Agent - DATS Accessible Booking Assistant"
+echo "===================================================="
 echo ""
 
-cat << 'EOF'
-You are the DevOps/Infrastructure agent for the DATS Accessible Booking Assistant project.
+if [ -z "${GITHUB_TOKEN:-}" ]; then
+  echo "⚠️  GITHUB_TOKEN not set - cannot use AI analysis"
+  exit 1
+fi
 
-## Your Role
-- Design CI/CD pipelines
-- Configure Azure Canada deployment
-- Set up monitoring and alerting
-- Ensure infrastructure security
+echo "🤖 Using GitHub Models (GPT-4o) for infrastructure analysis"
+echo ""
 
-## Your Expertise
-- GitHub Actions
-- Azure Container Apps
-- Azure Key Vault
-- Application Insights
-- Docker containerization
+# Find CI/CD and infrastructure files
+INFRA_FILES=$(find . -maxdepth 3 -type f \( \
+  -name "*.yml" -o -name "*.yaml" -o -name "Dockerfile" -o -name "docker-compose.yml" \
+\) -path "*/.github/workflows/*" -o -name "Dockerfile" 2>/dev/null | head -3 || true)
 
-## Infrastructure Requirements
-- Canadian data residency (Azure Canada Central)
-- POPA-compliant logging (no PII)
-- Encrypted secrets management
-- Automated deployments
+FILE_COUNT=$(echo "$INFRA_FILES" | grep -c . || echo 0)
 
-## CI/CD Pipeline Stages
-1. Lint and type check
-2. Unit tests
-3. Integration tests
-4. Accessibility tests (axe-core)
-5. Security scan (OWASP ZAP)
-6. Build containers
-7. Deploy to staging
-8. E2E tests against staging
-9. Manual approval gate
-10. Deploy to production
+if [ $FILE_COUNT -eq 0 ]; then
+  echo "ℹ️  No infrastructure files found to review"
+  exit 0
+fi
 
-## Azure Resources
-- Container Apps (MCP servers)
-- App Service (Web UI)
-- Key Vault (secrets)
-- Cosmos DB (encrypted credentials)
-- Application Insights (monitoring)
+echo "📁 Found $FILE_COUNT files to review"
+echo ""
 
-## Security Hardening
-- [ ] Network isolation (VNet)
-- [ ] Managed identities (no stored credentials)
-- [ ] Key rotation policy
-- [ ] WAF for public endpoints
-- [ ] DDoS protection
-- [ ] Private endpoints for all services
+# Collect samples
+SAMPLES=""
+COUNT=0
+set +e
+while IFS= read -r file; do
+  [ -z "$file" ] && continue
+  [ ! -f "$file" ] && continue
+  
+  FILENAME=$(basename "$file")
+  CONTENT=$(head -80 "$file" 2>/dev/null || echo "")
+  
+  if [ -n "$CONTENT" ]; then
+    SAMPLES+="File: $FILENAME
+$CONTENT
 
-## Output Format
-DevOps Review:
-- Infrastructure Assessment
-- Pipeline Improvements
-- Security Recommendations
-- Cost Optimization Opportunities
-- Monitoring Gaps
-EOF
+---
+
+"
+    ((COUNT++))
+    echo "Collected: $FILENAME"
+  fi
+done <<< "$INFRA_FILES"
+set -e
 
 echo ""
-echo "✅ DevOps agent ready for review"
+echo "🔍 Analyzing $COUNT files with GPT-4o..."
+echo ""
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SYSTEM_PROMPT="You are a DevOps expert reviewing CI/CD and infrastructure. Check for: secrets management (no hardcoded credentials), proper pipeline stages (lint, test, build, deploy), Canadian data residency (Azure Canada Central), security scanning, monitoring setup, automated deployments."
+
+USER_PROMPT="Review this infrastructure configuration:
+
+$SAMPLES
+
+Provide:
+1. Security Issues (secrets, permissions)
+2. Pipeline Improvements
+3. Deployment Risks
+4. Best Practice Recommendations"
+
+"$SCRIPT_DIR/ai-helper.sh" "$SYSTEM_PROMPT" "$USER_PROMPT" "gpt-4o" 2>&1
+
+echo ""
+echo "Recommendations:"
+echo "- Use managed identities (no stored credentials)"
+echo "- Deploy to Azure Canada Central for POPA compliance"
+echo "- Set up Application Insights monitoring"

@@ -1,85 +1,79 @@
 #!/bin/bash
-# Developer Agent
-# TypeScript implementation, SOAP API integration, MCP tools, and testing
+# Developer Agent - AI-Powered Implementation Review
 
 set -euo pipefail
 
 echo "💻 Developer Agent - DATS Accessible Booking Assistant"
-echo "======================================================"
+echo "======================================================="
 echo ""
 
-cat << 'EOF'
-You are the Developer agent for the DATS Accessible Booking Assistant project.
+if [ -z "${GITHUB_TOKEN:-}" ]; then
+  echo "⚠️  GITHUB_TOKEN not set - cannot use AI analysis"
+  exit 1
+fi
 
-## Your Role
-- Implement features according to specs and architecture
-- Write clean, maintainable TypeScript code
-- Create comprehensive tests
-- Follow project conventions in COPILOT.md
+echo "🤖 Using GitHub Models (GPT-4o) for code implementation analysis"
+echo ""
 
-## Your Expertise
-- TypeScript with strict mode
-- SOAP/XML API integration
-- MCP SDK (@modelcontextprotocol/sdk)
-- Microsoft Graph client
-- Vitest testing framework
+# Find TypeScript implementation files
+CODE_FILES=$(find . -type f \( -name "*.ts" -o -name "*.tsx" \) \
+  -not -path "*/node_modules/*" -not -path "*/.git/*" -not -path "*/coverage/*" -not -path "*/dist/*" -not -name "*.test.ts" 2>/dev/null | head -3 || true)
 
-## Implementation Standards
-1. TypeScript strict mode - no `any` types
-2. All functions under 50 lines
-3. Comprehensive JSDoc comments on public APIs
-4. Unit tests for business logic
-5. Integration tests for MCP tools
-6. Error handling with typed errors
+FILE_COUNT=$(echo "$CODE_FILES" | grep -c . || echo 0)
 
-## Code Patterns to Follow
+if [ $FILE_COUNT -eq 0 ]; then
+  echo "ℹ️  No TypeScript files found to review"
+  exit 0
+fi
 
-### MCP Tool Implementation
-```typescript
-@server.tool()
-async function toolName(params: ValidatedInput): Promise<ToolOutput> {
-  // 1. Validate inputs
-  // 2. Execute business logic
-  // 3. Return typed response
-  // 4. Handle errors with ToolError
-}
-```
+echo "📁 Found $FILE_COUNT files to review"
+echo ""
 
-### SOAP API Client
-```typescript
-export class DATSClient {
-  async callSOAPMethod(params: SOAPParams): Promise<Result> {
-    // 1. Build SOAP envelope
-    // 2. Make HTTP request
-    // 3. Parse XML response
-    // 4. Error handling
-  }
-}
-```
+# Collect samples
+SAMPLES=""
+COUNT=0
+set +e
+while IFS= read -r file; do
+  [ -z "$file" ] && continue
+  [ ! -f "$file" ] && continue
+  
+  FILENAME=$(basename "$file")
+  CONTENT=$(head -80 "$file" 2>/dev/null || echo "")
+  
+  if [ -n "$CONTENT" ]; then
+    SAMPLES+="File: $FILENAME
+$CONTENT
 
-### Error Handling
-```typescript
-try {
-  // operation
-} catch (error) {
-  if (error instanceof DATSAuthError) {
-    return { success: false, error: { category: 'auth_failure', ... } };
-  }
-  throw error; // Unknown errors propagate
-}
-```
+---
 
-## Critical Principles
-- **Passthrough only**: No business logic, no inference
-- Trust DATS API as source of truth
-- All times are Edmonton local (MST/MDT)
-- No timezone conversions
-
-## Output Format
-- Implementation code with comments
-- Associated test file
-- Documentation updates if API changed
-EOF
+"
+    ((COUNT++))
+    echo "Collected: $FILENAME"
+  fi
+done <<< "$CODE_FILES"
+set -e
 
 echo ""
-echo "✅ Developer agent ready for implementation"
+echo "🔍 Analyzing $COUNT files with GPT-4o..."
+echo ""
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SYSTEM_PROMPT="You are a TypeScript developer reviewing code implementation. Check for: TypeScript strict mode compliance, proper error handling, JSDoc comments on public APIs, functions under 50 lines, no `any` types, proper async/await usage, rate limiting for external calls."
+
+USER_PROMPT="Review this TypeScript implementation:
+
+$SAMPLES
+
+Provide:
+1. Implementation Issues
+2. TypeScript Best Practices Violations
+3. Missing Error Handling
+4. Code Improvements"
+
+"$SCRIPT_DIR/ai-helper.sh" "$SYSTEM_PROMPT" "$USER_PROMPT" "gpt-4o" 2>&1
+
+echo ""
+echo "Recommendations:"
+echo "- Use TypeScript strict mode"
+echo "- Add JSDoc to all public functions"
+echo "- Write unit tests for business logic"

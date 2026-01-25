@@ -1,6 +1,5 @@
 #!/bin/bash
-# Architect Agent
-# System design, MCP patterns, integration architecture, and scalability
+# Architect Agent - AI-Powered System Design Review
 
 set -euo pipefail
 
@@ -8,59 +7,74 @@ echo "🏗️  Architect Agent - DATS Accessible Booking Assistant"
 echo "========================================================"
 echo ""
 
-cat << 'EOF'
-You are the Architect agent for the DATS Accessible Booking Assistant project.
+if [ -z "${GITHUB_TOKEN:-}" ]; then
+  echo "⚠️  GITHUB_TOKEN not set - cannot use AI analysis"
+  exit 1
+fi
 
-## Your Role
-- Design scalable, maintainable system architecture
-- Define component boundaries and interfaces
-- Ensure MCP best practices are followed
-- Make technology decisions with clear rationale
+echo "🤖 Using GitHub Models (GPT-4o) for architecture analysis"
+echo ""
 
-## Your Expertise
-- MCP (Model Context Protocol) server design
-- SOAP/XML API integration patterns
-- Microsoft Graph API integration
-- TypeScript/Node.js architecture
-- Service-oriented architecture
+# Find architecture docs and main entry points
+ARCH_FILES=$(find . -maxdepth 2 -type f \( \
+  -name "ARCHITECTURE.md" -o -name "*DESIGN*" -o -name "index.ts" -o -name "server.ts" \
+\) 2>/dev/null | head -3 || true)
 
-## Review Criteria
-When reviewing architecture decisions:
-1. Clear component boundaries (single responsibility)
-2. Proper error propagation across layers
-3. MCP tool design (idempotent, well-typed, documented)
-4. Credential flow security
-5. Testability of components
-6. No tight coupling between layers
+FILE_COUNT=$(echo "$ARCH_FILES" | grep -c . || echo 0)
 
-## Architecture Principles for This Project
-- MCP servers are stateless; state lives in external systems
-- SOAP API layer encapsulates all DATS interactions
-- Credentials never leave the credential manager unencrypted
-- Each MCP tool has a single, clear purpose
-- Errors are typed and user-actionable
-- Passthrough principle: No business logic, just API translation
+if [ $FILE_COUNT -eq 0 ]; then
+  echo "ℹ️  No architecture files found to review"
+  exit 0
+fi
 
-## Key Components
-- DATS Booking MCP Server (SOAP/XML API client)
-- Calendar Sync MCP Server (Graph API)
-- Accessibility MCP Server (symbols, TTS)
-- Shared credential manager (AES-256-GCM)
+echo "📁 Found $FILE_COUNT files to review"
+echo ""
 
-## Output Format
-For design decisions:
-- Decision summary
-- Alternatives considered
-- Rationale for choice
-- Risks and mitigations
-- Component diagram (ASCII or description)
+# Collect samples
+SAMPLES=""
+COUNT=0
+set +e
+while IFS= read -r file; do
+  [ -z "$file" ] && continue
+  [ ! -f "$file" ] && continue
+  
+  FILENAME=$(basename "$file")
+  CONTENT=$(head -100 "$file" 2>/dev/null || echo "")
+  
+  if [ -n "$CONTENT" ]; then
+    SAMPLES+="File: $FILENAME
+$CONTENT
 
-For reviews:
-- Architecture alignment (✓ good / ⚠ concerns / ✗ issues)
-- Specific concerns with code references
-- Recommended changes
-- Questions about intent
-EOF
+---
+
+"
+    ((COUNT++))
+    echo "Collected: $FILENAME"
+  fi
+done <<< "$ARCH_FILES"
+set -e
 
 echo ""
-echo "✅ Architect agent ready for review"
+echo "🔍 Analyzing $COUNT files with GPT-4o..."
+echo ""
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SYSTEM_PROMPT="You are a software architect reviewing system design. Check for: clear component boundaries, proper separation of concerns, scalability considerations, error propagation, MCP best practices (stateless servers), testability. Focus on maintainability and extensibility."
+
+USER_PROMPT="Review this system architecture:
+
+$SAMPLES
+
+Provide:
+1. Architecture Issues
+2. Coupling/Cohesion Problems
+3. Scalability Concerns
+4. Design Recommendations"
+
+"$SCRIPT_DIR/ai-helper.sh" "$SYSTEM_PROMPT" "$USER_PROMPT" "gpt-4o" 2>&1
+
+echo ""
+echo "Recommendations:"
+echo "- Keep MCP servers stateless"
+echo "- Use dependency injection"
+echo "- Document component interfaces"

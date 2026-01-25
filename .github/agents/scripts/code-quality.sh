@@ -1,80 +1,78 @@
 #!/bin/bash
-# Code Quality Reviewer Agent
-# Clean code, refactoring, DRY principles, and maintainability
+# Code Quality Agent - AI-Powered Code Review
 
 set -euo pipefail
 
-echo "📊 Code Quality Reviewer Agent - DATS Accessible Booking Assistant"
-echo "=================================================================="
+echo "✨ Code Quality Agent - DATS Accessible Booking Assistant"
+echo "=========================================================="
 echo ""
 
-cat << 'EOF'
-You are the Code Quality Reviewer agent for the DATS Accessible Booking Assistant project.
+if [ -z "${GITHUB_TOKEN:-}" ]; then
+  echo "⚠️  GITHUB_TOKEN not set - cannot use AI analysis"
+  exit 1
+fi
 
-## Your Role
-- Ensure code is clean, readable, and maintainable
-- Identify opportunities for simplification
-- Enforce DRY principles
-- Reduce technical debt
+echo "🤖 Using GitHub Models (GPT-4o) for code quality analysis"
+echo ""
 
-## Your Expertise
-- Clean Code principles
-- TypeScript best practices
-- Refactoring patterns
-- Code smell detection
-- Design pattern application
+# Find TypeScript/JavaScript files
+CODE_FILES=$(find . -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" \) \
+  -not -path "*/node_modules/*" -not -path "*/.git/*" -not -path "*/coverage/*" -not -path "*/dist/*" 2>/dev/null | head -3 || true)
 
-## Review Criteria
+FILE_COUNT=$(echo "$CODE_FILES" | grep -c . || echo 0)
 
-### Readability
-- [ ] Functions under 50 lines
-- [ ] Clear, descriptive names
-- [ ] Single responsibility per function
-- [ ] Minimal nesting (max 3 levels)
-- [ ] Comments explain "why", not "what"
+if [ $FILE_COUNT -eq 0 ]; then
+  echo "ℹ️  No code files found to review"
+  exit 0
+fi
 
-### Maintainability
-- [ ] No magic numbers/strings
-- [ ] Configuration externalized
-- [ ] Proper error handling
-- [ ] Consistent code style
-- [ ] No dead code
+echo "📁 Found $FILE_COUNT files to review"
+echo ""
 
-### DRY (Don't Repeat Yourself)
-- [ ] No duplicated logic
-- [ ] Shared utilities extracted
-- [ ] Types reused appropriately
-- [ ] Constants centralized
+# Collect samples
+SAMPLES=""
+COUNT=0
+set +e
+while IFS= read -r file; do
+  [ -z "$file" ] && continue
+  [ ! -f "$file" ] && continue
+  
+  FILENAME=$(basename "$file")
+  CONTENT=$(head -80 "$file" 2>/dev/null || echo "")
+  
+  if [ -n "$CONTENT" ]; then
+    SAMPLES+="File: $FILENAME
+$CONTENT
 
-### TypeScript Quality
-- [ ] No `any` types
-- [ ] Proper generics usage
-- [ ] Strict mode compliance
-- [ ] Exhaustive switch statements
-- [ ] Proper null handling
+---
 
-### Testing
-- [ ] Unit tests for business logic
-- [ ] Integration tests for tools
-- [ ] Edge cases covered
-- [ ] Test names describe behavior
-
-## Code Smells to Flag
-- God objects/functions
-- Long parameter lists (>4)
-- Feature envy
-- Primitive obsession
-- Duplicate code
-- Dead code
-- Complex conditionals
-
-## Output Format
-Code Quality Review:
-- Quality Score: [A/B/C/D/F]
-- Issues Found (with line references)
-- Refactoring Suggestions
-- Positive Patterns Observed
-EOF
+"
+    ((COUNT++))
+    echo "Collected: $FILENAME"
+  fi
+done <<< "$CODE_FILES"
+set -e
 
 echo ""
-echo "✅ Code Quality agent ready for review"
+echo "🔍 Analyzing $COUNT files with GPT-4o..."
+echo ""
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SYSTEM_PROMPT="You are a code quality expert reviewing TypeScript/JavaScript code. Check for: functions over 50 lines, duplicated logic, magic numbers, poor naming, missing error handling, console.logs in production, no `any` types (TypeScript strict mode). Focus on maintainability and clean code principles."
+
+USER_PROMPT="Review these files for code quality issues:
+
+$SAMPLES
+
+Provide:
+1. Critical Issues (bugs, errors)
+2. Code Smells (maintainability)
+3. Best Practice Recommendations"
+
+"$SCRIPT_DIR/ai-helper.sh" "$SYSTEM_PROMPT" "$USER_PROMPT" "gpt-4o" 2>&1
+
+echo ""
+echo "Recommendations:"
+echo "- Run eslint for automated checks"
+echo "- Keep functions under 50 lines"
+echo "- Use TypeScript strict mode"

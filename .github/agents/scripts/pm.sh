@@ -1,58 +1,80 @@
 #!/bin/bash
-# Product Manager Agent
-# Requirements analysis, user stories, acceptance criteria, and prioritization
+# Product Manager Agent - AI-Powered Requirements Review
 
 set -euo pipefail
 
-echo "🎯 Product Manager Agent - DATS Accessible Booking Assistant"
-echo "============================================================"
+echo "📋 Product Manager Agent - DATS Accessible Booking Assistant"
+echo "============================================================="
 echo ""
 
-# Agent Instructions
-cat << 'EOF'
-You are the Product Manager agent for the DATS Accessible Booking Assistant project.
+if [ -z "${GITHUB_TOKEN:-}" ]; then
+  echo "⚠️  GITHUB_TOKEN not set - cannot use AI analysis"
+  exit 1
+fi
 
-## Your Role
-- Ensure features align with user needs and project goals
-- Write clear, testable user stories with acceptance criteria
-- Prioritize work based on user impact and technical feasibility
-- Maintain focus on accessibility as a core requirement, not an afterthought
+echo "🤖 Using GitHub Models (GPT-4o) for requirements analysis"
+echo ""
 
-## Your Expertise
-- Product requirements documentation
-- User story writing (Given/When/Then format)
-- Stakeholder communication
-- Accessibility as a product differentiator
-- Edmonton DATS service rules and constraints
+# Find documentation files
+DOC_FILES=$(find . -maxdepth 2 -type f \( \
+  -name "README.md" -o -name "PRD.md" -o -name "*REQUIREMENTS*" -o -name "*FEATURES*" \
+\) 2>/dev/null | head -3 || true)
 
-## Review Criteria
-When reviewing or creating features, verify:
-1. Clear problem statement tied to user need
-2. Measurable acceptance criteria
-3. Edge cases identified
-4. Accessibility requirements explicit (not assumed)
-5. Dependencies documented
-6. Priority justified (P0/P1/P2)
+FILE_COUNT=$(echo "$DOC_FILES" | grep -c . || echo 0)
 
-## Project Context
-- Users: Adults with disabilities, caregivers, non-verbal individuals
-- Core value prop: Accessible booking that current DATS portal doesn't provide
-- Technical constraint: SOAP/XML API integration (Trapeze PASS)
-- Legal context: POPA compliance required (Alberta privacy law)
+if [ $FILE_COUNT -eq 0 ]; then
+  echo "ℹ️  No documentation files found to review"
+  exit 0
+fi
 
-## Output Format
-For feature requests, produce:
-- User Story (As a... I want... So that...)
-- Acceptance Criteria (numbered list)
-- Priority with justification
-- Open questions for clarification
+echo "📁 Found $FILE_COUNT files to review"
+echo ""
 
-For reviews, produce:
-- Alignment assessment (✓ aligns / ⚠ partially / ✗ misaligned)
-- Missing requirements
-- Suggested improvements
-- Questions for stakeholder
-EOF
+# Collect samples
+SAMPLES=""
+COUNT=0
+set +e
+while IFS= read -r file; do
+  [ -z "$file" ] && continue
+  [ ! -f "$file" ] && continue
+  
+  FILENAME=$(basename "$file")
+  CONTENT=$(head -100 "$file" 2>/dev/null || echo "")
+  
+  if [ -n "$CONTENT" ]; then
+    SAMPLES+="File: $FILENAME
+$CONTENT
+
+---
+
+"
+    ((COUNT++))
+    echo "Collected: $FILENAME"
+  fi
+done <<< "$DOC_FILES"
+set -e
 
 echo ""
-echo "✅ PM agent ready for review"
+echo "🔍 Analyzing $COUNT files with GPT-4o..."
+echo ""
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SYSTEM_PROMPT="You are a Product Manager reviewing requirements and features. Check for: clear user stories, measurable acceptance criteria, prioritization (P0/P1/P2), accessibility requirements explicit (not assumed), edge cases identified. Target users: adults with disabilities."
+
+USER_PROMPT="Review these project documents:
+
+$SAMPLES
+
+Provide:
+1. Missing Requirements
+2. Unclear Acceptance Criteria
+3. Accessibility Gaps
+4. Prioritization Suggestions"
+
+"$SCRIPT_DIR/ai-helper.sh" "$SYSTEM_PROMPT" "$USER_PROMPT" "gpt-4o" 2>&1
+
+echo ""
+echo "Recommendations:"
+echo "- Write user stories in Given/When/Then format"
+echo "- Make accessibility explicit in every feature"
+echo "- Define clear success metrics"

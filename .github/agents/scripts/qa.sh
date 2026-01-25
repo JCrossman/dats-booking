@@ -1,77 +1,80 @@
 #!/bin/bash
-# QA/Tester Agent
-# Test strategy, E2E testing, edge cases, and regression testing
+# QA/Tester Agent - AI-Powered Test Coverage Review
 
 set -euo pipefail
 
 echo "🧪 QA/Tester Agent - DATS Accessible Booking Assistant"
-echo "======================================================"
+echo "======================================================="
 echo ""
 
-cat << 'EOF'
-You are the QA/Tester agent for the DATS Accessible Booking Assistant project.
+if [ -z "${GITHUB_TOKEN:-}" ]; then
+  echo "⚠️  GITHUB_TOKEN not set - cannot use AI analysis"
+  exit 1
+fi
 
-## Your Role
-- Define test strategy and coverage requirements
-- Identify edge cases and failure modes
-- Design E2E test scenarios
-- Verify accessibility testing completeness
+echo "🤖 Using GitHub Models (GPT-4o) for test coverage analysis"
+echo ""
 
-## Your Expertise
-- Vitest (unit/integration testing)
-- Playwright (E2E testing)
-- axe-core (accessibility testing)
-- Test pyramid strategy
-- Boundary testing
+# Find test files and source files
+TEST_FILES=$(find . -type f \( -name "*.test.ts" -o -name "*.spec.ts" \) \
+  -not -path "*/node_modules/*" 2>/dev/null | head -3 || true)
 
-## Test Coverage Requirements
-- Unit tests: 80% minimum
-- Integration tests: All MCP tools
-- E2E tests: All critical user paths
-- Accessibility: 100% WCAG 2.2 AA
+FILE_COUNT=$(echo "$TEST_FILES" | grep -c . || echo 0)
 
-## Test Categories
+if [ $FILE_COUNT -eq 0 ]; then
+  echo "⚠️  No test files found!"
+  echo "Critical: Project has no tests"
+  exit 0
+fi
 
-### Unit Tests
-- Business logic functions
-- Input validation
-- Error handling
-- Utility functions
+echo "📁 Found $FILE_COUNT test files to review"
+echo ""
 
-### Integration Tests
-- MCP tool execution
-- SOAP API calls
-- Graph API calls
-- Credential encryption/decryption
+# Collect samples
+SAMPLES=""
+COUNT=0
+set +e
+while IFS= read -r file; do
+  [ -z "$file" ] && continue
+  [ ! -f "$file" ] && continue
+  
+  FILENAME=$(basename "$file")
+  CONTENT=$(head -100 "$file" 2>/dev/null || echo "")
+  
+  if [ -n "$CONTENT" ]; then
+    SAMPLES+="File: $FILENAME
+$CONTENT
 
-### E2E Tests
-- Full booking flow
-- Trip cancellation
-- Calendar sync
-- Error recovery
+---
 
-### Accessibility Tests
-- Automated axe-core scans
-- Keyboard navigation
-- Screen reader compatibility
-- Switch scanning (manual)
-
-## Edge Cases to Cover
-- Session expiration mid-booking
-- Network failure during submission
-- Invalid DATS credentials
-- Calendar conflict detection
-- Same-day booking (2-hour rule)
-- Booking window expiration (noon cutoff)
-
-## Output Format
-QA Review:
-- Coverage Assessment: [Sufficient / Gaps Found]
-- Missing Test Cases (prioritized)
-- Edge Cases Not Covered
-- Test Improvements Suggested
-- Recommended Test Commands
-EOF
+"
+    ((COUNT++))
+    echo "Collected: $FILENAME"
+  fi
+done <<< "$TEST_FILES"
+set -e
 
 echo ""
-echo "✅ QA agent ready for review"
+echo "🔍 Analyzing $COUNT test files with GPT-4o..."
+echo ""
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SYSTEM_PROMPT="You are a QA expert reviewing test coverage. Check for: edge cases tested, error scenarios covered, happy path and sad path tests, integration tests for critical flows, accessibility tests, boundary value testing. Identify missing test cases."
+
+USER_PROMPT="Review these test files:
+
+$SAMPLES
+
+Provide:
+1. Coverage Gaps (missing test cases)
+2. Edge Cases Not Tested
+3. Critical Flows Without Tests
+4. Test Quality Issues"
+
+"$SCRIPT_DIR/ai-helper.sh" "$SYSTEM_PROMPT" "$USER_PROMPT" "gpt-4o" 2>&1
+
+echo ""
+echo "Recommendations:"
+echo "- Aim for 80% code coverage minimum"
+echo "- Test all user-facing flows E2E"
+echo "- Run axe-core for accessibility testing"

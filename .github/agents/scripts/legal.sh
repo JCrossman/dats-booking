@@ -1,6 +1,5 @@
 #!/bin/bash
-# Legal/Compliance Agent
-# POPA interpretation, ToS analysis, accessibility law, and consent
+# Legal/Compliance Agent - AI-Powered POPA Compliance Review
 
 set -euo pipefail
 
@@ -8,59 +7,87 @@ echo "⚖️  Legal/Compliance Agent - DATS Accessible Booking Assistant"
 echo "=============================================================="
 echo ""
 
-cat << 'EOF'
-You are the Legal/Compliance agent for the DATS Accessible Booking Assistant project.
+if [ -z "${GITHUB_TOKEN:-}" ]; then
+  echo "⚠️  GITHUB_TOKEN not set - cannot use AI analysis"
+  exit 1
+fi
 
-## Your Role
-- Interpret Alberta POPA requirements
-- Analyze DATS Terms of Service implications
-- Ensure proper consent collection
-- Document compliance measures
+echo "🤖 Using GitHub Models (GPT-4o) for compliance analysis"
+echo ""
 
-## Your Expertise
-- Alberta Protection of Privacy Act (POPA)
-- Canadian accessibility law (ACA)
-- Duty to accommodate
-- Computer access authorization (Criminal Code s.342.1)
-- Consent under AGTA (Adult Guardianship and Trusteeship Act)
+# Find privacy/legal docs and auth code
+LEGAL_FILES=$(find . -maxdepth 2 -type f \( \
+  -name "*POPA*" -o -name "*PRIVACY*" -o -name "*COMPLIANCE*" -o -name "README.md" \
+\) 2>/dev/null | head -2 || true)
 
-## Disclaimer
-I provide compliance guidance, not legal advice. Consult a licensed lawyer for definitive legal opinions.
+# Also check auth-related code
+AUTH_CODE=$(find . -type f -name "*auth*.ts" -not -path "*/node_modules/*" -not -path "*/dist/*" 2>/dev/null | head -1 || true)
 
-## POPA Compliance Checklist
-- [ ] Purpose of collection clearly stated
-- [ ] Collection limited to what's necessary
-- [ ] Consent obtained appropriately
-- [ ] Security safeguards documented
-- [ ] Retention period defined
-- [ ] Breach response procedure ready
-- [ ] Privacy impact assessment completed
+if [ -n "$AUTH_CODE" ]; then
+  LEGAL_FILES="$LEGAL_FILES
+$AUTH_CODE"
+fi
 
-## DATS ToS Considerations
-The City of Edmonton ToS prohibits "violating security" through "hacking, cracking...or any similar malicious, careless or negligent conduct."
+FILE_COUNT=$(echo "$LEGAL_FILES" | grep -c . || echo 0)
 
-Mitigating factors for this project:
-- User-authorized agent access (not unauthorized)
-- Accessibility accommodation purpose
-- Rate-limited, respectful automation
-- No circumvention of security controls
+if [ $FILE_COUNT -eq 0 ]; then
+  echo "⚠️  No compliance documentation found!"
+  echo "Critical: Project needs POPA compliance documentation"
+  exit 0
+fi
 
-## Consent Requirements
-For disability data (highly sensitive under POPA):
-- Explicit, informed consent required
-- Plain language explanation
-- Right to withdraw documented
-- No consent bundling
-- Caregiver consent per AGTA guidelines
+echo "📁 Found $FILE_COUNT files to review"
+echo ""
 
-## Output Format
-Legal/Compliance Review:
-- Compliance Status: [Compliant / Concerns / Non-compliant]
-- Risk Assessment
-- Required Documentation
-- Consent Language Suggestions
-- Disclaimer: This is not legal advice
-EOF
+# Collect samples
+SAMPLES=""
+COUNT=0
+set +e
+while IFS= read -r file; do
+  [ -z "$file" ] && continue
+  [ ! -f "$file" ] && continue
+  
+  FILENAME=$(basename "$file")
+  CONTENT=$(head -80 "$file" 2>/dev/null || echo "")
+  
+  if [ -n "$CONTENT" ]; then
+    SAMPLES+="File: $FILENAME
+$CONTENT
+
+---
+
+"
+    ((COUNT++))
+    echo "Collected: $FILENAME"
+  fi
+done <<< "$LEGAL_FILES"
+set -e
 
 echo ""
-echo "✅ Legal/Compliance agent ready for review"
+echo "🔍 Analyzing $COUNT files with GPT-4o..."
+echo ""
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SYSTEM_PROMPT="You are a legal compliance expert reviewing POPA (Alberta Protection of Privacy Act) compliance. Check for: purpose of collection stated, data minimization, consent obtained, security safeguards documented, Canadian data residency, breach response procedure. This is guidance, not legal advice."
+
+USER_PROMPT="Review this project for POPA compliance:
+
+$SAMPLES
+
+Provide:
+1. POPA Compliance Issues
+2. Missing Documentation
+3. Consent Flow Concerns
+4. Recommendations
+
+Disclaimer: This is compliance guidance, not legal advice."
+
+"$SCRIPT_DIR/ai-helper.sh" "$SYSTEM_PROMPT" "$USER_PROMPT" "gpt-4o" 2>&1
+
+echo ""
+echo "Recommendations:"
+echo "- Document purpose of data collection"
+echo "- Obtain explicit consent for disability data"
+echo "- Ensure Canadian data residency (Azure Canada)"
+echo ""
+echo "⚠️  Disclaimer: This is not legal advice. Consult a lawyer."
