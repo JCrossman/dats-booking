@@ -17,20 +17,26 @@ echo "🤖 Using GitHub Models (GPT-4o) for intelligent accessibility analysis"
 echo ""
 
 # Find HTML files
-HTML_FILES=$(find . -type f -name "*.html" -not -path "*/node_modules/*" -not -path "*/.git/*" -not -path "*/coverage/*" -not -path "*/dist/*" 2>/dev/null | head -3)
+HTML_FILES=$(find . -type f -name "*.html" -not -path "*/node_modules/*" -not -path "*/.git/*" -not -path "*/coverage/*" -not -path "*/dist/*" 2>/dev/null | head -3 || true)
 
-if [ -z "$HTML_FILES" ]; then
-  echo "No HTML files found to review"
+FILE_COUNT=$(echo "$HTML_FILES" | grep -c . || echo 0)
+
+if [ -z "$HTML_FILES" ] || [ "$FILE_COUNT" -eq 0 ]; then
+  echo "ℹ️  No HTML files found to review"
+  echo "Searching in: $(pwd)"
+  echo "Files in repo:"
+  find . -maxdepth 3 -type f -name "*.html" 2>/dev/null | head -10 || echo "No HTML files at all"
   exit 0
 fi
 
-echo "📁 Found files to review"
+echo "📁 Found $FILE_COUNT files to review"
 echo ""
 
 # Collect samples
 SAMPLES=""
-FILE_COUNT=0
-for file in $HTML_FILES; do
+COUNT=0
+while IFS= read -r file; do
+  [ -z "$file" ] && continue
   FILENAME=$(basename "$file")
   CONTENT=$(head -50 "$file" 2>/dev/null || true)
   SAMPLES+="File: $FILENAME
@@ -39,9 +45,9 @@ $CONTENT
 ---
 
 "
-  ((FILE_COUNT++))
+  ((COUNT++))
   echo "Collected: $FILENAME"
-done
+done <<< "$HTML_FILES"
 
 echo ""
 echo "🔍 Analyzing $FILE_COUNT files with GPT-4o..."
