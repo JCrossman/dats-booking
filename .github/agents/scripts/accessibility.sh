@@ -35,19 +35,27 @@ echo ""
 # Collect samples
 SAMPLES=""
 COUNT=0
+
+set +e  # Temporarily disable exit-on-error for the loop
 while IFS= read -r file; do
   [ -z "$file" ] && continue
+  [ ! -f "$file" ] && continue
+  
   FILENAME=$(basename "$file")
-  CONTENT=$(head -50 "$file" 2>/dev/null || true)
-  SAMPLES+="File: $FILENAME
+  CONTENT=$(head -50 "$file" 2>/dev/null || echo "")
+  
+  if [ -n "$CONTENT" ]; then
+    SAMPLES+="File: $FILENAME
 $CONTENT
 
 ---
 
 "
-  ((COUNT++))
-  echo "Collected: $FILENAME"
+    ((COUNT++))
+    echo "Collected: $FILENAME"
+  fi
 done <<< "$HTML_FILES"
+set -e  # Re-enable exit-on-error
 
 echo ""
 echo "🔍 Analyzing $FILE_COUNT files with GPT-4o..."
