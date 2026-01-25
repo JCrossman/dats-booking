@@ -84,7 +84,7 @@ This service stores your DATS session in Azure Canada to enable mobile access.
 
 **Legal basis:** Protection of Privacy Act (Alberta)
 
-**View full privacy policy:** https://dats-mcp-auth.livelymeadow-eb849b65.canadacentral.azurecontainerapps.io/privacy
+**View full privacy policy:** https://dats-mcp-app.whitewater-072cffec.canadacentral.azurecontainerapps.io/privacy
 
 By saying **"I consent"**, you agree to this data storage for the purpose of accessing DATS booking services.
 

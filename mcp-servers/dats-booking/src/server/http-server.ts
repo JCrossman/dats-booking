@@ -43,6 +43,7 @@ try {
 const staticDir = join(__dirname, '..', '..', 'static');
 let loginHtml: string | null = null;
 let successHtml: string | null = null;
+let privacyHtml: string | null = null;
 let appJs: string | null = null;
 let stylesCss: string | null = null;
 
@@ -50,6 +51,7 @@ try {
   if (existsSync(staticDir)) {
     loginHtml = readFileSync(join(staticDir, 'index.html'), 'utf-8');
     successHtml = readFileSync(join(staticDir, 'success.html'), 'utf-8');
+    privacyHtml = readFileSync(join(staticDir, 'privacy.html'), 'utf-8');
     appJs = readFileSync(join(staticDir, 'app.js'), 'utf-8');
     stylesCss = readFileSync(join(staticDir, 'styles.css'), 'utf-8');
     logger.debug('Loaded static auth files');
@@ -154,6 +156,15 @@ export function createHttpServer(mcpServer: McpServer): Application {
       res.send(successHtml);
     } else {
       res.status(404).json({ error: 'Success page not available' });
+    }
+  });
+
+  app.get(['/privacy', '/privacy.html'], (_req: Request, res: Response) => {
+    if (privacyHtml) {
+      res.setHeader('Content-Type', 'text/html');
+      res.send(privacyHtml);
+    } else {
+      res.status(404).json({ error: 'Privacy policy not available' });
     }
   });
 
