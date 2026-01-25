@@ -33,9 +33,21 @@ class Logger {
     return `[${timestamp}] [${level.toUpperCase()}] ${message}`;
   }
 
-  debug(message: string): void {
+  debug(message: string, data?: Record<string, unknown>): void {
     if (this.shouldLog('debug')) {
       console.error(this.formatMessage('debug', message));
+      if (data) {
+        // Truncate long values to prevent log spam
+        const truncatedData: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(data)) {
+          if (typeof value === 'string' && value.length > 2000) {
+            truncatedData[key] = value.substring(0, 2000) + '... [truncated]';
+          } else {
+            truncatedData[key] = value;
+          }
+        }
+        console.error(JSON.stringify(truncatedData, null, 2));
+      }
     }
   }
 
@@ -45,17 +57,42 @@ class Logger {
     }
   }
 
-  warn(message: string): void {
+  warn(message: string, data?: Record<string, unknown>): void {
     if (this.shouldLog('warn')) {
       console.error(this.formatMessage('warn', message));
+      if (data) {
+        // Truncate long values
+        const truncatedData: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(data)) {
+          if (typeof value === 'string' && value.length > 2000) {
+            truncatedData[key] = value.substring(0, 2000) + '... [truncated]';
+          } else {
+            truncatedData[key] = value;
+          }
+        }
+        console.error(JSON.stringify(truncatedData, null, 2));
+      }
     }
   }
 
-  error(message: string, error?: Error): void {
+  error(message: string, error?: Error | Record<string, unknown>): void {
     if (this.shouldLog('error')) {
       console.error(this.formatMessage('error', message));
       if (error) {
-        console.error(error.stack ?? error.message);
+        if (error instanceof Error) {
+          console.error(error.stack ?? error.message);
+        } else {
+          // Truncate long values in error data
+          const truncatedData: Record<string, unknown> = {};
+          for (const [key, value] of Object.entries(error)) {
+            if (typeof value === 'string' && value.length > 2000) {
+              truncatedData[key] = value.substring(0, 2000) + '... [truncated]';
+            } else {
+              truncatedData[key] = value;
+            }
+          }
+          console.error(JSON.stringify(truncatedData, null, 2));
+        }
       }
     }
   }

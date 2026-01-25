@@ -11,9 +11,11 @@
     "build": "tsc",
     "start": "node build/index.js",
     "dev": "tsc --watch",
-    "test": "vitest run",
+    "test": "vitest run --exclude 'src/__tests__/e2e/**'",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage --exclude 'src/__tests__/e2e/**'",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:all": "vitest run",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\""
   },

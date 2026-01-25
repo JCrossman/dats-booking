@@ -508,13 +508,31 @@ export class DATSApi {
   </SOAP-ENV:Body>
 </SOAP-ENV:Envelope>`;
 
+    // DEBUG: Log the full SOAP request for diagnosis
+    logger.debug('PassCreateTrip SOAP Request:', { soap });
+
     const response = await callSoapApi(soap, this.sessionCookie);
 
-    // Check for errors
+    // DEBUG: Log the full SOAP response for diagnosis
+    logger.debug('PassCreateTrip SOAP Response:', { response });
+
+    // Check for errors - look for multiple error patterns
     if (response.includes('<Type>error</Type>')) {
       const errorMsg = extractXml(response, 'Message') || 'Unknown error';
-      logger.error(`PassCreateTrip error: ${errorMsg}`);
+      const errorCode = extractXml(response, 'Code');
+      const errorType = extractXml(response, 'Type');
+      logger.error(`PassCreateTrip error: ${errorMsg}`, { errorCode, errorType, fullResponse: response });
       return { error: errorMsg };
+    }
+
+    // Also check for scheduling errors that might not be in <Type>error</Type> format
+    const scheduleError = extractXml(response, 'ScheduleError');
+    const validationError = extractXml(response, 'ValidationError');
+    const ruleError = extractXml(response, 'RuleError');
+    if (scheduleError || validationError || ruleError) {
+      const combinedError = scheduleError || validationError || ruleError;
+      logger.error(`PassCreateTrip scheduling/validation error: ${combinedError}`, { fullResponse: response });
+      return { error: combinedError };
     }
 
     const bookingId = extractXml(response, 'BookingId');
@@ -613,13 +631,25 @@ export class DATSApi {
   </SOAP-ENV:Body>
 </SOAP-ENV:Envelope>`;
 
+    // DEBUG: Log the full request
+    logger.debug('PassScheduleTrip SOAP Request:', { soap, bookingId });
+
     const response = await callSoapApi(soap, this.sessionCookie);
+
+    // DEBUG: Log the full response
+    logger.debug('PassScheduleTrip SOAP Response:', { response });
 
     // Check for errors
     if (response.includes('<Type>error</Type>')) {
       const errorMsg = extractXml(response, 'Message') || 'Unknown error';
-      logger.error(`PassScheduleTrip error: ${errorMsg}`);
+      logger.error(`PassScheduleTrip error: ${errorMsg}`, { fullResponse: response });
       throw new Error(`DATS API error: ${errorMsg}`);
+    }
+
+    // Check for scheduling-specific errors
+    const noSolutionReason = extractXml(response, 'NoSolutionReason');
+    if (noSolutionReason) {
+      logger.warn(`PassScheduleTrip no solution reason: ${noSolutionReason}`);
     }
 
     // Parse solutions
@@ -677,19 +707,28 @@ export class DATSApi {
   </SOAP-ENV:Body>
 </SOAP-ENV:Envelope>`;
 
+    // DEBUG: Log the full request
+    logger.debug('PassSaveSolution SOAP Request:', { soap, bookingId, scheduleId, solutionSetNumber, solutionNumber });
+
     const response = await callSoapApi(soap, this.sessionCookie);
+
+    // DEBUG: Log the full response
+    logger.debug('PassSaveSolution SOAP Response:', { response });
 
     // Check for errors
     if (response.includes('<Type>error</Type>')) {
       const errorMsg = extractXml(response, 'Message') || 'Unknown error';
-      logger.error(`PassSaveSolution error: ${errorMsg}`);
+      logger.error(`PassSaveSolution error: ${errorMsg}`, { fullResponse: response });
       return { success: false, error: errorMsg };
     }
 
     if (response.includes('RESULTOK') || response.includes('SOLNSAVED')) {
+      logger.info('PassSaveSolution succeeded');
       return { success: true };
     }
 
+    // Log the unexpected response for debugging
+    logger.warn('PassSaveSolution unexpected response', { response });
     return { success: false, error: 'Unknown save solution error' };
   }
 
