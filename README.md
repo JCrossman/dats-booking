@@ -122,7 +122,7 @@ Credentials are **never** sent to Claude or Anthropic. Instead:
 | Tool | Description |
 |------|-------------|
 | `connect_account` | Open secure login page to connect DATS account |
-| `check_connection` | Verify session is ready after authentication (v1.0.2+) |
+| `check_connection` | Verify session is ready after authentication |
 | `disconnect_account` | Log out and clear session |
 | `get_trips` | Retrieve booked trips with status (Scheduled/Performed/Cancelled) and provider info |
 | `track_trip` | Real-time tracking: vehicle location, ETA, driver info (within 60 min of pickup) |
@@ -132,6 +132,8 @@ Credentials are **never** sent to Claude or Anthropic. Instead:
 | `get_announcements` | Get DATS system announcements |
 | `get_profile` | Get user profile and saved locations |
 | `get_info` | Get DATS general info, fares, privacy policy |
+
+**Note:** `complete_connection` was deprecated in v1.0.1 (caused auth hangs). Use `check_connection` instead.
 
 ### Trip Display
 
@@ -219,9 +221,16 @@ This project uses GitHub Actions for automated testing and deployment. All code 
 3. Push to `main` → **Automatic deployment** (~2-3 minutes)
 4. Monitor: `gh run list --workflow="deploy-to-azure.yml"`
 
+**E2E Testing:**
+- E2E tests are **opt-in** via GitHub Actions manual trigger
+- Tests are **read-only** (no bookings created) for safety
+- See `E2E-TESTING-GUIDE.md` for details
+- Run with: Actions → Deploy to Azure → Check "Run E2E tests"
+
 **Key Documentation:**
 - `CONTRIBUTING.md` - **START HERE** - Development workflow & standards
 - `COPILOT.md` - Development guidance & architecture
+- `E2E-TESTING-GUIDE.md` - How to run E2E tests safely
 - `DEPLOYMENT-COMPLETE.md` - Operations manual & monitoring
 - `POPA-COMPLIANCE.md` - Privacy law requirements
 

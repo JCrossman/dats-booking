@@ -59,20 +59,23 @@ This document tracks planned features and improvements. Items are derived from [
   - `connect_account` starts polling immediately when returning auth URL
   - Session stored automatically when user completes authentication
   - ~~`complete_connection`~~ **DEPRECATED 2026-01-21** (causes 3min hangs - do not use)
+  - **NEW:** `check_connection` tool added 2026-01-21 (verifies session readiness)
 - [x] **Auth URL fix** for Container Apps (explicit DATS_AUTH_URL env var)
 
 ## Completed (v1.0.0)
 
 - [x] Direct SOAP API integration (Trapeze PASS)
-- [x] MCP server with 10 tools:
+- [x] MCP server with 11 tools:
   - `connect_account` - Secure web-based authentication (with background polling)
-  - ~~`complete_connection`~~ - **DEPRECATED 2026-01-21** (do not use)
+  - `check_connection` - **NEW v1.0.2** - Verify session readiness after auth
+  - ~~`complete_connection`~~ - **DEPRECATED v1.0.1** (do not use - causes hangs)
   - `disconnect_account` - Log out and clear session
   - `book_trip` - Create DATS bookings
   - `get_trips` - View upcoming trips
   - `cancel_trip` - Cancel bookings
   - `check_availability` - Query available dates/times
   - `get_announcements` - System notices
+  - `track_trip` - Real-time vehicle tracking (within 60 min of pickup)
   - `get_profile` - User profile and saved locations
   - `get_info` - Fares, privacy policy, service info
 - [x] **Secure web-based authentication** (credentials never touch Claude)
@@ -145,10 +148,12 @@ This document tracks planned features and improvements. Items are derived from [
 | FR-3.3 | Conflict Detection | Check calendar before suggesting booking times |
 | FR-2.4 | Trip Modification | Support "change to 2pm" style modifications |
 
-**Completed P1 Items (2026-01-16):**
-- ~~NFR-2.4~~ ✅ Audit Logging (implemented with hashed session IDs)
-- ~~NFR-2.7~~ ✅ Data Deletion (24hr TTL + manual delete)
-- ~~NFR-2.6~~ ✅ Consent Collection (explicit consent in remote mode)
+**Completed P1 Items:**
+- ~~NFR-2.4~~ ✅ Audit Logging (v1.0.0 - hashed session IDs)
+- ~~NFR-2.7~~ ✅ Data Deletion (v1.0.0 - 24hr TTL + manual delete)
+- ~~NFR-2.6~~ ✅ Consent Collection (v1.0.0 - explicit consent in remote mode)
+- ~~check_connection Tool~~ ✅ Added v1.0.2 (auth race condition fix)
+- ~~E2E Test Safety~~ ✅ v1.0.3 (read-only tests, no booking creation)
 
 ---
 
@@ -203,12 +208,12 @@ This document tracks planned features and improvements. Items are derived from [
 | NFR-2.1 AES-256 encryption | ✅ Done | Session cookies encrypted |
 | NFR-2.2 TLS 1.2+ | ✅ Done | DATS API uses HTTPS |
 | NFR-2.3 Canadian residency | ✅ Done | Azure Canada Central + local storage |
-| NFR-2.4 Audit logging | Planned | |
+| NFR-2.4 Audit logging | ✅ Done | Implemented v1.0.0 (hashed session IDs) |
 | NFR-2.5 No PII in logs | ✅ Done | |
-| NFR-2.6 Consent collection | Planned | |
-| NFR-2.7 Data deletion | Planned | |
+| NFR-2.6 Consent collection | ✅ Done | Implemented v1.0.0 (remote mode) |
+| NFR-2.7 Data deletion | ✅ Done | Implemented v1.0.0 (24hr TTL + manual) |
 | NFR-4.1-4.5 WCAG 2.2 AA | Partial | Auth page compliant; MCP output accessible |
 
 ---
 
-*Last updated: January 13, 2026 (v1.1.1)*
+*Last updated: January 26, 2026 (v1.0.3)*
