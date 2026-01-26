@@ -145,9 +145,10 @@ describe.skipIf(!HAS_CREDENTIALS)('DATS API E2E Tests', () => {
       
       if (locations.length > 0) {
         const firstLocation = locations[0];
-        expect(firstLocation.locationName).toBeTruthy();
-        expect(firstLocation.address).toBeTruthy();
-        console.log(`   Example: ${firstLocation.locationName} - ${firstLocation.address}`);
+        expect(firstLocation.addrDescr).toBeTruthy();
+        expect(firstLocation.streetNo).toBeTruthy();
+        expect(firstLocation.onStreet).toBeTruthy();
+        console.log(`   Example: ${firstLocation.addrDescr} - ${firstLocation.streetNo} ${firstLocation.onStreet}`);
       }
     });
   });
