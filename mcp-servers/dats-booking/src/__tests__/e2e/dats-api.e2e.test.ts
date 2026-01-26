@@ -138,7 +138,7 @@ describe.skipIf(!HAS_CREDENTIALS)('DATS API E2E Tests', () => {
     });
 
     it('should retrieve saved locations', async () => {
-      const locations = await api.getSavedLocations(CLIENT_ID!);
+      const locations = await api.getClientLocationsMerged(CLIENT_ID!);
       
       expect(Array.isArray(locations)).toBe(true);
       console.log(`✅ Retrieved ${locations.length} saved locations`);
