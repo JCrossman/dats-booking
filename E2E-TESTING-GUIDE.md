@@ -2,26 +2,26 @@
 
 ## Overview
 
-E2E (End-to-End) tests validate the DATS Booking MCP server against the **real DATS API** using actual credentials. These tests create and cancel real bookings to ensure the integration works correctly.
+E2E (End-to-End) tests validate the DATS Booking MCP server against the **real DATS API** using actual credentials. 
+
+**🛡️ SAFETY:** Tests are **READ-ONLY** and **DO NOT create any real bookings**. This prevents accidental trips from being created.
 
 ## Current Test Details
 
 ### What Gets Tested
 
-**Test Booking:**
-- **Pickup Address:** Your home address (from your DATS profile)
-- **Destination:** 1 Sir Winston Churchill Square (Edmonton City Hall)
-- **Date:** 3 days from test run date
-- **Time:** 10:00 AM
-- **Mobility Device:** None
-- **Action:** Booking is created, then **immediately cancelled**
+**✅ Safe Read-Only Tests:**
+- **Authentication:** Validates login with DATS credentials
+- **Profile Information:** Retrieves client details (name, home address)
+- **Saved Locations:** Lists saved destinations
+- **Announcements:** Retrieves DATS service announcements
+- **Booking Windows:** Gets available booking dates (no booking created)
+- **Session Persistence:** Verifies session stays active across multiple calls
 
-**Additional Tests:**
-- Authentication with DATS
-- Session persistence
-- Booking window retrieval (read-only)
-- Address geocoding
-- Client profile retrieval
+**❌ Tests Removed for Safety:**
+- ~~Booking creation~~ (removed to prevent accidental trips)
+- ~~Booking cancellation~~ (no bookings created, nothing to cancel)
+- ~~Address geocoding with bookings~~ (tested via profile data instead)
 
 ### Credentials Used
 
@@ -52,12 +52,12 @@ Tests use the GitHub Secrets you configured:
 gh workflow run "Deploy to Azure" --field run_e2e=true --field environment=production
 ```
 
-### Option 3: Run Locally (No Real Booking Created)
+### Option 3: Run Locally
 
 ```bash
 cd mcp-servers/dats-booking
 
-# Set your credentials (these will be used to test authentication only)
+# Set your credentials (used for authentication and profile data only)
 export DATS_TEST_CLIENT_ID="your-client-id"
 export DATS_TEST_PASSCODE="your-passcode"
 export LOG_LEVEL=debug
@@ -66,7 +66,7 @@ export LOG_LEVEL=debug
 npm run test:e2e
 ```
 
-**Note:** Local runs use the same credentials but won't trigger a deployment.
+**Note:** Local runs use the same credentials but won't trigger a deployment. No bookings are created.
 
 ---
 
@@ -97,16 +97,15 @@ npm run test:e2e
 
 ```
 ✓ DATS API E2E Tests > DATS Authentication > should authenticate with valid credentials
-✓ DATS API E2E Tests > Session Persistence > session should remain valid for subsequent calls
+✓ DATS API E2E Tests > DATS Authentication > should reject invalid credentials
 ✓ DATS API E2E Tests > Get Booking Windows (Read-Only) > should retrieve booking days window
-✓ DATS API E2E Tests > Booking Flow (Create + Cancel) > should get available booking options
-✓ DATS API E2E Tests > Address Geocoding > should geocode a known Edmonton address
-
-Test booking created: 18846735
-✅ Test booking cancelled successfully
+✓ DATS API E2E Tests > Get Announcements (Read-Only) > should retrieve DATS announcements
+✓ DATS API E2E Tests > Profile Information > should retrieve client profile information
+✓ DATS API E2E Tests > Profile Information > should retrieve saved locations
+✓ DATS API E2E Tests > Session Persistence > should maintain session across multiple API calls
 
 Test Files  1 passed (1)
-     Tests  8 passed (8)
+     Tests  7 passed (7)
 ```
 
 ### Viewing Test Logs
@@ -133,17 +132,14 @@ Test Files  1 passed (1)
 
 ## Troubleshooting
 
-### Test Fails with "Restrict users from booking trips for the next day(s)"
+### Test Fails with Authentication Error
 
-**Cause:** DATS booking cutoff time has passed.
+**Cause:** Invalid credentials or DATS account issue.
 
-**Solution:** This is expected behavior after DATS's daily cutoff (typically around noon). The test books 3 days ahead to minimize this, but if you run tests late on a Friday, Monday might be past cutoff.
-
-### Test Fails with "No available trip slots"
-
-**Cause:** DATS has no availability at the requested time.
-
-**Solution:** This is a valid DATS response. The test won't fail for this - it's just logged.
+**Solution:** 
+- Verify GitHub Secrets are configured correctly
+- Test credentials manually via DATS portal: https://mypass.trapezecs.com/
+- If portal login works but tests fail, contact DATS support
 
 ### Test Hangs or Times Out
 
@@ -154,14 +150,11 @@ Test Files  1 passed (1)
 - Re-run the workflow
 - If persistent, contact DATS support
 
-### Test Creates Booking but Can't Cancel
+### Profile/Saved Locations Returns Empty
 
-**Cause:** Network issue or DATS API error during cancellation.
+**Cause:** Normal behavior if account is new or has no saved locations.
 
-**Action Required:** 
-1. Check the test logs for the booking ID
-2. Manually cancel the trip via DATS portal or phone
-3. Report the issue for investigation
+**Solution:** This is expected and not an error. Tests verify the API call succeeds, not that data exists.
 
 ---
 
@@ -188,8 +181,9 @@ If you have suggestions for improving E2E tests, please:
 
 - **Default:** E2E tests are **OFF** (don't run automatically)
 - **Manual trigger:** Go to Actions → Run workflow → Check "Run E2E tests"
-- **Test details:** Books home → City Hall, 3 days ahead at 10 AM, immediately cancels
+- **Safety:** Tests are **READ-ONLY** - **NO bookings are created**
+- **Test details:** Login, profile retrieval, booking windows, announcements
 - **Credentials:** Uses your DATS account from GitHub Secrets
-- **Frequency:** Run when making API/booking changes or investigating bugs
+- **Frequency:** Run when making API/auth changes or investigating bugs
 
-**Last Updated:** January 25, 2026
+**Last Updated:** January 26, 2026
