@@ -27,6 +27,28 @@ Invoke agents by asking your AI assistant (GitHub Copilot, Claude, etc.) to adop
 
 ---
 
+## Automated Workflow Usage
+
+Agents can be invoked via GitHub Actions workflows:
+
+### Single Agent Review
+```
+Actions → "Run Agent (Manual)" → Select agent → Run workflow
+```
+
+### Multi-Agent Review
+```
+Actions → "Multi-Agent Review" → Enter comma-separated agents → Run workflow
+```
+
+**Example multi-agent combinations:**
+- Full review: `pm,architect,developer,security,accessibility,code-quality,qa,devops,ux-writer,legal`
+- Security review: `security,legal,devops`
+- Feature review: `pm,architect,developer,accessibility,code-quality,qa`
+- UI review: `accessibility,ux-writer,code-quality`
+
+---
+
 ## Overview
 
 This document defines 10 specialized agents for the multi-agent consensus development approach. Each agent has a specific role, expertise domain, and review criteria. Agents are invoked by asking your AI assistant to adopt the persona described below.

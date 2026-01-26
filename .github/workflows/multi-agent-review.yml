@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write  # Required for GitHub Models API
 
 jobs:
   orchestrate:
@@ -27,6 +28,9 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Run agents sequentially
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           IFS=',' read -ra AGENT_LIST <<< "${{ inputs.agents }}"
           
@@ -53,5 +57,3 @@ jobs:
             fi
             echo "" >> $GITHUB_STEP_SUMMARY
           done
-        env:
-          DRY_RUN: ${{ inputs.dry_run }}
