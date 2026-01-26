@@ -1,6 +1,6 @@
 # DATS Portal: Available Features Reference
 
-**Date:** 2026-01-19  
+**Date:** 2026-01-26 (Updated)  
 **Purpose:** Clarify what features ARE and ARE NOT available through the DATS booking portal
 
 ---
@@ -125,7 +125,8 @@ When a user asks for:
 
 **Available tools:**
 - `connect_account` - Login (includes automatic background polling in remote mode)
-- ~~`complete_connection`~~ - **DEPRECATED** (Do not use - causes hangs)
+- `check_connection` - Verify session is ready after authentication (Phase 1 fix for auth race condition)
+- ~~`complete_connection`~~ - **DEPRECATED** (Do not use - returns error immediately)
 - `disconnect_account` - Logout
 - `book_trip` - Schedule new trip
 - `get_trips` - View trips (past/future)
