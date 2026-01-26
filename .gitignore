@@ -34,6 +34,12 @@ coverage/
 # Temporary files
 *.tmp
 *.temp
+*.bak
+*.old
+
+# Word temporary files
+~$*.doc
+~$*.docx
 
 # HAR files (may contain sensitive session data)
 *.har
